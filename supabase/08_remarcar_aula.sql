@@ -61,3 +61,6 @@ begin
 end $$;
 revoke execute on function public.voltar_dias_fixos() from public, anon;
 grant execute on function public.voltar_dias_fixos() to authenticated;
+
+-- Atualização: ao remarcar, se a reposição desta falta já foi usada, consome qualquer outra disponível
+-- (ver migração remarcar_aula_qualquer_credito aplicada no projeto).
