@@ -275,3 +275,14 @@ nav svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.6;st
 .textbtn.voltar{margin-top:var(--s4);color:var(--muted)}
 .textbtn.perigo{color:var(--danger);text-decoration-color:var(--danger);align-self:center;margin-top:var(--s2)}
 .btn.danger{background:var(--danger);color:#FEFCE6}
+.pedido{margin-top:var(--s5);padding:var(--s4);border-radius:20px;background:var(--tile);display:flex;flex-direction:column;gap:var(--s1)}
+.pedido-acoes{display:flex;align-items:center;gap:var(--s5);margin-top:var(--s2)}
+.pedido-aviso{margin-top:var(--s5)}
+.li.mudar{margin-top:var(--s5);border-top:1px solid var(--line)}
+.opt[aria-pressed="true"]{font-weight:600}
+.opt[aria-pressed="true"]::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 1.5px var(--gold);flex:none;order:-1}
+.opt[disabled]{opacity:.45}
+.opt > span:first-child{flex:1}
+.pedidos-banner{display:flex;align-items:center;gap:var(--s3);width:100%;min-height:52px;margin-top:var(--s4);padding:0 var(--s4);border-radius:16px;background:var(--accent);color:#000;font-size:var(--t-body);font-weight:500;text-align:left}
+.pedidos-banner .ind{width:8px;height:8px;border-radius:50%;background:#000;flex:none}
+.pedidos-banner .end{margin-left:auto;font-size:var(--t-body-s)}
