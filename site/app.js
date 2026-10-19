@@ -349,9 +349,10 @@ function viewHoje(){
 }
 
 /* ---------- Agenda ---------- */
+const repoDesfeita = a => isMine(a) && a.reserva_tipo === "reposicao" && ["desmarcada","aula_cancelada"].includes(a.reserva_status);
 function dayInfo(list){
   const n = now();
-  const mine = list.find(isMine);
+  const mine = list.find(a => isMine(a) && !repoDesfeita(a));
   if(mine){
     const st = mine.reserva_status;
     let cls;
