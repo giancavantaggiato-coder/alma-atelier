@@ -221,10 +221,12 @@ sb.auth.onAuthStateChange((ev, session) => {
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && S.aluno) refresh(); });
 
 /* ---------- primeiro acesso ---------- */
-const PA = { passo: 1, nome: "", sobrenome: "", freq: 0, dias: [], horarios: [], fixos: false };
+const PA = { passo: 1, nome: "", sobrenome: "", whats: "", desde: "", freq: 0, dias: [], horarios: [], fixos: false };
 async function primeiroAcesso(){
   const partes = String(S.aluno.nome || "").trim().split(/\s+/).filter(Boolean);
   PA.nome = PA.nome || partes[0] || ""; PA.sobrenome = PA.sobrenome || S.aluno.sobrenome || partes.slice(1).join(" ");
+  PA.whats = PA.whats || S.aluno.whatsapp || "";
+  if(!PA.desde && S.aluno.aluno_desde && S.aluno.aluno_desde !== String(S.aluno.criado_em || "").slice(0,10)) PA.desde = S.aluno.aluno_desde.slice(0,7);
   const { data } = await sb.rpc("horarios_para_escolher");
   PA.horarios = data || [];
   const meus = PA.horarios.filter(h => h.meu).map(h => h.id);
@@ -240,9 +242,12 @@ function renderPA(){
   let panel;
   if(PA.passo === 1){
     panel = `<form id="paForm" novalidate style="display:contents">${passo}
-      <div class="auth-head"><h1>Como você se chama?</h1><p>É assim que o atelier e os colegas vão te ver no app.</p></div>
+      <div class="auth-head"><h1>Sobre você</h1><p>Seu nome aparece para o atelier e os colegas. O telefone fica só com a equipe.</p></div>
       <input class="ain" id="paNome" autocomplete="given-name" autocapitalize="words" placeholder="Primeiro nome" value="${esc(PA.nome)}" aria-label="Primeiro nome">
       <input class="ain" id="paSob" autocomplete="family-name" autocapitalize="words" placeholder="Sobrenome" value="${esc(PA.sobrenome)}" aria-label="Sobrenome">
+      <input class="ain" id="paWhats" type="tel" inputmode="tel" autocomplete="tel" placeholder="Telefone (WhatsApp)" value="${esc(PA.whats)}" aria-label="Telefone (WhatsApp)">
+      <label class="alabel" for="paDesde">Desde quando você faz aula no Alma?</label>
+      <input class="ain" id="paDesde" type="month" max="${dkey(new Date()).slice(0,7)}" value="${esc(PA.desde)}" aria-label="Desde quando você faz aula no Alma">
       <p class="aerr" id="paErr" hidden></p>
       <button class="abtn light" type="submit">${pausado ? "Entrar no app" : "Continuar"}</button>
       <button class="abtn line" type="button" id="paSair">Sair</button></form>`;
@@ -276,15 +281,17 @@ function renderPA(){
   f.onsubmit = async e => {
     e.preventDefault(); err.hidden = true;
     if(PA.passo === 1){
-      PA.nome = $("#paNome").value.trim(); PA.sobrenome = $("#paSob").value.trim();
+      PA.nome = $("#paNome").value.trim(); PA.sobrenome = $("#paSob").value.trim(); PA.whats = $("#paWhats").value.trim(); PA.desde = $("#paDesde").value;
       if(!PA.nome || !PA.sobrenome) return fail("Preencha nome e sobrenome.");
+      if(PA.whats.replace(/\D/g,"").length < 10) return fail("Confira o telefone, com DDD.");
+      if(!/^\d{4}-\d{2}$/.test(PA.desde)) return fail("Conte desde quando você faz aula no Alma (mês e ano).");
       if(!pausado){ PA.passo = 2; return renderPA(); }
     }
     busy(btn, true);
     try{
-      const { error } = await sb.rpc("completar_cadastro", { p_nome: PA.nome, p_sobrenome: PA.sobrenome, p_frequencia: pausado ? (S.aluno.frequencia_semanal || 1) : PA.freq, p_horarios: pausado ? [] : PA.dias });
+      const { error } = await sb.rpc("completar_cadastro", { p_nome: PA.nome, p_sobrenome: PA.sobrenome, p_whatsapp: PA.whats, p_desde: PA.desde + "-01", p_frequencia: pausado ? (S.aluno.frequencia_semanal || 1) : PA.freq, p_horarios: pausado ? [] : PA.dias });
       if(error) throw error;
-      Object.assign(PA, { passo: 1, nome: "", sobrenome: "", freq: 0, dias: [] });
+      Object.assign(PA, { passo: 1, nome: "", sobrenome: "", whats: "", desde: "", freq: 0, dias: [] });
       S.tab = "hoje"; boot();
     }catch(ex){ fail(errMsg(ex)); if(/completo/.test(ex.message || "")) primeiroAcesso(); }
   };
