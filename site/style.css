@@ -118,7 +118,8 @@ main{padding-left:max(var(--s4),env(safe-area-inset-left,0px));padding-right:max
 .chip.warn{background:var(--danger);color:#fff}
 .tile .tv{font-size:36px;line-height:40px;font-weight:500;letter-spacing:-.03em;margin-top:auto}
 .tile:not(.wide) .tv{font-size:30px;line-height:36px;white-space:nowrap}
-.tile:not(.wide) .tv.tv-s{font-size:24px;line-height:28px;letter-spacing:-.02em;display:flex;flex-direction:column}
+.tile:not(.wide){container-type:inline-size}
+.tile:not(.wide) .tv.tv-s{font-size:clamp(14px,15cqi,30px);line-height:1.2;letter-spacing:-.02em;white-space:nowrap;display:flex;gap:.3em}
 .tile .tv small{font-size:var(--t-body);letter-spacing:0;color:var(--muted);font-weight:400}
 .tile .ts{margin:calc(-1 * var(--s4)) 0 0;font-size:var(--t-body-s);color:var(--muted)}
 .tile.next{margin-top:var(--s5);gap:var(--s4)}

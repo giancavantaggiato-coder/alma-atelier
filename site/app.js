@@ -523,7 +523,7 @@ function viewVoce(){
     </button>
     <section class="tile">
       <div class="tl"><h2 class="tt">Seus dias</h2>${turmas[0] && turmas.every(t => t.inicio === turmas[0].inicio && t.fim === turmas[0].fim) ? `<span class="chip">${hm(turmas[0].inicio)}–${hm(turmas[0].fim)}</span>` : ""}</div>
-      <div class="tv${turmas.length > 2 ? " tv-s" : ""}">${turmas.length ? turmas.slice().sort((x,y) => ((x.dia_semana+6)%7) - ((y.dia_semana+6)%7) || String(x.inicio).localeCompare(String(y.inicio))).map(t => cap1(WDS[t.dia_semana])).map((d, i, arr) => arr.length > 2 ? `<span>${d}</span>` : d).join(turmas.length > 2 ? "" : " · ") : "—"}</div>
+      <div class="tv${turmas.length > 2 ? " tv-s" : ""}">${turmas.length ? turmas.slice().sort((x,y) => ((x.dia_semana+6)%7) - ((y.dia_semana+6)%7) || String(x.inicio).localeCompare(String(y.inicio))).map(t => cap1(WDS[t.dia_semana])).map(d => turmas.length > 2 ? `<span>${d}</span>` : d).join(turmas.length > 2 ? "" : " · ") : "—"}</div>
     </section>
   </div>
   <button class="signout" id="sair">Sair da conta</button>
