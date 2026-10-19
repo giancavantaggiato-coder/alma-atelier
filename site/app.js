@@ -410,9 +410,9 @@ function sheetVoltar(){
   const m = mudancas();
   const partes = [m.rep ? `${m.rep === 1 ? "a reposição marcada é desfeita e o crédito volta para você" : `as ${m.rep} reposições marcadas são desfeitas e os créditos voltam para você`}` : "",
     m.fix ? `${m.fix === 1 ? "a aula desmarcada volta para a sua agenda" : `as ${m.fix} aulas desmarcadas voltam para a sua agenda`}` : ""].filter(Boolean);
-  sheet(`<p class="label">Agenda</p><h3 class="h5">Voltar aos seus dias fixos?</h3>
+  sheet(`<p class="label">Agenda</p><h3 class="h5">Reverter para seus dias fixos?</h3>
     <p class="sub">${cap1(partes.join(" e "))}. Vale para as aulas que começam daqui a mais de 4 horas.</p>
-    <div class="btns"><button class="btn pri" id="voltarOk">Voltar aos dias fixos</button><button class="btn ghost" data-close>Agora não</button></div>`);
+    <div class="btns"><button class="btn pri" id="voltarOk">Reverter</button><button class="btn ghost" data-close>Agora não</button></div>`);
   $("#voltarOk").onclick = async ev => {
     const btn = ev.currentTarget; busy(btn, true);
     const { data, error } = await sb.rpc("voltar_dias_fixos");
