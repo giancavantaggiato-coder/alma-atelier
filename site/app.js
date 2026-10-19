@@ -44,7 +44,7 @@ const S = {
   agenda: [], live: [], resumo: null, creditos: [], eventos: [], matriculas: [],
   mes: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   evFiltro: "proximos", justGrew: null,
-  eq: { sec: "dia", dia: startOfDay(new Date()), dados: [], alunos: [], turmas: [], cred: {}, eventos: [] }
+  eq: { sec: "dia", dia: startOfDay(new Date()), mes: new Date(new Date().getFullYear(), new Date().getMonth(), 1), mesDados: [], dados: [], alunos: [], turmas: [], cred: {}, eventos: [] }
 };
 
 /* ---------- interface comum ---------- */
@@ -143,8 +143,9 @@ function renderLogin(step){
       } else {
         const token = otp.value;
         if(token.length < 6) throw new Error("O código tem 6 dígitos.");
+        acabouDeEntrar(true);
         const { error } = await sb.auth.verifyOtp({ email: loginEmail, token, type: "email" });
-        if(error) throw new Error("Código inválido ou vencido. Confira ou peça um novo.");
+        if(error){ acabouDeEntrar(false); throw new Error("Código inválido ou vencido. Confira ou peça um novo."); }
         loginStep = "inicio";
       }
     }catch(ex){ fail(/rate|seconds/i.test(ex.message || "") ? "Aguarde um minuto antes de pedir outro código." : errMsg(ex)); busy(btn, false); if(otp){ otp.value = ""; otp.focus(); } }
@@ -205,7 +206,10 @@ async function boot(){
       $("#sair").onclick = () => sb.auth.signOut();
       return;
     }
-    if(S.aluno && !S.aluno.cadastro_completo_em) return primeiroAcesso();
+    if(precisaCompletar()){
+      if(!acabouDeEntrar()){ await sb.auth.signOut(); return; }
+      return primeiroAcesso();
+    }
     if(!S.aluno) S.tab = "equipe";
     await Promise.all([loadAluno(), loadEventos()]);
     render();
@@ -222,6 +226,11 @@ sb.auth.onAuthStateChange((ev, session) => {
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && S.aluno && !precisaCompletar()) refresh(); });
 
 /* ---------- primeiro acesso ---------- */
+let _entrou = false;
+function acabouDeEntrar(v){
+  if(v !== undefined){ _entrou = v; try{ v ? sessionStorage.setItem("alma-entrou","1") : sessionStorage.removeItem("alma-entrou"); }catch(_){} return v; }
+  if(_entrou) return true; try{ return sessionStorage.getItem("alma-entrou") === "1"; }catch(_){ return false; }
+}
 const precisaCompletar = () => !!(S.aluno && !S.aluno.cadastro_completo_em);
 const PA = { passo: 1, nome: "", sobrenome: "", whats: "", desde: "", freq: 0, dias: [], horarios: [], fixos: false };
 async function primeiroAcesso(){
@@ -293,7 +302,7 @@ function renderPA(){
     try{
       const { error } = await sb.rpc("completar_cadastro", { p_nome: PA.nome, p_sobrenome: PA.sobrenome, p_whatsapp: PA.whats, p_desde: PA.desde + "-01", p_frequencia: pausado ? (S.aluno.frequencia_semanal || 1) : PA.freq, p_horarios: pausado ? [] : PA.dias });
       if(error) throw error;
-      Object.assign(PA, { pronto: false, passo: 1, nome: "", sobrenome: "", whats: "", desde: "", freq: 0, dias: [] });
+      acabouDeEntrar(false); Object.assign(PA, { pronto: false, passo: 1, nome: "", sobrenome: "", whats: "", desde: "", freq: 0, dias: [] });
       S.tab = "hoje"; boot();
     }catch(ex){ fail(errMsg(ex)); if(/completo/.test(ex.message || "")) primeiroAcesso(); }
   };
@@ -481,7 +490,7 @@ function viewVoce(){
   const venc = a.pagamento_proximo_vencimento ? fromKey(a.pagamento_proximo_vencimento) : null;
   const ult = a.pagamento_ultimo ? fromKey(a.pagamento_ultimo) : null;
   return `<header class="profile">
-    <div class="cover ${a.capa_url ? "has" : ""}" ${a.capa_url ? `style="background-image:url('${esc(a.capa_url)}')"` : ""}>
+    <div class="cover ${a.capa_url ? "has" : ""}">${a.capa_url ? `<img class="coverimg" src="${esc(a.capa_url)}" alt="">` : ""}
       <label class="coverbtn" for="capaIn">${CAM}<span>${a.capa_url ? "Trocar capa" : "Adicionar capa"}</span></label>
       <input type="file" id="capaIn" accept="image/*" hidden>
     </div>
@@ -524,7 +533,9 @@ async function uploadFoto(input, qual){
   const f = input.files && input.files[0]; if(!f) return;
   toast("Enviando foto…");
   try{
-    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(f); });
+    let img;
+    try{ img = await createImageBitmap(f, { imageOrientation: "from-image" }); }
+    catch(_){ img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(f); }); }
     const max = qual === "capa" ? 1400 : 480, sc = Math.min(1, max / Math.max(img.width, img.height));
     const c = document.createElement("canvas"); c.width = Math.round(img.width*sc); c.height = Math.round(img.height*sc);
     c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
@@ -544,8 +555,9 @@ async function uploadFoto(input, qual){
 async function eqLoad(){
   const E = S.eq;
   if(E.sec === "dia"){
-    const { data } = await sb.rpc("equipe_dia", { p_dia: dkey(E.dia) });
-    E.dados = data || [];
+    const de = E.mes, ate = new Date(E.mes.getFullYear(), E.mes.getMonth()+1, 0);
+    const { data } = await sb.rpc("equipe_mes", { p_de: dkey(de), p_ate: dkey(ate) });
+    E.mesDados = (data || []).map(a => ({ ...a, ini: new Date(a.inicia_em), fim: new Date(a.termina_em) }));
   } else if(E.sec === "pessoas"){
     const [al, cr, mt, tu] = await Promise.all([
       sb.from("pessoas").select("*").order("nome"), sb.rpc("equipe_creditos"),
@@ -563,24 +575,30 @@ async function eqLoad(){
 }
 function viewEquipe(){
   const E = S.eq;
-  const seg = `<div class="seg" role="group" aria-label="Seção">${[["dia","Chamada"],["pessoas","Pessoas"],["turmas","Horários"],["eventos","Eventos"]].map(([k,l]) =>
+  const seg = `<div class="seg" role="group" aria-label="Seção">${[["dia","Calendário"],["pessoas","Pessoas"],["turmas","Horários"],["eventos","Eventos"]].map(([k,l]) =>
     `<button data-eqsec="${k}" aria-pressed="${E.sec === k}">${l}</button>`).join("")}</div>`;
   let body = "";
   if(E.sec === "dia"){
-    const aulas = {}; E.dados.forEach(r => { (aulas[r.aula_id] ||= { ...r, ini: new Date(r.inicia_em), fim: new Date(r.termina_em), pessoas: [] }); if(r.reserva_id) aulas[r.aula_id].pessoas.push(r); });
-    const lista = Object.values(aulas);
-    body = `<div class="daybar"><button class="iconbtn" data-eqday="-1" aria-label="Dia anterior">${CHEV_L}</button>
-      <div class="title">${cap1(WD[E.dia.getDay()])}, ${dm(E.dia)}</div><button class="iconbtn" data-eqday="1" aria-label="Próximo dia">${CHEV_R}</button></div>
-      <div class="cards">${lista.length ? lista.map(a => {
-        const vem = a.pessoas.filter(p => ["confirmada","presente","falta"].includes(p.status));
-        const fora = a.pessoas.filter(p => !["confirmada","presente","falta"].includes(p.status));
-        const comecou = a.ini <= now();
-        return `<div class="card"><div class="row"><div><p class="title">${hh(a.ini)} às ${hh(a.fim)}</p><p class="sub">${vem.length} de ${a.capacidade} vagas ocupadas</p></div>
-          ${a.cancelada ? `<span class="pill warn">Cancelada</span>` : a.fim > now() ? `<button class="textbtn" data-cancelaula="${a.aula_id}">Cancelar aula</button>` : ""}</div>
-          ${vem.map(p => `<div class="prow"><span class="nm">${esc(p.aluno_nome)}</span>${p.tipo === "reposicao" ? `<span class="meta">reposição</span>` : ""}
-            ${comecou && !a.cancelada ? `<span class="toggle2"><button data-chamada="${p.reserva_id}" data-falta="0" aria-pressed="${p.status !== "falta"}">Veio</button><button data-chamada="${p.reserva_id}" data-falta="1" aria-pressed="${p.status === "falta"}">Faltou</button></span>` : ""}</div>`).join("")}
-          ${fora.length ? `<p class="sub">Não vêm: ${fora.map(p => `${esc(firstName(p.aluno_nome))} (${({desmarcada:"desmarcou",ausencia_tardia:"avisou tarde",aula_cancelada:"cancelada"})[p.status] || p.status})`).join(", ")}</p>` : ""}
-        </div>`; }).join("") : `<p class="empty">Atelier fechado neste dia. Cadastre os horários e gere as aulas na aba Horários.</p>`}</div>`;
+    const y = E.mes.getFullYear(), m = E.mes.getMonth(), off = (new Date(y,m,1).getDay()+6)%7, days = new Date(y,m+1,0).getDate();
+    const byDay = {}; E.mesDados.forEach(a => (byDay[dkey(a.ini)] ||= []).push(a));
+    const today = startOfDay(now());
+    let cells = ""; for(let i=0;i<off;i++) cells += "<div></div>";
+    for(let d=1; d<=days; d++){
+      const dt = new Date(y,m,d), k = dkey(dt), list = byDay[k], isToday = +dt === +today;
+      const cc = `cell${isToday ? " today" : ""}${dt < today ? " past" : ""}`;
+      if(!list){ cells += `<div class="${cc}"><span class="slot"></span><span class="n tnum">${d}</span></div>`; continue; }
+      const abertas = list.filter(a => !a.cancelada), qtd = abertas.reduce((t,a) => t + a.ocupadas, 0);
+      const cls = !abertas.length ? "c off" : abertas.every(a => a.fim <= now()) ? "c done eqc" : "c eqc" + (qtd ? " cheio" : "");
+      cells += `<button class="${cc}" data-eqdia="${k}" aria-label="${d} de ${MES[m]}, ${plural(qtd,"aluno","alunos")}"><span class="slot"><span class="${cls}">${abertas.length ? `<b class="tnum">${qtd}</b>` : ""}</span></span><span class="n tnum">${d}</span></button>`;
+    }
+    body = `<div class="monthbar">
+        <button class="iconbtn" id="eqPrevM" aria-label="Mês anterior">${CHEV_L}</button>
+        <div class="title">${cap1(MES[m])} ${y}</div>
+        <button class="iconbtn" id="eqNextM" aria-label="Próximo mês">${CHEV_R}</button>
+      </div>
+      <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
+      <div class="grid">${cells}</div>
+      <div class="hint"><span>O número em cada dia é quantos alunos vêm.</span><span>Toque no dia para ver quem estará no atelier.</span></div>`;
   } else if(E.sec === "pessoas"){
     const f = E.filtro || "alunos", q = (E.busca || "").toLowerCase();
     const grupos = { alunos: p => ["aluno","pausado"].includes(p.vinculo) && !p.fantasma, interessados: p => p.vinculo === "interessado",
@@ -613,10 +631,27 @@ function viewEquipe(){
       <div class="cards">${S.eventos.map(e => `<button class="card" data-editev="${e.id}" style="text-align:left"><div class="row"><span class="title">${esc(e.titulo)}</span><span class="pill">${e.inscritos}${e.vagas ? "/" + e.vagas : ""} inscritos</span></div>
         <p class="sub">${esc(e.tipo)} · ${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)}, ${hh(e.ini)}${e.publicado ? "" : " · rascunho"}</p></button>`).join("")}</div>`;
   }
-  return `<h1 class="h4">Equipe</h1>${seg}${body}`;
+  return `<h1 class="h4">Equipe</h1>${seg}${body}${S.aluno ? "" : `<button class="signout" id="sair">Sair da conta</button>`}`;
 }
 const VINC = { aluno: "Aluno", pausado: "Matrícula pausada", ex_aluno: "Ex-aluno", interessado: "Interessado", "": "" };
 const INTERESSES = ["Desenho","Pintura","Aquarela","Escultura","Cerâmica","Fotografia","Arte digital","Jovens Artistas"];
+async function sheetDiaEq(k){
+  const d = fromKey(k);
+  sheet(`<p class="label">Atelier</p><h3 class="h5">${cap1(WD[d.getDay()])}, ${dm(d)}</h3><p class="sub">Carregando…</p>`);
+  const { data, error } = await sb.rpc("equipe_dia", { p_dia: k });
+  if(error) return sheet(`<h3 class="h5">${cap1(WD[d.getDay()])}, ${dm(d)}</h3><p class="sub">${esc(errMsg(error))}</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
+  const aulas = {}; (data || []).forEach(r => { (aulas[r.aula_id] ||= { ...r, ini: new Date(r.inicia_em), fim: new Date(r.termina_em), pessoas: [] }); if(r.reserva_id) aulas[r.aula_id].pessoas.push(r); });
+  const lista = Object.values(aulas);
+  const motivo = { desmarcada: "desmarcou", ausencia_tardia: "avisou em cima da hora", aula_cancelada: "aula cancelada", falta: "faltou" };
+  sheet(`<p class="label">Atelier</p><h3 class="h5">${cap1(WD[d.getDay()])}, ${dm(d)}</h3>
+    ${lista.length ? lista.map(a => {
+      const vem = a.pessoas.filter(p => ["confirmada","presente"].includes(p.status));
+      const fora = a.pessoas.filter(p => !["confirmada","presente"].includes(p.status));
+      return `<div class="eqaula"><div class="row"><p class="title">${hh(a.ini)} às ${hh(a.fim)}</p><span class="sub tnum">${a.cancelada ? "cancelada" : `${vem.length} de ${a.capacidade} vagas`}</span></div>
+        ${vem.length ? vem.map(p => `<div class="prow"><span class="nm">${esc(p.aluno_nome)}</span>${p.tipo === "reposicao" ? `<span class="meta">reposição</span>` : ""}</div>`).join("") : `<p class="sub">Ninguém marcado.</p>`}
+        ${fora.length ? `<p class="sub" style="margin-top:var(--s2)">Não vêm: ${fora.map(p => `${esc(firstName(p.aluno_nome))} (${motivo[p.status] || p.status})`).join(", ")}</p>` : ""}</div>`; }).join("") : `<p class="sub">Atelier fechado neste dia.</p>`}
+    <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
+}
 function sheetPessoaEq(id){
   const E = S.eq, p = id === "novo" ? { vinculo: E.filtro === "interessados" ? "interessado" : "aluno", pagamento_status: "em_dia", aulas_anteriores: 0, interesses: [], comprador_loja: E.filtro === "loja", acesso_app: true } : E.alunos.find(x => x.id === id);
   const minhas = E.mat[p.id] || [];
@@ -641,7 +676,7 @@ function sheetPessoaEq(id){
           <label class="field"><span>Forma</span><input id="f_metodo" value="${esc(p.pagamento_metodo)}" placeholder="Pix"></label></div>
         <div class="row2"><label class="field"><span>Último pagamento</span><input id="f_ult" type="date" value="${esc(p.pagamento_ultimo)}"></label>
           <label class="field"><span>Próximo vencimento</span><input id="f_venc" type="date" value="${esc(p.pagamento_proximo_vencimento)}"></label></div>
-        <p class="label" style="margin-top:var(--s2)">Dias fixos no atelier</p>
+        <p class="label" style="margin-top:var(--s2)">Dias fixos no atelier${p.frequencia_semanal ? ` · ${p.frequencia_semanal}x por semana` : ""}</p>
         ${E.turmas.map(t => `<label class="check"><input type="checkbox" data-mat="${t.id}" ${minhas.includes(t.id) ? "checked" : ""}>${esc(horarioNome(t))}</label>`).join("") || `<p class="sub">Cadastre os horários do atelier primeiro (Equipe → Horários).</p>`}
       </div>
 
@@ -785,6 +820,10 @@ function bind(){
   // equipe
   $$("#view [data-eqsec]").forEach(b => b.onclick = () => { S.eq.sec = b.dataset.eqsec; render(); eqLoad(); });
   $$("#view [data-eqday]").forEach(b => b.onclick = () => { S.eq.dia = addDays(S.eq.dia, +b.dataset.eqday); eqLoad(); });
+  $$("#view [data-eqdia]").forEach(b => b.onclick = () => sheetDiaEq(b.dataset.eqdia));
+  const ep = $("#eqPrevM"), en = $("#eqNextM");
+  if(ep) ep.onclick = () => { S.eq.mes = new Date(S.eq.mes.getFullYear(), S.eq.mes.getMonth()-1, 1); eqLoad(); };
+  if(en) en.onclick = () => { S.eq.mes = new Date(S.eq.mes.getFullYear(), S.eq.mes.getMonth()+1, 1); eqLoad(); };
   $$("#view [data-chamada]").forEach(b => b.onclick = async () => {
     const { error } = await sb.rpc("marcar_chamada", { p_reserva: b.dataset.chamada, p_falta: b.dataset.falta === "1" });
     if(error) return toast(errMsg(error)); eqLoad();
