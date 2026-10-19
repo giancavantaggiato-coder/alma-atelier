@@ -675,6 +675,16 @@ async function sheetDiaEq(k){
         ${fora.length ? `<p class="sub" style="margin-top:var(--s2)">Não vêm: ${fora.map(p => `${esc(firstName(p.aluno_nome))} (${motivo[p.status] || p.status})`).join(", ")}</p>` : ""}</div>`; }).join("") : `<p class="sub">Atelier fechado neste dia.</p>`}
     <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
 }
+function sheetExcluirEq(id){
+  const p = S.eq.alunos.find(x => x.id === id); if(!p) return;
+  const nome = p.nome || p.email || p.whatsapp;
+  const aluno = ["aluno","pausado"].includes(p.vinculo);
+  sheet(`<p class="label">Excluir cadastro</p><h3 class="h5">Excluir ${esc(nome)}?</h3>
+    <p class="sub">Apaga o cadastro${p.auth_user_id ? ", o login no app" : ""}${aluno ? ", os dias fixos, as aulas marcadas e as reposições" : ""} e as inscrições em eventos. Não dá para desfazer.</p>
+    ${aluno ? `<p class="sub" style="margin-top:var(--s3)">Se a pessoa só parou de fazer aula, prefira mudar o vínculo para <b>Ex-aluno</b>: o acesso ao app é cortado e o histórico fica guardado.</p>` : ""}
+    <div class="btns"><button class="btn danger" data-excluirok="${p.id}">Excluir definitivamente</button><button class="btn ghost" data-pessoa-voltar="${p.id}">Voltar</button></div>`);
+  const v = $("[data-pessoa-voltar]"); if(v) v.onclick = () => sheetPessoaEq(id);
+}
 function sheetPessoaEq(id){
   const E = S.eq, p = id === "novo" ? { vinculo: E.filtro === "interessados" ? "interessado" : "aluno", pagamento_status: "em_dia", aulas_anteriores: 0, interesses: [], comprador_loja: E.filtro === "loja", acesso_app: true } : E.alunos.find(x => x.id === id);
   const minhas = E.mat[p.id] || [];
@@ -718,6 +728,7 @@ function sheetPessoaEq(id){
       <div class="btns"><button class="btn pri" type="submit">Salvar</button>
         ${id !== "novo" && ehAluno(p.vinculo) ? `<button class="btn ghost" type="button" data-dar="${p.id}">Dar 1 reposição (${E.cred[p.id] || 0}/8)</button>` : ""}
         <button class="btn ghost" type="button" data-close>Cancelar</button></div>
+      ${id !== "novo" ? `<button class="textbtn perigo" type="button" data-excluir="${p.id}">Excluir cadastro</button>` : ""}
     </form>`);
   const vincSel = $("#f_vinc");
   vincSel.onchange = () => { $("#blocoAluno").hidden = !ehAluno(vincSel.value); $("#blocoSaida").hidden = vincSel.value !== "ex_aluno"; };
@@ -892,6 +903,10 @@ $("#sheetBody").addEventListener("click", async e => {
   if(t.dataset.unev){ busy(t, true); const { error } = await sb.rpc("cancelar_inscricao", { p_evento: t.dataset.unev }); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); toast("Inscrição cancelada"); await loadEventos(); return render(); }
   if(t.dataset.editev) return sheetEventoEq(t.dataset.editev);
   if(t.dataset.delev){ busy(t, true); const { error } = await sb.from("eventos").delete().eq("id", t.dataset.delev); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); toast("Evento excluído"); await loadEventos(); return render(); }
+  if(t.dataset.excluir) return sheetExcluirEq(t.dataset.excluir);
+  if(t.dataset.excluirok){ busy(t, true); const { error } = await sb.rpc("excluir_pessoa", { p_pessoa: t.dataset.excluirok }); busy(t, false);
+    if(error) return toast(/excluir_pessoa|function/.test(error.message || "") ? "A exclusão ainda não foi ativada no banco." : errMsg(error));
+    closeSheet(); toast("Cadastro excluído"); return eqLoad(); }
   if(t.dataset.dar){ busy(t, true); const { error } = await sb.rpc("dar_credito", { p_aluno: t.dataset.dar }); busy(t, false); if(error) return toast(errMsg(error)); toast("Reposição adicionada"); closeSheet(); return eqLoad(); }
 });
 

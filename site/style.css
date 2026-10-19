@@ -272,3 +272,5 @@ nav svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.6;st
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 .textbtn.voltar{margin-top:var(--s4);color:var(--muted)}
+.textbtn.perigo{color:var(--danger);text-decoration-color:var(--danger);align-self:center;margin-top:var(--s2)}
+.btn.danger{background:var(--danger);color:#FEFCE6}
