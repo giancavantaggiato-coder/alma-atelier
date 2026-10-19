@@ -14,8 +14,13 @@ const ICO = {
   agenda:'<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
   eventos:'<svg viewBox="0 0 24 24"><path d="M12 3.5l2.4 5 5.4.6-4 3.7 1.1 5.4L12 15.5l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6z"/></svg>',
   voce:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c1.2-4 4-6 7.5-6s6.3 2 7.5 6"/></svg>',
-  equipe:'<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>'
+  equipe:'<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+  pessoas:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.9-3.4 3.2-5.2 6-5.2s5.1 1.8 6 5.2"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.6 14.6c1.6.7 2.8 2.3 3.4 4.9"/></svg>',
+  horarios:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>'
 };
+const NAV_ICO = { "eq:dia": ICO.agenda, "eq:pessoas": ICO.pessoas, "eq:turmas": ICO.horarios, "eq:eventos": ICO.eventos, painel: ICO.voce };
+const adminOnly = () => S.equipe && !S.aluno;
+const isEqTab = () => S.tab === "equipe" || String(S.tab).startsWith("eq:");
 const CAM = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
 const CHEV_L = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M15 5l-7 7 7 7"/></svg>';
 const CHEV_R = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 5l7 7-7 7"/></svg>';
@@ -58,19 +63,24 @@ document.addEventListener("keydown", e => { if(e.key === "Escape") closeSheet();
 function renderNav(){
   const tabs = [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]];
   if(S.equipe) tabs.push(["equipe","Equipe"]);
-  if(!S.aluno) tabs.splice(0, 4, ["eventos","Eventos"]);
-  $("#nav").innerHTML = `<div class="in" role="tablist">${tabs.map(([k,l]) =>
-    `<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}"><span class="pillbg">${ICO[k]}</span>${l}</button>`).join("")}</div>`;
+  const lista = adminOnly() ? [["eq:dia","Calendário"],["eq:pessoas","Pessoas"],["eq:turmas","Horários"],["eq:eventos","Eventos"],["painel","Você"]] : tabs;
+  $("#nav").innerHTML = `<div class="in" role="tablist">${lista.map(([k,l]) =>
+    `<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}"><span class="pillbg">${NAV_ICO[k] || ICO[k]}</span>${l}</button>`).join("")}</div>`;
   $("#nav").hidden = false;
 }
 $("#nav").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if(b) go(b.dataset.tab); });
-function go(t){ S.tab = t; window.scrollTo(0,0); render(); if(t === "equipe") eqLoad(); }
+function go(t){
+  S.tab = t; if(String(t).startsWith("eq:")) S.eq.sec = t.slice(3);
+  window.scrollTo(0,0); render();
+  if(isEqTab()) eqLoad();
+  if(t === "painel") loadPainel();
+}
 
 function render(){
   if(!S.session) return renderLogin();
   if(precisaCompletar()) return PA.pronto ? renderPA() : primeiroAcesso();
   renderNav();
-  const v = { hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, equipe: viewEquipe }[S.tab] || viewHoje;
+  const v = isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, painel: viewPainel }[S.tab] || viewHoje);
   $("#view").innerHTML = v();
   bind();
 }
@@ -212,10 +222,10 @@ async function boot(){
       if(!acabouDeEntrar()){ await sb.auth.signOut(); return; }
       return primeiroAcesso();
     }
-    if(!S.aluno) S.tab = "equipe";
+    if(!S.aluno){ S.tab = "eq:dia"; S.eq.sec = "dia"; }
     await Promise.all([loadAluno(), loadEventos()]);
     render();
-    if(S.tab === "equipe") eqLoad();
+    if(isEqTab()) eqLoad();
   }catch(ex){
     $("#view").innerHTML = `<div class="loading">Não foi possível carregar. Verifique a conexão.</div>`;
   }
@@ -515,6 +525,60 @@ function sheetEvento(id){
     ${S.equipe ? `<button class="btn ghost" data-editev="${id}">Editar evento</button>` : ""}<button class="btn ghost" data-close>Fechar</button></div>`);
 }
 
+/* ---------- Painel da equipe ---------- */
+async function loadPainel(){
+  const [pn, pd, ps] = await Promise.all([sb.rpc("meu_painel_equipe"), sb.rpc("equipe_pedidos"), sb.from("pessoas").select("id,email,nome,vinculo")]);
+  S.painel = pn.data || {}; S.eq.pedidos = pd.data || [];
+  if(!S.eq.alunos || !S.eq.alunos.length) S.eq.alunos = ps.data || [];
+  if(S.tab === "painel") render();
+}
+function viewPainel(){
+  const p = S.painel || {}, nome = p.nome || "Equipe Alma";
+  const desde = p.desde ? new Date(p.desde) : null;
+  const np = p.pedidos ?? (S.eq.pedidos || []).length;
+  return `<header class="profile">
+    <div class="cover ${p.capa_url ? "has" : ""}">${p.capa_url ? `<img class="coverimg" src="${esc(p.capa_url)}" alt="">` : ""}
+      <label class="coverbtn" for="capaIn">${CAM}<span>${p.capa_url ? "Trocar capa" : "Adicionar capa"}</span></label>
+      <input type="file" id="capaIn" accept="image/*" hidden>
+    </div>
+    <label class="avatar" for="avIn" aria-label="Trocar foto de perfil">
+      ${p.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="">` : `<span class="ini">${esc(initials(nome))}</span>`}
+      <span class="avedit">${CAM}</span>
+    </label>
+    <input type="file" id="avIn" accept="image/*" hidden>
+    <h1 class="h4">${esc(nome)}</h1>
+    <p class="sub">${esc(p.cargo || "Equipe")} · Alma Centro de Estudos Visuais</p>
+  </header>
+  <div class="stats">
+    <div class="stat"><b class="tnum">${p.alunos ?? "—"}</b><span>alunos<br>ativos</span></div>
+    <div class="stat"><b class="tnum">${p.usam_app ?? "—"}</b><span>usam<br>o app</span></div>
+    <div class="stat"><b class="tnum">${p.aulas_semana ?? "—"}</b><span>aulas<br>nesta semana</span></div>
+  </div>
+  <div class="list">
+    <button class="li" id="pnPedidos"><span class="ind ${np ? "" : "n"}"></span>Pedidos de mudança<span class="end tnum">${np ? `${np} aguardando` : "nenhum"}</span></button>
+    <button class="li" id="pnEmails"><span class="ind n"></span>Adicionar alunos por e-mail</button>
+    <button class="li" id="pnEvento"><span class="ind n"></span>Criar evento</button>
+    <button class="li" id="pnHorario"><span class="ind n"></span>Novo horário do atelier</button>
+    <button class="li" id="pnPerfil"><span class="ind n"></span>Editar nome e cargo</button>
+    <button class="li" id="pnFantasma"><span class="ind n"></span>Ver o app como aluno</button>
+  </div>
+  <button class="signout" id="sair">Sair da conta</button>
+  <p class="foot">${esc(p.email || "")}${desde ? ` · na equipe desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>`;
+}
+function sheetPerfilEq(){
+  const p = S.painel || {};
+  sheet(`<p class="label">Seu perfil</p><h3 class="h5">Nome e cargo</h3>
+    <form class="form" id="pfForm">
+      <label class="field"><span>Nome</span><input id="pfNome" value="${esc(p.nome)}"></label>
+      <label class="field"><span>Cargo</span><input id="pfCargo" value="${esc(p.cargo)}" placeholder="Diretor"></label>
+      <div class="btns"><button class="btn pri" type="submit">Salvar</button><button class="btn ghost" type="button" data-close>Cancelar</button></div>
+    </form>`);
+  $("#pfForm").onsubmit = async ev => { ev.preventDefault(); const b = $("#pfForm button[type=submit]"); busy(b, true);
+    const { error } = await sb.rpc("atualizar_equipe", { p_nome: $("#pfNome").value, p_cargo: $("#pfCargo").value });
+    if(error){ busy(b, false); return toast(errMsg(error)); }
+    closeSheet(); toast("Perfil salvo"); loadPainel(); };
+}
+
 /* ---------- Você ---------- */
 function viewVoce(){
   const a = S.aluno, r = S.resumo || {}, sem = r.semanas_ritmo || 0, cr = S.creditos, prox = cr[0];
@@ -622,9 +686,15 @@ async function uploadFoto(input, qual){
     const { error } = await sb.storage.from("perfis").upload(path, blob, { contentType: "image/jpeg", upsert: true });
     if(error) throw error;
     const url = sb.storage.from("perfis").getPublicUrl(path).data.publicUrl;
-    const { error: e2 } = await sb.rpc("atualizar_fotos", qual === "capa" ? { p_avatar: null, p_capa: url } : { p_avatar: url, p_capa: null });
-    if(e2) throw e2;
-    S.aluno[qual === "capa" ? "capa_url" : "avatar_url"] = url;
+    if(S.tab === "painel"){
+      const { error: e2 } = await sb.rpc("atualizar_equipe", qual === "capa" ? { p_capa: url } : { p_avatar: url });
+      if(e2) throw e2;
+      S.painel = { ...(S.painel || {}), [qual === "capa" ? "capa_url" : "avatar_url"]: url };
+    } else {
+      const { error: e2 } = await sb.rpc("atualizar_fotos", qual === "capa" ? { p_avatar: null, p_capa: url } : { p_avatar: url, p_capa: null });
+      if(e2) throw e2;
+      S.aluno[qual === "capa" ? "capa_url" : "avatar_url"] = url;
+    }
     render(); toast(qual === "capa" ? "Capa atualizada" : "Foto atualizada");
   }catch(ex){ toast("Não foi possível enviar a foto."); }
 }
@@ -632,7 +702,7 @@ async function uploadFoto(input, qual){
 /* ---------- Equipe ---------- */
 async function eqLoad(){
   const E = S.eq;
-  sb.rpc("equipe_pedidos").then(({ data }) => { const n = (data || []).length, mudou = n !== (E.pedidos || []).length; E.pedidos = data || []; if(mudou && S.tab === "equipe") render(); });
+  sb.rpc("equipe_pedidos").then(({ data }) => { const n = (data || []).length, mudou = n !== (E.pedidos || []).length; E.pedidos = data || []; if(mudou && isEqTab()) render(); });
   if(E.sec === "dia"){
     const de = E.mes, ate = new Date(E.mes.getFullYear(), E.mes.getMonth()+1, 0);
     const { data } = await sb.rpc("equipe_mes", { p_de: dkey(de), p_ate: dkey(ate) });
@@ -650,7 +720,7 @@ async function eqLoad(){
   } else if(E.sec === "eventos"){
     await loadEventos();
   }
-  if(S.tab === "equipe") render();
+  if(isEqTab()) render();
 }
 function viewEquipe(){
   const E = S.eq;
@@ -712,7 +782,11 @@ function viewEquipe(){
   }
   const np = (E.pedidos || []).length;
   const banner = np ? `<button class="pedidos-banner" id="verPedidos"><span class="ind"></span><span>${np === 1 ? "1 pedido de mudança de dias" : `${np} pedidos de mudança de dias`}</span><span class="end">Ver</span></button>` : "";
-  return `<h1 class="h4">Equipe</h1>${banner}${seg}${body}${S.aluno ? "" : `<button class="signout" id="sair">Sair da conta</button>`}`;
+  if(adminOnly()){
+    const tit = { dia: "Calendário", pessoas: "Pessoas", turmas: "Horários", eventos: "Eventos" }[E.sec] || "Equipe";
+    return `<h1 class="h4">${tit}</h1>${banner}${body}`;
+  }
+  return `<h1 class="h4">Equipe</h1>${banner}${seg}${body}`;
 }
 const VINC = { aluno: "Aluno", pausado: "Matrícula pausada", ex_aluno: "Ex-aluno", interessado: "Interessado", "": "" };
 const INTERESSES = ["Desenho","Pintura","Aquarela","Escultura","Cerâmica","Fotografia","Arte digital","Jovens Artistas"];
@@ -934,6 +1008,13 @@ function bind(){
   const pm = $("#pedMudar"); if(pm) pm.onclick = sheetMudanca;
   const pc = $("#pedCancelar"); if(pc) pc.onclick = async () => { busy(pc, true); const { error } = await sb.rpc("cancelar_pedido_mudanca"); if(error){ busy(pc, false); return toast(errMsg(error)); } await loadAluno(); render(); toast("Pedido cancelado"); };
   const vp = $("#verPedidos"); if(vp) vp.onclick = sheetPedidosEq;
+  const on = (id, fn) => { const el = $(id); if(el) el.onclick = fn; };
+  on("#pnPedidos", () => (S.eq.pedidos || []).length ? sheetPedidosEq() : toast("Nenhum pedido aguardando"));
+  on("#pnEmails", sheetEmailsEq);
+  on("#pnEvento", () => sheetEventoEq("novo"));
+  on("#pnHorario", () => sheetTurmaEq("novo"));
+  on("#pnPerfil", sheetPerfilEq);
+  on("#pnFantasma", () => sheet(`<p class="label">Ver como aluno</p><h3 class="h5">Seu login fantasma</h3><p class="sub">Abra o app numa aba anônima (ou em outro navegador) e entre com <b>gianc.avantaggiato@gmail.com</b>. Você vê e usa tudo como um aluno, sem aparecer para ninguém e sem ocupar vaga.</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`));
   // equipe
   $$("#view [data-eqsec]").forEach(b => b.onclick = () => { S.eq.sec = b.dataset.eqsec; render(); eqLoad(); });
   $$("#view [data-eqday]").forEach(b => b.onclick = () => { S.eq.dia = addDays(S.eq.dia, +b.dataset.eqday); eqLoad(); });
@@ -991,11 +1072,11 @@ $("#sheetBody").addEventListener("click", async e => {
   if(t.dataset.excluir) return sheetExcluirEq(t.dataset.excluir);
   if(t.dataset.aprovar){ busy(t, true); const { error } = await sb.rpc("aprovar_mudanca", { p_pedido: t.dataset.aprovar }); busy(t, false);
     if(error) return toast(errMsg(error));
-    S.eq.pedidos = (S.eq.pedidos || []).filter(x => x.id !== t.dataset.aprovar); toast("Mudança aprovada. A agenda do aluno já foi ajustada."); sheetPedidosEq(); return eqLoad(); }
+    S.eq.pedidos = (S.eq.pedidos || []).filter(x => x.id !== t.dataset.aprovar); toast("Mudança aprovada. A agenda do aluno já foi ajustada."); sheetPedidosEq(); return S.tab === "painel" ? loadPainel() : eqLoad(); }
   if(t.dataset.recusar) return sheetRecusarEq(t.dataset.recusar);
   if(t.dataset.recusarok){ busy(t, true); const msg = ($("#rMsg") || {}).value || null; const { error } = await sb.rpc("recusar_mudanca", { p_pedido: t.dataset.recusarok, p_resposta: msg }); busy(t, false);
     if(error) return toast(errMsg(error));
-    S.eq.pedidos = (S.eq.pedidos || []).filter(x => x.id !== t.dataset.recusarok); toast("Pedido recusado"); sheetPedidosEq(); return eqLoad(); }
+    S.eq.pedidos = (S.eq.pedidos || []).filter(x => x.id !== t.dataset.recusarok); toast("Pedido recusado"); sheetPedidosEq(); return S.tab === "painel" ? loadPainel() : eqLoad(); }
   if(t.dataset.excluirok){ busy(t, true); const { error } = await sb.rpc("excluir_pessoa", { p_pessoa: t.dataset.excluirok }); busy(t, false);
     if(error) return toast(/excluir_pessoa|function/.test(error.message || "") ? "A exclusão ainda não foi ativada no banco." : errMsg(error));
     closeSheet(); toast("Cadastro excluído"); return eqLoad(); }
