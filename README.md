@@ -53,3 +53,7 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 2. **Horários**: conferir dias, horários e vagas.
 3. **Pessoas → Adicionar alunos por e-mail**: colar os e-mails dos alunos.
 4. Avisar os alunos para instalarem o app e entrarem com esse e-mail.
+
+## Login fantasma
+- `gianc.avantaggiato@gmail.com` entra como aluno fantasma: vê e usa todas as telas de aluno, mas não aparece em "alunos em aula", na chamada, nas vagas, nos inscritos de eventos nem na lista de Alunos (só em Pessoas → Todos, marcado como "Fantasma").
+- Mensalidade aparece como "Em construção" para os alunos por enquanto.

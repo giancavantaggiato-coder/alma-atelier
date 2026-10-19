@@ -308,7 +308,6 @@ function viewHoje(){
   const estado = cur ? "" : hoje.length ? `Sua aula hoje é às ${hh(hoje[0].ini)}.` : "Hoje você não tem aula.";
   const nx = nextClass(), ac = nCred(), live = S.live.length;
   const ev = S.eventos.find(e => e.ini > n && e.publicado);
-  const pag = S.aluno.pagamento_status;
   return `
   <header class="hello">
     <p class="label">${cap1(WD[n.getDay()])}, ${dm(n)}</p>
@@ -326,7 +325,7 @@ function viewHoje(){
   </section>` : `<section class="tile wide next"><div class="tl"><h2 class="tt">Próxima aula</h2></div><p class="sub">Nenhuma aula marcada. Veja os dias com vaga na agenda.</p></section>`}
   <div class="list">
     <button class="li" data-go="agenda"><span class="ind"></span><span class="tnum">${ac === 1 ? "1 reposição disponível" : `${ac} reposições disponíveis`}</span></button>
-    <button class="li" data-go="voce"><span class="ind ${pag === "em_dia" ? "n" : "warn"}"></span>Mensalidade ${pag === "em_dia" ? "em dia" : pag === "pendente" ? "pendente" : "em atraso"}</button>
+    <div class="li"><span class="ind n"></span>Mensalidade<span class="end">Em construção</span></div>
     ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
   </div>`;
 }
@@ -496,9 +495,9 @@ function viewVoce(){
   </div>
   <div class="tiles">
     <section class="tile wide">
-      <div class="tl"><h2 class="tt">Mensalidade</h2>${a.pagamento_metodo ? `<span class="chip">${esc(a.pagamento_metodo)}</span>` : ""}</div>
-      <div class="tv">${PAG[a.pagamento_status] || "—"}</div>
-      <p class="ts">${[ult ? `Último pagamento em ${dm(ult)}` : "", venc ? `próximo vence em ${dm(venc)}` : ""].filter(Boolean).join(" · ") || "Informações de pagamento com a equipe"}</p>
+      <div class="tl"><h2 class="tt">Mensalidade</h2><span class="chip">Em breve</span></div>
+      <div class="tv">Em construção</div>
+      <p class="ts">Em breve você acompanha seus pagamentos por aqui.</p>
     </section>
     <button class="tile" data-go="agenda">
       <div class="tl"><h2 class="tt">Reposições</h2>${prox ? `<span class="chip tnum">até ${dm(fromKey(prox.expira_em))}/${String(fromKey(prox.expira_em).getFullYear()).slice(2)}</span>` : ""}</div>
@@ -575,7 +574,7 @@ function viewEquipe(){
         </div>`; }).join("") : `<p class="empty">Atelier fechado neste dia. Cadastre os horários e gere as aulas na aba Horários.</p>`}</div>`;
   } else if(E.sec === "pessoas"){
     const f = E.filtro || "alunos", q = (E.busca || "").toLowerCase();
-    const grupos = { alunos: p => ["aluno","pausado"].includes(p.vinculo), interessados: p => p.vinculo === "interessado",
+    const grupos = { alunos: p => ["aluno","pausado"].includes(p.vinculo) && !p.fantasma, interessados: p => p.vinculo === "interessado",
       ex: p => p.vinculo === "ex_aluno", loja: p => p.comprador_loja, todos: () => true };
     const lista = E.alunos.filter(grupos[f]).filter(p => !q || [p.nome, p.email, p.whatsapp].some(x => String(x || "").toLowerCase().includes(q)));
     const n = k => E.alunos.filter(grupos[k]).length;
@@ -586,7 +585,7 @@ function viewEquipe(){
       ${f === "alunos" ? `<button class="textbtn" id="addEmails">Adicionar alunos por e-mail</button>` : ""}
       <div class="cards">${lista.length ? lista.map(p => {
         const aluno = ["aluno","pausado"].includes(p.vinculo);
-        const tags = [VINC[p.vinculo || ""], p.comprador_loja ? "Loja" : ""].filter(Boolean);
+        const tags = [p.fantasma ? "Fantasma" : VINC[p.vinculo || ""], p.comprador_loja ? "Loja" : ""].filter(Boolean);
         const det = aluno
           ? [(E.mat[p.id] || []).map(id => { const t = E.turmas.find(x => x.id === id); return t ? cap1(WDS[t.dia_semana]) : ""; }).join(" · ") || "Sem dia fixo", `${E.cred[p.id] || 0} reposições`, !p.acesso_app ? "acesso bloqueado" : !p.auth_user_id ? "ainda não entrou no app" : p.cadastro_completo_em ? "usa o app" : "entrou, falta completar o cadastro"]
           : [p.origem ? `via ${p.origem}` : "", p.interesses && p.interesses.length ? p.interesses.join(", ") : "", p.vinculo === "ex_aluno" && p.saida_em ? `saiu em ${dm(fromKey(p.saida_em))}/${String(fromKey(p.saida_em).getFullYear()).slice(2)}` : ""];
