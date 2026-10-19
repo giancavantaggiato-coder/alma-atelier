@@ -32,9 +32,12 @@ Uma tabela só (`pessoas`) para todo mundo que se relaciona com o Alma. Cada pes
    `Seu código para entrar no Alma: {{ .Token }}` — é esse código de 6 dígitos que o app pede.
 4. **Authentication → URL Configuration → Site URL**: o endereço onde o app ficar (ex.: `https://app.almaestudosvisuais.com.br`).
 
-## Liberar o acesso ao app
-- Só entra no app quem a equipe liberou: na ficha da pessoa (Equipe → Pessoas), vínculo **Aluno** e **Liberar acesso ao app** ligado.
-- E-mail não liberado nem recebe o código. Desligar a opção corta o acesso na hora.
+## Acesso ao app
+- Quem está cadastrado como **Aluno** com e-mail entra direto: o app manda o código para esse e-mail.
+- Para cadastrar vários de uma vez: Equipe → Pessoas → **Adicionar alunos por e-mail**.
+- No primeiro acesso o aluno completa primeiro nome, sobrenome, quantas vezes por semana vem e escolhe os dias (só aparecem horários com vaga). Se a equipe já marcou os dias dele, eles aparecem prontos.
+- Para bloquear alguém: desligue **Acesso ao app** na ficha da pessoa. E-mail fora da base nem recebe o código.
+- As aulas das próximas 10 semanas são criadas sozinhas (toda segunda às 9h, horário UTC).
 - Trava extra no servidor (uma vez): **Authentication → Auth Hooks → Before User Created → Postgres → função `hook_antes_de_criar_usuario`** → Create/Enable.
 
 ## Publicar
@@ -47,6 +50,6 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 
 ## Primeiros passos da equipe
 1. Entrar com o e-mail da equipe → aba **Equipe**.
-2. **Horários**: conferir dias, horários e vagas; depois **Gerar** as aulas das próximas semanas.
-3. **Alunos**: cadastrar cada aluno com o e-mail que ele vai usar e marcar os dias fixos.
+2. **Horários**: conferir dias, horários e vagas.
+3. **Pessoas → Adicionar alunos por e-mail**: colar os e-mails dos alunos.
 4. Avisar os alunos para instalarem o app e entrarem com esse e-mail.

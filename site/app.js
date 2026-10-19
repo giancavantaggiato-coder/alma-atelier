@@ -118,7 +118,7 @@ function startReenvio(){ reenvio = 60; clearInterval(reenvioT); reenvioT = setIn
 async function enviarCodigo(){
   const { data: ok, error: e1 } = await sb.rpc("pode_entrar", { p_email: loginEmail });
   if(e1) throw new Error("Não foi possível verificar o e-mail. Tente de novo.");
-  if(!ok) throw new Error("Este e-mail ainda não foi liberado no app. Fale com o atelier para liberar o seu acesso.");
+  if(!ok) throw new Error("Este e-mail não está cadastrado no atelier. Use o e-mail que você passou para a equipe ou fale com a gente.");
   const { error } = await sb.auth.signInWithOtp({ email: loginEmail, options: { shouldCreateUser: true } }); if(error) throw error; startReenvio(); }
 function renderLogin(step){
   if(step) loginStep = step;
@@ -204,6 +204,7 @@ async function boot(){
       $("#sair").onclick = () => sb.auth.signOut();
       return;
     }
+    if(S.aluno && !S.aluno.cadastro_completo_em) return primeiroAcesso();
     if(!S.aluno) S.tab = "equipe";
     await Promise.all([loadAluno(), loadEventos()]);
     render();
@@ -218,6 +219,76 @@ sb.auth.onAuthStateChange((ev, session) => {
   if(ev === "TOKEN_REFRESHED") S.session = session;
 });
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && S.aluno) refresh(); });
+
+/* ---------- primeiro acesso ---------- */
+const PA = { passo: 1, nome: "", sobrenome: "", freq: 0, dias: [], horarios: [], fixos: false };
+async function primeiroAcesso(){
+  const partes = String(S.aluno.nome || "").trim().split(/\s+/).filter(Boolean);
+  PA.nome = PA.nome || partes[0] || ""; PA.sobrenome = PA.sobrenome || S.aluno.sobrenome || partes.slice(1).join(" ");
+  const { data } = await sb.rpc("horarios_para_escolher");
+  PA.horarios = data || [];
+  const meus = PA.horarios.filter(h => h.meu).map(h => h.id);
+  PA.fixos = meus.length > 0;
+  if(PA.fixos){ PA.dias = meus; PA.freq = meus.length; }
+  else if(!PA.freq && S.aluno.frequencia_semanal) PA.freq = S.aluno.frequencia_semanal;
+  renderPA();
+}
+function renderPA(){
+  $("#nav").hidden = true;
+  const pausado = S.aluno.vinculo !== "aluno", total = pausado ? 1 : 2;
+  const passo = `<p class="apasso">${PA.passo} de ${total}</p>`;
+  let panel;
+  if(PA.passo === 1){
+    panel = `<form id="paForm" novalidate style="display:contents">${passo}
+      <div class="auth-head"><h1>Como você se chama?</h1><p>É assim que o atelier e os colegas vão te ver no app.</p></div>
+      <input class="ain" id="paNome" autocomplete="given-name" autocapitalize="words" placeholder="Primeiro nome" value="${esc(PA.nome)}" aria-label="Primeiro nome">
+      <input class="ain" id="paSob" autocomplete="family-name" autocapitalize="words" placeholder="Sobrenome" value="${esc(PA.sobrenome)}" aria-label="Sobrenome">
+      <p class="aerr" id="paErr" hidden></p>
+      <button class="abtn light" type="submit">${pausado ? "Entrar no app" : "Continuar"}</button>
+      <button class="abtn line" type="button" id="paSair">Sair</button></form>`;
+  } else {
+    const max = Math.min(3, Math.max(1, PA.horarios.length));
+    const opcoes = PA.fixos ? [PA.freq] : Array.from({ length: max }, (_, i) => i + 1);
+    const dias = PA.freq ? PA.horarios.filter(h => !PA.fixos || h.meu).map(h => {
+      const lotado = !PA.fixos && h.ocupados >= h.capacidade, on = PA.dias.includes(h.id);
+      const cheio = !on && PA.dias.length >= PA.freq;
+      return `<button type="button" class="aopt${on ? " on" : ""}" data-dia="${h.id}" aria-pressed="${on}" ${PA.fixos || lotado || cheio ? "disabled" : ""}>
+        <span>${cap1(WD[h.dia_semana])}</span><small>${hm(h.inicio)} às ${hm(h.fim)}${lotado ? " · completo" : ""}</small></button>`; }).join("") : "";
+    const falta = PA.freq - PA.dias.length;
+    panel = `<form id="paForm" novalidate style="display:contents">${passo}
+      <div class="auth-head"><h1>Quantas vezes por semana você vem ao atelier?</h1></div>
+      <div class="afreq">${opcoes.map(n => `<button type="button" class="aopt${PA.freq === n ? " on" : ""}" data-freq="${n}" aria-pressed="${PA.freq === n}" ${PA.fixos ? "disabled" : ""}><span>${n}x</span><small>por semana</small></button>`).join("")}</div>
+      ${PA.freq ? `<div class="auth-head" style="margin-top:var(--s3)"><h1>${PA.freq === 1 ? "Qual dia?" : "Quais dias?"}</h1>
+        <p>${PA.fixos ? "Seus dias já foram definidos pelo atelier." : falta > 0 ? `Escolha ${plural(falta, "dia", "dias")}${PA.dias.length ? " a mais" : ""}.` : "Esses serão seus dias fixos no atelier."}</p></div>
+        <div class="adias">${dias || `<p class="sub">O atelier ainda não cadastrou os horários.</p>`}</div>` : ""}
+      <p class="aerr" id="paErr" hidden></p>
+      <button class="abtn light" type="submit" ${PA.freq && PA.dias.length === PA.freq ? "" : "disabled"}>Entrar no app</button>
+      <button class="abtn line" type="button" id="paVoltar">Voltar</button></form>`;
+  }
+  $("#view").innerHTML = `<div class="auth"><div class="auth-hero">${LOGO_ALMA}</div><div class="auth-panel">${panel}</div></div>`;
+  const f = $("#paForm"), err = $("#paErr"), btn = f.querySelector("button[type=submit]");
+  const fail = m => { err.textContent = m; err.hidden = false; busy(btn, false); };
+  $$("[data-freq]").forEach(b => b.onclick = () => { PA.freq = +b.dataset.freq; PA.dias = PA.dias.slice(0, PA.freq); renderPA(); });
+  $$("[data-dia]").forEach(b => b.onclick = () => { const id = b.dataset.dia; PA.dias = PA.dias.includes(id) ? PA.dias.filter(x => x !== id) : [...PA.dias, id]; renderPA(); });
+  if($("#paSair")) $("#paSair").onclick = () => sb.auth.signOut();
+  if($("#paVoltar")) $("#paVoltar").onclick = () => { PA.passo = 1; renderPA(); };
+  if(PA.passo === 1) setTimeout(() => (PA.nome ? $("#paSob") : $("#paNome")).focus(), 60);
+  f.onsubmit = async e => {
+    e.preventDefault(); err.hidden = true;
+    if(PA.passo === 1){
+      PA.nome = $("#paNome").value.trim(); PA.sobrenome = $("#paSob").value.trim();
+      if(!PA.nome || !PA.sobrenome) return fail("Preencha nome e sobrenome.");
+      if(!pausado){ PA.passo = 2; return renderPA(); }
+    }
+    busy(btn, true);
+    try{
+      const { error } = await sb.rpc("completar_cadastro", { p_nome: PA.nome, p_sobrenome: PA.sobrenome, p_frequencia: pausado ? (S.aluno.frequencia_semanal || 1) : PA.freq, p_horarios: pausado ? [] : PA.dias });
+      if(error) throw error;
+      Object.assign(PA, { passo: 1, nome: "", sobrenome: "", freq: 0, dias: [] });
+      S.tab = "hoje"; boot();
+    }catch(ex){ fail(errMsg(ex)); if(/completo/.test(ex.message || "")) primeiroAcesso(); }
+  };
+}
 
 /* ---------- regras de leitura ---------- */
 const now = () => new Date();
@@ -512,14 +583,15 @@ function viewEquipe(){
         `<button data-pfiltro="${k}" aria-pressed="${f === k}">${l} <span class="tnum">${n(k)}</span></button>`).join("")}</div>
       <div class="daybar"><label class="field" style="flex:1;margin-right:var(--s3)"><input id="pBusca" type="search" placeholder="Buscar nome, e-mail ou WhatsApp" value="${esc(E.busca || "")}"></label>
         <button class="addbtn" data-pessoa="novo">Nova pessoa</button></div>
+      ${f === "alunos" ? `<button class="textbtn" id="addEmails">Adicionar alunos por e-mail</button>` : ""}
       <div class="cards">${lista.length ? lista.map(p => {
         const aluno = ["aluno","pausado"].includes(p.vinculo);
         const tags = [VINC[p.vinculo || ""], p.comprador_loja ? "Loja" : ""].filter(Boolean);
         const det = aluno
-          ? [(E.mat[p.id] || []).map(id => { const t = E.turmas.find(x => x.id === id); return t ? cap1(WDS[t.dia_semana]) : ""; }).join(" · ") || "Sem dia fixo", `${E.cred[p.id] || 0} reposições`, !p.acesso_app ? "app não liberado" : p.auth_user_id ? "usa o app" : "app liberado, ainda não entrou"]
+          ? [(E.mat[p.id] || []).map(id => { const t = E.turmas.find(x => x.id === id); return t ? cap1(WDS[t.dia_semana]) : ""; }).join(" · ") || "Sem dia fixo", `${E.cred[p.id] || 0} reposições`, !p.acesso_app ? "acesso bloqueado" : !p.auth_user_id ? "ainda não entrou no app" : p.cadastro_completo_em ? "usa o app" : "entrou, falta completar o cadastro"]
           : [p.origem ? `via ${p.origem}` : "", p.interesses && p.interesses.length ? p.interesses.join(", ") : "", p.vinculo === "ex_aluno" && p.saida_em ? `saiu em ${dm(fromKey(p.saida_em))}/${String(fromKey(p.saida_em).getFullYear()).slice(2)}` : ""];
         return `<button class="card" data-pessoa="${p.id}" style="text-align:left">
-          <div class="row"><span class="title">${esc(p.nome)}</span>${aluno ? `<span class="pill ${p.pagamento_status === "em_dia" ? "ok" : "warn"}">${PAG[p.pagamento_status]}</span>` : ""}</div>
+          <div class="row"><span class="title">${esc(p.nome || p.email || p.whatsapp)}</span>${aluno ? `<span class="pill ${p.pagamento_status === "em_dia" ? "ok" : "warn"}">${PAG[p.pagamento_status]}</span>` : ""}</div>
           <p class="sub">${esc([tags.join(" · "), ...det].filter(Boolean).join(" · "))}</p></button>`; }).join("") : `<p class="empty">Ninguém nesta lista${q ? " com essa busca" : ""}.</p>`}</div>`;
   } else if(E.sec === "turmas"){
     const ate = dkey(addDays(new Date(), 56));
@@ -538,12 +610,12 @@ function viewEquipe(){
 const VINC = { aluno: "Aluno", pausado: "Matrícula pausada", ex_aluno: "Ex-aluno", interessado: "Interessado", "": "" };
 const INTERESSES = ["Desenho","Pintura","Aquarela","Escultura","Cerâmica","Fotografia","Arte digital","Jovens Artistas"];
 function sheetPessoaEq(id){
-  const E = S.eq, p = id === "novo" ? { vinculo: E.filtro === "interessados" ? "interessado" : "aluno", pagamento_status: "em_dia", aulas_anteriores: 0, interesses: [], comprador_loja: E.filtro === "loja" } : E.alunos.find(x => x.id === id);
+  const E = S.eq, p = id === "novo" ? { vinculo: E.filtro === "interessados" ? "interessado" : "aluno", pagamento_status: "em_dia", aulas_anteriores: 0, interesses: [], comprador_loja: E.filtro === "loja", acesso_app: true } : E.alunos.find(x => x.id === id);
   const minhas = E.mat[p.id] || [];
   const ehAluno = v => ["aluno","pausado"].includes(v);
   sheet(`<p class="label">${id === "novo" ? "Nova pessoa" : VINC[p.vinculo || ""] || "Contato"}</p><h3 class="h5">${esc(p.nome || "Cadastro")}</h3>
     <form class="form" id="pessoaForm">
-      <label class="field"><span>Nome completo</span><input id="f_nome" value="${esc(p.nome)}" required></label>
+      <label class="field"><span>Nome completo</span><input id="f_nome" value="${esc(p.nome)}" placeholder="${ehAluno(p.vinculo) ? "O aluno pode completar no primeiro acesso" : ""}"></label>
       <label class="field"><span>E-mail${ehAluno(p.vinculo) ? " (usado para entrar no app)" : ""}</span><input id="f_email" type="email" value="${esc(p.email)}"></label>
       <label class="field"><span>WhatsApp</span><input id="f_whats" inputmode="tel" value="${esc(p.whatsapp)}" placeholder="+55 11 9…"></label>
       <label class="field"><span>Vínculo com o atelier</span><select id="f_vinc">
@@ -552,8 +624,8 @@ function sheetPessoaEq(id){
       <label class="check"><input type="checkbox" id="f_loja" ${p.comprador_loja ? "checked" : ""}>Compra na loja (Alma Materiais Artísticos)</label>
 
       <div id="blocoAluno" ${ehAluno(p.vinculo) ? "" : "hidden"} class="form" style="margin-top:0">
-        <label class="check"><input type="checkbox" id="f_app" ${p.acesso_app ? "checked" : ""}>Liberar acesso ao app</label>
-        <p class="sub" style="margin-top:calc(-1 * var(--s2))">${p.acesso_app ? (p.auth_user_id ? "Já entrou no app." : "Liberado: a pessoa pode entrar com o e-mail acima.") : "Desligado: a pessoa não consegue entrar, nem receber o código."}</p>
+        <label class="check"><input type="checkbox" id="f_app" ${p.acesso_app ? "checked" : ""}>Acesso ao app</label>
+        <p class="sub" style="margin-top:calc(-1 * var(--s2))">${p.acesso_app ? (p.auth_user_id ? (p.cadastro_completo_em ? "Já usa o app." : "Já entrou; falta completar nome e dias.") : "Entra direto com o e-mail acima. No primeiro acesso completa nome, frequência e dias.") : "Bloqueado: a pessoa não consegue entrar, nem receber o código."}</p>
         <div class="row2"><label class="field"><span>Aluno desde</span><input id="f_desde" type="date" value="${esc(p.aluno_desde)}"></label>
           <label class="field"><span>Aulas antes do app</span><input id="f_ant" type="number" min="0" value="${esc(p.aulas_anteriores)}"></label></div>
         <p class="label" style="margin-top:var(--s2)">Mensalidade</p>
@@ -595,9 +667,9 @@ function sheetPessoaEq(id){
       pagamento_metodo: v("#f_metodo"), pagamento_ultimo: v("#f_ult"), pagamento_proximo_vencimento: v("#f_venc") });
     if(vinc === "ex_aluno") row.motivo_saida = v("#f_motivo");
     try{
-      if(!row.nome) throw new Error("Preencha o nome.");
+      if(!row.nome && !(aluno && row.email)) throw new Error("Preencha o nome.");
       if(!row.email && !row.whatsapp) throw new Error("Informe e-mail ou WhatsApp.");
-      if(row.acesso_app && !row.email) throw new Error("Para liberar o app, preencha o e-mail que a pessoa vai usar para entrar.");
+      if(row.acesso_app && !row.email) throw new Error("Para o aluno entrar no app, preencha o e-mail que ele vai usar.");
       let pid = p.id;
       if(id === "novo"){ const { data, error } = await sb.from("pessoas").insert(row).select("id").single(); if(error) throw error; pid = data.id; }
       else { const { error } = await sb.from("pessoas").update(row).eq("id", p.id); if(error) throw error; }
@@ -610,6 +682,28 @@ function sheetPessoaEq(id){
       }
       closeSheet(); toast(id === "novo" ? "Cadastro criado" : "Cadastro salvo"); eqLoad();
     }catch(ex){ const e = $("#fErr"); e.textContent = /duplicate|unique/i.test(ex.message || "") ? "Já existe um cadastro com esse e-mail." : errMsg(ex); e.hidden = false; busy(btn, false); }
+  };
+}
+function sheetEmailsEq(){
+  sheet(`<p class="label">Alunos</p><h3 class="h5">Adicionar por e-mail</h3>
+    <form class="form" id="emailsForm">
+      <p class="sub">Cole um e-mail por linha (ou separados por vírgula). Cada pessoa entra direto no app com esse e-mail e, no primeiro acesso, completa nome, frequência e dias do atelier.</p>
+      <label class="field"><span>E-mails</span><textarea id="f_emails" style="height:160px" placeholder="maria@email.com&#10;joao@email.com"></textarea></label>
+      <p class="err" id="eErr" hidden></p>
+      <div class="btns"><button class="btn pri" type="submit">Adicionar</button><button class="btn ghost" type="button" data-close>Cancelar</button></div>
+    </form>`);
+  $("#emailsForm").onsubmit = async ev => {
+    ev.preventDefault(); const btn = $("#emailsForm button[type=submit]"), err = $("#eErr"); err.hidden = true;
+    const lista = [...new Set($("#f_emails").value.toLowerCase().split(/[\s,;]+/).map(x => x.trim()).filter(Boolean))];
+    const ruins = lista.filter(x => !/^\S+@\S+\.\S+$/.test(x));
+    if(!lista.length || ruins.length){ err.textContent = ruins.length ? `Confira: ${ruins.join(", ")}` : "Cole pelo menos um e-mail."; err.hidden = false; return; }
+    const ja = new Set(S.eq.alunos.map(p => (p.email || "").toLowerCase()));
+    const novos = lista.filter(x => !ja.has(x));
+    busy(btn, true);
+    try{
+      if(novos.length){ const { error } = await sb.from("pessoas").insert(novos.map(email => ({ email, vinculo: "aluno", acesso_app: true }))); if(error) throw error; }
+      closeSheet(); toast(novos.length ? `${plural(novos.length, "aluno adicionado", "alunos adicionados")}${lista.length > novos.length ? ` · ${lista.length - novos.length} já estava${lista.length - novos.length > 1 ? "m" : ""} cadastrado${lista.length - novos.length > 1 ? "s" : ""}` : ""}` : "Esses e-mails já estavam cadastrados"); eqLoad();
+    }catch(ex){ err.textContent = errMsg(ex); err.hidden = false; busy(btn, false); }
   };
 }
 function sheetTurmaEq(id){
@@ -697,6 +791,7 @@ function bind(){
       closeSheet(); toast(`Aula cancelada · ${plural(data,"aluno avisado","alunos com reposição")}`); eqLoad();
     }));
   $$("#view [data-pessoa]").forEach(b => b.onclick = () => sheetPessoaEq(b.dataset.pessoa));
+  const ae = $("#addEmails"); if(ae) ae.onclick = sheetEmailsEq;
   $$("#view [data-pfiltro]").forEach(b => b.onclick = () => { S.eq.filtro = b.dataset.pfiltro; render(); });
   const pb = $("#pBusca"); if(pb) pb.oninput = () => { S.eq.busca = pb.value; const pos = pb.selectionStart; render(); const nb = $("#pBusca"); nb.focus(); nb.setSelectionRange(pos, pos); };
   $$("#view [data-turma]").forEach(b => b.onclick = () => sheetTurmaEq(b.dataset.turma));
