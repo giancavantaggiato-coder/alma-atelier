@@ -397,7 +397,7 @@ function viewAgenda(){
     <div class="dots" aria-hidden="true">${Array.from({length:MAX_CRED},(_,i)=>`<span class="${i<ac?"on":""}"></span>`).join("")}</div>
   </div>
   <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar.</span></div>
-  ${mudancas().total ? `<button class="textbtn voltar" id="voltarFixos">Voltar aos meus dias fixos</button>` : ""}`;
+  ${mudancas().total ? `<button class="textbtn voltar" id="voltarFixos">Reverter para meus dias fixos</button>` : ""}`;
 }
 function mudancas(){
   const lim = new Date(+now() + 4*36e5);
