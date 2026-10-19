@@ -68,6 +68,7 @@ function go(t){ S.tab = t; window.scrollTo(0,0); render(); if(t === "equipe") eq
 
 function render(){
   if(!S.session) return renderLogin();
+  if(precisaCompletar()) return PA.pronto ? renderPA() : primeiroAcesso();
   renderNav();
   const v = { hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, equipe: viewEquipe }[S.tab] || viewHoje;
   $("#view").innerHTML = v();
@@ -218,9 +219,10 @@ sb.auth.onAuthStateChange((ev, session) => {
   if(ev === "SIGNED_OUT"){ Object.assign(S, { session:null, aluno:null, equipe:false, tab:"hoje" }); renderLogin("inicio"); }
   if(ev === "TOKEN_REFRESHED") S.session = session;
 });
-document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && S.aluno) refresh(); });
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && S.aluno && !precisaCompletar()) refresh(); });
 
 /* ---------- primeiro acesso ---------- */
+const precisaCompletar = () => !!(S.aluno && !S.aluno.cadastro_completo_em);
 const PA = { passo: 1, nome: "", sobrenome: "", whats: "", desde: "", freq: 0, dias: [], horarios: [], fixos: false };
 async function primeiroAcesso(){
   const partes = String(S.aluno.nome || "").trim().split(/\s+/).filter(Boolean);
@@ -228,7 +230,7 @@ async function primeiroAcesso(){
   PA.whats = PA.whats || S.aluno.whatsapp || "";
   if(!PA.desde && S.aluno.aluno_desde && S.aluno.aluno_desde !== String(S.aluno.criado_em || "").slice(0,10)) PA.desde = S.aluno.aluno_desde.slice(0,7);
   const { data } = await sb.rpc("horarios_para_escolher");
-  PA.horarios = data || [];
+  PA.horarios = data || []; PA.pronto = true;
   const meus = PA.horarios.filter(h => h.meu).map(h => h.id);
   PA.fixos = meus.length > 0;
   if(PA.fixos){ PA.dias = meus; PA.freq = meus.length; }
@@ -291,7 +293,7 @@ function renderPA(){
     try{
       const { error } = await sb.rpc("completar_cadastro", { p_nome: PA.nome, p_sobrenome: PA.sobrenome, p_whatsapp: PA.whats, p_desde: PA.desde + "-01", p_frequencia: pausado ? (S.aluno.frequencia_semanal || 1) : PA.freq, p_horarios: pausado ? [] : PA.dias });
       if(error) throw error;
-      Object.assign(PA, { passo: 1, nome: "", sobrenome: "", whats: "", desde: "", freq: 0, dias: [] });
+      Object.assign(PA, { pronto: false, passo: 1, nome: "", sobrenome: "", whats: "", desde: "", freq: 0, dias: [] });
       S.tab = "hoje"; boot();
     }catch(ex){ fail(errMsg(ex)); if(/completo/.test(ex.message || "")) primeiroAcesso(); }
   };
