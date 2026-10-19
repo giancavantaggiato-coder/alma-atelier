@@ -235,7 +235,18 @@ sb.auth.onAuthStateChange((ev, session) => {
   if(ev === "SIGNED_OUT"){ Object.assign(S, { session:null, aluno:null, equipe:false, tab:"hoje" }); renderLogin("inicio"); }
   if(ev === "TOKEN_REFRESHED") S.session = session;
 });
-document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && S.aluno && !precisaCompletar()) refresh(); });
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao(); if(S.aluno && !precisaCompletar()) refresh(); } });
+/* Atualiza o app sozinho quando sai uma versão nova (sem precisar sair e entrar) */
+let VERSAO = null;
+async function checarVersao(){
+  try{
+    const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" }); if(!r.ok) return;
+    const { v } = await r.json(); if(!v) return;
+    if(VERSAO === null){ VERSAO = v; return; }
+    if(v !== VERSAO && !document.querySelector("#sheet.show") && !document.querySelector("#paForm")) location.reload();
+  }catch(_){}
+}
+checarVersao(); setInterval(checarVersao, 5 * 60 * 1000);
 
 /* ---------- primeiro acesso ---------- */
 let _entrou = false;
