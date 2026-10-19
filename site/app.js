@@ -396,7 +396,30 @@ function viewAgenda(){
     <span class="tnum"><b>${ac} de ${MAX_CRED}</b> <span style="color:var(--muted)">reposições disponíveis</span></span>
     <div class="dots" aria-hidden="true">${Array.from({length:MAX_CRED},(_,i)=>`<span class="${i<ac?"on":""}"></span>`).join("")}</div>
   </div>
-  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar.</span></div>`;
+  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar.</span></div>
+  ${mudancas().total ? `<button class="textbtn voltar" id="voltarFixos">Voltar aos meus dias fixos</button>` : ""}`;
+}
+function mudancas(){
+  const lim = new Date(+now() + 4*36e5);
+  const fut = S.agenda.filter(a => isMine(a) && !a.cancelada && a.ini > lim);
+  const rep = fut.filter(a => a.reserva_tipo === "reposicao" && a.reserva_status === "confirmada").length;
+  const fix = fut.filter(a => a.reserva_tipo === "fixa" && a.reserva_status === "desmarcada").length;
+  return { rep, fix, total: rep + fix };
+}
+function sheetVoltar(){
+  const m = mudancas();
+  const partes = [m.rep ? `${m.rep === 1 ? "a reposição marcada é desfeita e o crédito volta para você" : `as ${m.rep} reposições marcadas são desfeitas e os créditos voltam para você`}` : "",
+    m.fix ? `${m.fix === 1 ? "a aula desmarcada volta para a sua agenda" : `as ${m.fix} aulas desmarcadas voltam para a sua agenda`}` : ""].filter(Boolean);
+  sheet(`<p class="label">Agenda</p><h3 class="h5">Voltar aos seus dias fixos?</h3>
+    <p class="sub">${cap1(partes.join(" e "))}. Vale para as aulas que começam daqui a mais de 4 horas.</p>
+    <div class="btns"><button class="btn pri" id="voltarOk">Voltar aos dias fixos</button><button class="btn ghost" data-close>Agora não</button></div>`);
+  $("#voltarOk").onclick = async ev => {
+    const btn = ev.currentTarget; busy(btn, true);
+    const { data, error } = await sb.rpc("voltar_dias_fixos");
+    if(error){ busy(btn, false); return toast(errMsg(error)); }
+    closeSheet(); await loadAluno(); render();
+    toast(data && data.puladas ? `Agenda de volta ao normal, menos ${plural(data.puladas, "aula", "aulas")} sem vaga` : "Agenda de volta aos seus dias fixos");
+  };
 }
 function sheetDia(k){
   const list = S.agenda.filter(a => dkey(a.ini) === k);
@@ -809,6 +832,7 @@ function bind(){
   $$("#view [data-ev]").forEach(b => b.onclick = () => sheetEvento(b.dataset.ev));
   $$("#view [data-evf]").forEach(b => b.onclick = () => { S.evFiltro = b.dataset.evf; render(); });
   $$("#view [data-day]").forEach(b => b.onclick = () => sheetDia(b.dataset.day));
+  const vf = $("#voltarFixos"); if(vf) vf.onclick = sheetVoltar;
   const lb = $("#liveBtn"); if(lb) lb.onclick = sheetPessoas;
   const db = $("#desmBtn"); if(db) db.onclick = () => { const a = S.agenda.find(x => x.aula_id === db.dataset.aula); a && sheetDesmarcar(a); };
   const p = $("#prevM"), n = $("#nextM");
