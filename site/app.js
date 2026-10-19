@@ -396,7 +396,7 @@ function viewAgenda(){
     <span class="tnum"><b>${ac} de ${MAX_CRED}</b> <span style="color:var(--muted)">reposições disponíveis</span></span>
     <div class="dots" aria-hidden="true">${Array.from({length:MAX_CRED},(_,i)=>`<span class="${i<ac?"on":""}"></span>`).join("")}</div>
   </div>
-  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar.</span></div>
+  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>
   ${mudancas().total ? `<button class="textbtn voltar" id="voltarFixos">Reverter para meus dias fixos</button>` : ""}`;
 }
 function mudancas(){
@@ -418,12 +418,12 @@ function sheetVoltar(){
     const { data, error } = await sb.rpc("voltar_dias_fixos");
     if(error){ busy(btn, false); return toast(errMsg(error)); }
     closeSheet(); await loadAluno(); render();
-    toast(data && data.puladas ? `Agenda de volta ao normal, menos ${plural(data.puladas, "aula", "aulas")} sem vaga` : "Agenda de volta aos seus dias fixos");
+    toast(data && data.puladas ? `Agenda revertida. ${plural(data.puladas, "aula não pôde voltar", "aulas não puderam voltar")} (sem vaga ou reposição já usada)` : "Agenda de volta aos seus dias fixos");
   };
 }
 function sheetDia(k){
   const list = S.agenda.filter(a => dkey(a.ini) === k);
-  const mine = list.find(isMine);
+  const mine = list.find(a => isMine(a) && !(a.reserva_tipo === "reposicao" && a.reserva_status === "desmarcada"));
   if(mine) return sheetAula(mine);
   if(list.length === 1) return sheetAula(list[0]);
   const d = fromKey(k);
@@ -435,8 +435,15 @@ function sheetAula(a){
   const nome = `${cap1(WD[a.ini.getDay()])}, ${dm(a.ini)}`, hr = `${hh(a.ini)} às ${hh(a.fim)}`, n = now();
   const close = `<div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`;
   if(a.cancelada) return sheet(`<p class="label">Aula cancelada</p><h3 class="h5">${nome}</h3><p class="sub">${hr}. Esta aula foi cancelada pelo atelier.${isMine(a) ? " Sua reposição já está disponível." : ""}</p>${close}`);
-  if(isMine(a)){
+  const repoDesfeita = isMine(a) && a.reserva_tipo === "reposicao" && a.reserva_status === "desmarcada" && a.ini > n;
+  if(isMine(a) && !repoDesfeita){
     if(a.reserva_status === "confirmada" && a.ini > n) return sheetDesmarcar(a);
+    if(a.reserva_tipo === "fixa" && ["desmarcada","ausencia_tardia"].includes(a.reserva_status) && a.ini > n){
+      const lotado = vagas(a) <= 0;
+      return sheet(`<p class="label">Seu dia fixo</p><h3 class="h5">Remarcar ${WD[a.ini.getDay()]}, ${dm(a.ini)}?</h3>
+        <p class="sub">${hr}. Você desmarcou esta aula.${lotado ? " O horário está lotado agora." : a.reserva_status === "desmarcada" ? " Ao remarcar, a reposição gerada por esta falta deixa de valer." : ""}</p>
+        <div class="btns"><button class="btn pri" data-remarcar="${a.reserva_id}" ${lotado ? "disabled" : ""}>Remarcar aula</button><button class="btn ghost" data-close>Agora não</button></div>`);
+    }
     const txt = { confirmada: a.fim <= n ? "Presença registrada." : "Você está em aula agora.", presente: "Presença registrada.", falta: "Falta registrada.",
       desmarcada: "Desmarcada com aviso.", ausencia_tardia: "Avisada com menos de 4h. Não gerou reposição.", aula_cancelada: "Aula cancelada pelo atelier." }[a.reserva_status] || "";
     return sheet(`<p class="label">${a.reserva_tipo === "reposicao" ? "Reposição" : "Sua aula"}</p><h3 class="h5">${nome}</h3><p class="sub">${hr}. ${txt}</p>${close}`);
@@ -898,6 +905,9 @@ $("#sheetBody").addEventListener("click", async e => {
   if(t.hasAttribute("data-close")) return closeSheet();
   if(t.dataset.aula && t.classList.contains("opt")){ const a = S.agenda.find(x => x.aula_id === t.dataset.aula); return a && sheetAula(a); }
   if(t.dataset.book) return doBook(t.dataset.book, t);
+  if(t.dataset.remarcar){ busy(t, true); const { error } = await sb.rpc("remarcar_aula", { p_reserva: t.dataset.remarcar });
+    if(error){ busy(t, false); return toast(errMsg(error)); }
+    closeSheet(); await loadAluno(); render(); return toast("Aula remarcada"); }
   if(t.dataset.cancel) return doCancel(t.dataset.cancel, t);
   if(t.dataset.inev){ busy(t, true); const { error } = await sb.rpc("inscrever_evento", { p_evento: t.dataset.inev }); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); toast("Inscrição feita"); await loadEventos(); return render(); }
   if(t.dataset.unev){ busy(t, true); const { error } = await sb.rpc("cancelar_inscricao", { p_evento: t.dataset.unev }); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); toast("Inscrição cancelada"); await loadEventos(); return render(); }
