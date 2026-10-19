@@ -441,7 +441,7 @@ function sheetAula(a){
     if(a.reserva_tipo === "fixa" && ["desmarcada","ausencia_tardia"].includes(a.reserva_status) && a.ini > n){
       const lotado = vagas(a) <= 0;
       return sheet(`<p class="label">Seu dia fixo</p><h3 class="h5">Remarcar ${WD[a.ini.getDay()]}, ${dm(a.ini)}?</h3>
-        <p class="sub">${hr}. Você desmarcou esta aula.${lotado ? " O horário está lotado agora." : a.reserva_status === "desmarcada" ? " Ao remarcar, 1 reposição volta a ser usada: a desta falta ou, se ela já foi usada, outra que você tenha." : ""}</p>
+        <p class="sub">${hr}. Você desmarcou esta aula.${lotado ? " O horário está lotado agora." : a.reserva_status === "desmarcada" ? " Ao remarcar, 1 das suas reposições é usada." : ""}</p>
         <div class="btns"><button class="btn pri" data-remarcar="${a.reserva_id}" ${lotado ? "disabled" : ""}>Remarcar aula</button><button class="btn ghost" data-close>Agora não</button></div>`);
     }
     const txt = { confirmada: a.fim <= n ? "Presença registrada." : "Você está em aula agora.", presente: "Presença registrada.", falta: "Falta registrada.",
@@ -450,7 +450,7 @@ function sheetAula(a){
   }
   if(a.ini <= n) return sheet(`<h3 class="h5">${nome}</h3><p class="sub">${hr}. Esta aula já aconteceu.</p>${close}`);
   const v = vagas(a), ac = nCred(), pode = v > 0 && ac > 0 && S.aluno.vinculo === "aluno";
-  const motivo = v <= 0 ? "Atelier lotado neste horário." : ac === 0 ? "Você não tem reposições disponíveis." : S.aluno.vinculo !== "aluno" ? "Sua matrícula está pausada." : `Usa a reposição da falta de ${dm(fromKey(S.creditos[0].data_falta))}.`;
+  const motivo = v <= 0 ? "Atelier lotado neste horário." : ac === 0 ? "Você não tem reposições disponíveis." : S.aluno.vinculo !== "aluno" ? "Sua matrícula está pausada." : `Usa 1 das suas ${plural(ac, "reposição", "reposições")}.`;
   sheet(`<p class="label">Atelier aberto</p><h3 class="h5">Repor ${WD[a.ini.getDay()]}, ${dm(a.ini)}?</h3><p class="sub">${hr}. ${motivo}</p>
     <div class="facts"><div><b class="tnum">${v}</b><span>vagas livres</span></div><div><b class="tnum">${a.ocupadas}</b><span>confirmados</span></div><div><b class="tnum">${ac}</b><span>suas reposições</span></div></div>
     <div class="btns"><button class="btn pri" data-book="${a.aula_id}" ${pode ? "" : "disabled"}>Marcar reposição</button><button class="btn ghost" data-close>Agora não</button></div>`);
@@ -461,7 +461,7 @@ function sheetDesmarcar(a){
   const msg = !ok ? "Faltam menos de 4h. A ausência fica registrada, mas não gera reposição."
     : a.reserva_tipo === "reposicao" ? "O crédito usado nesta reposição volta para você."
     : ac >= MAX_CRED ? `Você já tem ${MAX_CRED} reposições, o limite. A ausência fica registrada sem novo crédito.`
-    : `Você ganha 1 reposição, válida até ${dm(fim)}/${fim.getFullYear()}.`;
+    : "Você ganha 1 reposição para usar quando quiser.";
   sheet(`<p class="label">${a.reserva_tipo === "reposicao" ? "Reposição" : "Sua aula"}</p><h3 class="h5">Desmarcar ${WD[a.ini.getDay()]}, ${dm(a.ini)}?</h3>
     <p class="sub">${hh(a.ini)} às ${hh(a.fim)}. ${msg}</p>
     <div class="btns"><button class="btn pri" data-cancel="${a.reserva_id}">Desmarcar aula</button><button class="btn ghost" data-close>Manter</button></div>`);
@@ -548,7 +548,7 @@ function viewVoce(){
       <p class="ts">Em breve você acompanha seus pagamentos por aqui.</p>
     </section>
     <button class="tile" data-go="agenda">
-      <div class="tl"><h2 class="tt">Reposições</h2>${prox ? `<span class="chip tnum">até ${dm(fromKey(prox.expira_em))}/${String(fromKey(prox.expira_em).getFullYear()).slice(2)}</span>` : ""}</div>
+      <div class="tl"><h2 class="tt">Reposições</h2></div>
       <div class="tv tnum">${cr.length}<small> de ${MAX_CRED}</small></div>
     </button>
     <section class="tile">
