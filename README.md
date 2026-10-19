@@ -41,8 +41,9 @@ Uma tabela só (`pessoas`) para todo mundo que se relaciona com o Alma. Cada pes
 - Trava extra no servidor (uma vez): **Authentication → Auth Hooks → Before User Created → Postgres → função `hook_antes_de_criar_usuario`** → Create/Enable.
 
 ## Publicar
-O Netlify publica sozinho a cada alteração enviada a este repositório (pasta `site`, configurada em `netlify.toml`).
-Domínio próprio: em Domain management, adicione `app.almaestudosvisuais.com.br` e crie o registro CNAME indicado no seu provedor de domínio.
+O app fica em https://app.almaestudosvisuais.com.br, publicado pelo GitHub Pages (workflow em `.github/workflows/pages.yml`) a cada alteração na branch main.
+DNS na GoDaddy: CNAME `app` → `giancavantaggiato-coder.github.io`. A loja usa CNAME `loja` → `shops.myshopify.com`.
+O app confere `version.json` ao voltar para a tela e recarrega sozinho quando sai versão nova.
 
 ## Instalar no iPhone
 Abrir o endereço no Safari → Compartilhar → Adicionar à Tela de Início.
