@@ -173,8 +173,8 @@ async function loadMe(){
     sb.rpc("sou_equipe")
   ]);
   S.pessoa = aluno || null;
-  S.aluno = aluno && ["aluno","pausado"].includes(aluno.vinculo) && aluno.acesso_app ? aluno : null;
-  S.visitante = !S.aluno && aluno && aluno.vinculo === "ex_aluno" && aluno.acesso_app ? aluno : null;
+  S.aluno = aluno && aluno.vinculo === "aluno" && aluno.acesso_app ? aluno : null;
+  S.visitante = !S.aluno && aluno && ["ex_aluno","pausado"].includes(aluno.vinculo) && aluno.acesso_app ? aluno : null;
   document.body.classList.toggle("limitado", !!S.visitante);
   S.equipe = !!eq;
 }
@@ -382,14 +382,15 @@ function viewHoje(){
   </div>`;
 }
 
-/* ---------- Ex-aluno (acesso reduzido) ---------- */
+/* ---------- Aluno suspenso / ex-aluno (acesso reduzido) ---------- */
+const rotuloV = () => S.visitante && S.visitante.vinculo === "pausado" ? "Aluno suspenso" : "Ex-aluno";
 async function loadVisitante(){
   const de = addDays(new Date(), -60), ate = addDays(new Date(), 120);
   const [ag, ag2] = await Promise.all([sb.rpc("agenda_contagem", { p_de: dkey(de), p_ate: dkey(ate) }), sb.rpc("agora_contagem"), loadEventos()]);
   S.agendaV = (ag.data || []).map(a => ({ ...a, ini: new Date(a.inicia_em), fim: new Date(a.termina_em) }));
   S.agoraV = ag2.data || 0;
 }
-const AVISO_V = "Função ativa somente para alunos";
+const AVISO_V = "Função ativa somente para alunos ativos";
 function viewHojeV(){
   const n = now(), v = S.visitante, live = S.agoraV || 0;
   const ev = S.eventos.find(e => e.ini > n && e.publicado);
@@ -400,11 +401,11 @@ function viewHojeV(){
     <p class="sub" style="font-size:var(--t-body)">${hoje.length ? `O atelier abre hoje às ${hh(hoje[0].ini)}.` : "Hoje o atelier não abre."}</p>
   </header>
   <div class="live" aria-disabled="true"><span class="dot"></span><span>${live ? `${plural(live,"aluno","alunos")} no atelier agora` : "Ninguém no atelier agora"}</span></div>
-  <section class="tile wide next v-aviso"><div class="tl"><h2 class="tt">Acesso de ex-aluna</h2><span class="chip">Reduzido</span></div>
-    <p class="sub">Você acompanha a agenda do atelier e os eventos. Marcar aulas, reposições e inscrições ficam disponíveis quando você voltar às aulas.</p></section>
+  <section class="tile wide next v-aviso"><div class="tl"><h2 class="tt">${rotuloV()}</h2><span class="chip">Acesso reduzido</span></div>
+    <p class="sub">${S.visitante.vinculo === "pausado" ? "Sua matrícula está suspensa. Você acompanha a agenda do atelier e os eventos; marcar aulas, reposições e inscrições voltam quando a matrícula for reativada." : "Você acompanha a agenda do atelier e os eventos. Marcar aulas, reposições e inscrições ficam disponíveis quando você voltar às aulas."}</p></section>
   <div class="list">
-    <div class="li off"><span class="ind n"></span>Reposições<span class="end">${AVISO_V}</span></div>
-    <div class="li off"><span class="ind n"></span>Mensalidade<span class="end">${AVISO_V}</span></div>
+    <div class="li off"><span class="ind n"></span>Reposições<span class="end">Só para alunos ativos</span></div>
+    <div class="li off"><span class="ind n"></span>Mensalidade<span class="end">Só para alunos ativos</span></div>
     ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
   </div>`;
 }
@@ -437,7 +438,7 @@ function sheetDiaV(k){
   const d = fromKey(k), list = (S.agendaV || []).filter(a => dkey(a.ini) === k);
   sheet(`<p class="label">${AVISO_V}</p><h3 class="h5">${cap1(WD[d.getDay()])}, ${dm(d)}</h3>
     ${list.map(a => `<div class="eqaula"><div class="row"><p class="title">${hh(a.ini)} às ${hh(a.fim)}</p><span class="sub tnum">${a.cancelada ? "cancelada" : `${plural(a.ocupadas,"aluno","alunos")} · ${plural(Math.max(0, a.capacidade - a.ocupadas),"vaga","vagas")}`}</span></div></div>`).join("")}
-    <p class="sub" style="margin-top:var(--s4)">Marcar aula e reposição fica disponível quando você voltar às aulas. Para voltar, fale com o atelier.</p>
+    <p class="sub" style="margin-top:var(--s4)">${S.visitante && S.visitante.vinculo === "pausado" ? "Marcar aula e reposição volta quando a sua matrícula for reativada. Fale com o atelier." : "Marcar aula e reposição fica disponível quando você voltar às aulas. Para voltar, fale com o atelier."}</p>
     <div class="btns"><button class="btn pri" disabled>Marcar aula</button><button class="btn ghost" data-close>Fechar</button></div>`);
 }
 function viewVoceV(){
@@ -446,10 +447,10 @@ function viewVoceV(){
     <div class="cover"></div>
     <div class="avatar" aria-hidden="true"><span class="ini">${esc(initials(v.nome))}</span></div>
     <h1 class="h4">${esc(v.nome || "")}</h1>
-    <p class="sub"><span class="tag-ex">Ex-aluna</span>${desde ? ` · aluna desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>
+    <p class="sub"><span class="tag-ex">${rotuloV()}</span>${desde ? ` · aluna desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>
   </header>
-  <section class="tile wide v-aviso" style="margin-top:var(--s6)"><div class="tl"><h2 class="tt">Acesso reduzido</h2><span class="chip">Ex-aluna</span></div>
-    <p class="sub">Você vê a agenda do atelier (quantos alunos vêm em cada dia) e os eventos. Para marcar aulas, ter reposições e se inscrever em eventos, é só voltar às aulas.</p></section>
+  <section class="tile wide v-aviso" style="margin-top:var(--s6)"><div class="tl"><h2 class="tt">Acesso reduzido</h2><span class="chip">${rotuloV()}</span></div>
+    <p class="sub">Você vê a agenda do atelier (quantos alunos vêm em cada dia) e os eventos. ${S.visitante.vinculo === "pausado" ? "Marcar aulas, ter reposições e se inscrever em eventos voltam quando a sua matrícula for reativada." : "Para marcar aulas, ter reposições e se inscrever em eventos, é só voltar às aulas."}</p></section>
   <div class="tiles off">
     <section class="tile"><div class="tl"><h2 class="tt">Reposições</h2></div><div class="tv">—</div><p class="ts">${AVISO_V}</p></section>
     <section class="tile"><div class="tl"><h2 class="tt">Seus dias</h2></div><div class="tv">—</div><p class="ts">${AVISO_V}</p></section>
@@ -628,7 +629,7 @@ function sheetEvento(id){
     <p class="sub">${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)} · ${hh(e.ini)} às ${hh(e.fim)}${e.local ? ` · ${esc(e.local)}` : ""}</p>
     ${e.descricao ? `<p class="desc">${esc(e.descricao)}</p>` : ""}
     <div class="facts"><div><b class="tnum">${vag == null ? "—" : vag}</b><span>vagas livres</span></div><div><b class="tnum">${e.inscritos}</b><span>inscritos</span></div><div><b style="font-size:16px;line-height:28px">${esc(p1 || "—")}</b><span>${esc(p2 || "")}</span></div></div>
-    <div class="btns">${S.visitante ? `<button class="btn pri" disabled>Inscrição só para alunos</button><p class="sub" style="text-align:center">Função ativa somente para alunos do atelier.</p>` : !S.aluno ? "" : e.inscrito ? `<button class="btn ghost" data-unev="${id}">Cancelar inscrição</button>` : `<button class="btn pri" data-inev="${id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>Inscrever-se</button>`}
+    <div class="btns">${S.visitante ? `<button class="btn pri" disabled>Inscrição só para alunos ativos</button><p class="sub" style="text-align:center">Função ativa somente para alunos ativos.</p>` : !S.aluno ? "" : e.inscrito ? `<button class="btn ghost" data-unev="${id}">Cancelar inscrição</button>` : `<button class="btn pri" data-inev="${id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>Inscrever-se</button>`}
     ${S.equipe ? `<button class="btn ghost" data-editev="${id}">Editar evento</button>` : ""}<button class="btn ghost" data-close>Fechar</button></div>`);
 }
 
@@ -896,7 +897,7 @@ function viewEquipe(){
   }
   return `<h1 class="h4">Equipe</h1>${banner}${seg}${body}`;
 }
-const VINC = { aluno: "Aluno", pausado: "Matrícula pausada", ex_aluno: "Ex-aluno", interessado: "Interessado", "": "" };
+const VINC = { aluno: "Aluno", pausado: "Aluno suspenso", ex_aluno: "Ex-aluno", interessado: "Interessado", "": "" };
 const INTERESSES = ["Desenho","Pintura","Aquarela","Escultura","Cerâmica","Fotografia","Arte digital","Jovens Artistas"];
 async function sheetDiaEq(k){
   const d = fromKey(k);
@@ -956,12 +957,13 @@ function sheetPessoaEq(id){
       <label class="field"><span>E-mail${ehAluno(p.vinculo) ? " (usado para entrar no app)" : ""}</span><input id="f_email" type="email" value="${esc(p.email)}"></label>
       <label class="field"><span>WhatsApp</span><input id="f_whats" inputmode="tel" value="${esc(p.whatsapp)}" placeholder="+55 11 9…"></label>
       <label class="field"><span>Vínculo com o atelier</span><select id="f_vinc">
-        ${[["aluno","Aluno"],["pausado","Matrícula pausada"],["interessado","Interessado"],["ex_aluno","Ex-aluno"],["","Sem vínculo (só loja ou contato)"]].map(([k,l]) => `<option value="${k}" ${(p.vinculo || "") === k ? "selected" : ""}>${l}</option>`).join("")}
+        ${[["aluno","Aluno"],["pausado","Aluno suspenso (acesso reduzido)"],["interessado","Interessado"],["ex_aluno","Ex-aluno"],["","Sem vínculo (só loja ou contato)"]].map(([k,l]) => `<option value="${k}" ${(p.vinculo || "") === k ? "selected" : ""}>${l}</option>`).join("")}
       </select></label>
       <label class="check"><input type="checkbox" id="f_loja" ${p.comprador_loja ? "checked" : ""}>Compra na loja (Alma Materiais Artísticos)</label>
 
       <div id="blocoAluno" ${ehAluno(p.vinculo) ? "" : "hidden"} class="form" style="margin-top:0">
         <label class="check"><input type="checkbox" id="f_app" ${p.acesso_app ? "checked" : ""}>Acesso ao app</label>
+        ${p.vinculo === "pausado" ? `<p class="sub" style="margin-top:calc(-1 * var(--s2))">Aluno suspenso entra com acesso reduzido: vê a agenda (só quantos alunos vêm) e os eventos, sem marcar aula nem se inscrever.</p>` : ""}
         <p class="sub" style="margin-top:calc(-1 * var(--s2))">${p.acesso_app ? (p.auth_user_id ? (p.cadastro_completo_em ? "Já usa o app." : "Já entrou; falta completar nome e dias.") : "Entra direto com o e-mail acima. No primeiro acesso completa nome, frequência e dias.") : "Bloqueado: a pessoa não consegue entrar, nem receber o código."}</p>
         <div class="row2"><label class="field"><span>Aluno desde</span><input id="f_desde" type="date" value="${esc(p.aluno_desde)}"></label>
           <label class="field"><span>Aulas antes do app</span><input id="f_ant" type="number" min="0" value="${esc(p.aulas_anteriores)}"></label></div>
