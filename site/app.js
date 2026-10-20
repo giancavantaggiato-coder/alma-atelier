@@ -25,6 +25,8 @@ const CAM = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=
 const CHEV_L = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M15 5l-7 7 7 7"/></svg>';
 const CHEV_R = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 5l7 7-7 7"/></svg>';
 
+/* sem zoom por pinça nem duplo toque (iOS ignora user-scalable em alguns casos) */
+["gesturestart","gesturechange","gestureend"].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
 /* ---------- utilidades ---------- */
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -63,7 +65,7 @@ document.addEventListener("keydown", e => { if(e.key === "Escape") closeSheet();
 function renderNav(){
   const tabs = [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]];
   if(S.equipe) tabs.push(["equipe","Equipe"]);
-  const lista = adminOnly() ? [["eq:dia","Calendário"],["eq:pessoas","Pessoas"],["eq:turmas","Horários"],["eq:eventos","Eventos"],["painel","Você"]] : tabs;
+  const lista = S.visitante && !S.equipe ? [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]] : adminOnly() ? [["eq:dia","Calendário"],["eq:pessoas","Pessoas"],["eq:turmas","Horários"],["eq:eventos","Eventos"],["painel","Você"]] : tabs;
   $("#nav").innerHTML = `<div class="in" role="tablist">${lista.map(([k,l]) =>
     `<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}"><span class="pillbg">${NAV_ICO[k] || ICO[k]}</span>${l}</button>`).join("")}</div>`;
   $("#nav").hidden = false;
@@ -80,7 +82,8 @@ function render(){
   if(!S.session) return renderLogin();
   if(precisaCompletar()) return PA.pronto ? renderPA() : primeiroAcesso();
   renderNav();
-  const v = isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, painel: viewPainel }[S.tab] || viewHoje);
+  const v = S.visitante && !isEqTab() ? ({ hoje: viewHojeV, agenda: viewAgendaV, eventos: viewEventos, voce: viewVoceV }[S.tab] || viewHojeV)
+    : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, painel: viewPainel }[S.tab] || viewHoje);
   $("#view").innerHTML = v();
   bind();
 }
@@ -171,6 +174,8 @@ async function loadMe(){
   ]);
   S.pessoa = aluno || null;
   S.aluno = aluno && ["aluno","pausado"].includes(aluno.vinculo) && aluno.acesso_app ? aluno : null;
+  S.visitante = !S.aluno && aluno && aluno.vinculo === "ex_aluno" && aluno.acesso_app ? aluno : null;
+  document.body.classList.toggle("limitado", !!S.visitante);
   S.equipe = !!eq;
 }
 async function loadAluno(){
@@ -206,6 +211,10 @@ async function boot(){
   if(!S.session) return renderLogin();
   try{
     await loadMe();
+    if(S.visitante && !S.equipe){
+      if(!["hoje","agenda","eventos","voce"].includes(S.tab)) S.tab = "hoje";
+      await loadVisitante(); render(); return;
+    }
     if(!S.aluno && !S.equipe){
       $("#nav").hidden = true;
       $("#view").innerHTML = `<div class="auth"><div class="auth-hero">${LOGO_ALMA}</div>
@@ -235,7 +244,7 @@ sb.auth.onAuthStateChange((ev, session) => {
   if(ev === "SIGNED_OUT"){ Object.assign(S, { session:null, aluno:null, equipe:false, tab:"hoje" }); renderLogin("inicio"); }
   if(ev === "TOKEN_REFRESHED") S.session = session;
 });
-document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao(); if(S.aluno && !precisaCompletar()) refresh(); } });
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao(); if(S.aluno && !precisaCompletar()) refresh(); else if(S.visitante) loadVisitante().then(render); } });
 /* Atualiza o app sozinho quando sai uma versão nova (sem precisar sair e entrar) */
 let VERSAO = null;
 async function checarVersao(){
@@ -369,6 +378,82 @@ function viewHoje(){
     <div class="li"><span class="ind n"></span>Mensalidade<span class="end">Em construção</span></div>
     ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
   </div>`;
+}
+
+/* ---------- Ex-aluno (acesso reduzido) ---------- */
+async function loadVisitante(){
+  const de = addDays(new Date(), -60), ate = addDays(new Date(), 120);
+  const [ag, ag2] = await Promise.all([sb.rpc("agenda_contagem", { p_de: dkey(de), p_ate: dkey(ate) }), sb.rpc("agora_contagem"), loadEventos()]);
+  S.agendaV = (ag.data || []).map(a => ({ ...a, ini: new Date(a.inicia_em), fim: new Date(a.termina_em) }));
+  S.agoraV = ag2.data || 0;
+}
+const AVISO_V = "Função ativa somente para alunos";
+function viewHojeV(){
+  const n = now(), v = S.visitante, live = S.agoraV || 0;
+  const ev = S.eventos.find(e => e.ini > n && e.publicado);
+  const hoje = (S.agendaV || []).filter(a => !a.cancelada && dkey(a.ini) === dkey(n));
+  return `<header class="hello">
+    <p class="label">${cap1(WD[n.getDay()])}, ${dm(n)}</p>
+    <h1 class="h4">Olá, ${esc(firstName(v.nome))}</h1>
+    <p class="sub" style="font-size:var(--t-body)">${hoje.length ? `O atelier abre hoje às ${hh(hoje[0].ini)}.` : "Hoje o atelier não abre."}</p>
+  </header>
+  <div class="live" aria-disabled="true"><span class="dot"></span><span>${live ? `${plural(live,"aluno","alunos")} no atelier agora` : "Ninguém no atelier agora"}</span></div>
+  <section class="tile wide next v-aviso"><div class="tl"><h2 class="tt">Acesso de ex-aluna</h2><span class="chip">Reduzido</span></div>
+    <p class="sub">Você acompanha a agenda do atelier e os eventos. Marcar aulas, reposições e inscrições ficam disponíveis quando você voltar às aulas.</p></section>
+  <div class="list">
+    <div class="li off"><span class="ind n"></span>Reposições<span class="end">${AVISO_V}</span></div>
+    <div class="li off"><span class="ind n"></span>Mensalidade<span class="end">${AVISO_V}</span></div>
+    ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
+  </div>`;
+}
+function viewAgendaV(){
+  const y = S.mes.getFullYear(), m = S.mes.getMonth(), off = (new Date(y,m,1).getDay()+6)%7, days = new Date(y,m+1,0).getDate();
+  const byDay = {}; (S.agendaV || []).forEach(a => (byDay[dkey(a.ini)] ||= []).push(a));
+  const today = startOfDay(now());
+  let cells = ""; for(let i=0;i<off;i++) cells += "<div></div>";
+  for(let d=1; d<=days; d++){
+    const dt = new Date(y,m,d), k = dkey(dt), list = byDay[k], isToday = +dt === +today;
+    const cc = `cell${isToday ? " today" : ""}${dt < today ? " past" : ""}`;
+    if(!list){ cells += `<div class="${cc}"><span class="slot"></span><span class="n tnum">${d}</span></div>`; continue; }
+    const ab = list.filter(a => !a.cancelada), qtd = ab.reduce((t,a) => t + a.ocupadas, 0);
+    const cls = !ab.length ? "c off" : ab.every(a => a.fim <= now()) ? "c done eqc" : "c eqc vis";
+    cells += `<button class="${cc}" data-day="${k}" aria-label="${d} de ${MES[m]}, ${plural(qtd,"aluno","alunos")}"><span class="slot"><span class="${cls}">${ab.length ? `<b class="tnum">${qtd}</b>` : ""}</span></span><span class="n tnum">${d}</span></button>`;
+  }
+  const minM = new Date(today.getFullYear(), today.getMonth()-1, 1), maxM = new Date(today.getFullYear(), today.getMonth()+3, 1);
+  return `<h1 class="h4">Agenda</h1>
+  <div class="monthbar">
+    <button class="iconbtn" id="prevM" aria-label="Mês anterior" ${S.mes <= minM ? "disabled" : ""}>${CHEV_L}</button>
+    <div class="title">${cap1(MES[m])} ${y}</div>
+    <button class="iconbtn" id="nextM" aria-label="Próximo mês" ${S.mes >= maxM ? "disabled" : ""}>${CHEV_R}</button>
+  </div>
+  <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
+  <div class="grid">${cells}</div>
+  <div class="credits off"><span><b>Reposições</b> <span style="color:var(--muted)">· ${AVISO_V.toLowerCase()}</span></span></div>
+  <div class="hint"><span>O número em cada dia é quantos alunos vêm ao atelier.</span><span>Marcar aulas é uma função ativa somente para alunos.</span></div>`;
+}
+function sheetDiaV(k){
+  const d = fromKey(k), list = (S.agendaV || []).filter(a => dkey(a.ini) === k);
+  sheet(`<p class="label">${AVISO_V}</p><h3 class="h5">${cap1(WD[d.getDay()])}, ${dm(d)}</h3>
+    ${list.map(a => `<div class="eqaula"><div class="row"><p class="title">${hh(a.ini)} às ${hh(a.fim)}</p><span class="sub tnum">${a.cancelada ? "cancelada" : `${plural(a.ocupadas,"aluno","alunos")} · ${plural(Math.max(0, a.capacidade - a.ocupadas),"vaga","vagas")}`}</span></div></div>`).join("")}
+    <p class="sub" style="margin-top:var(--s4)">Marcar aula e reposição fica disponível quando você voltar às aulas. Para voltar, fale com o atelier.</p>
+    <div class="btns"><button class="btn pri" disabled>Marcar aula</button><button class="btn ghost" data-close>Fechar</button></div>`);
+}
+function viewVoceV(){
+  const v = S.visitante, desde = v.aluno_desde ? fromKey(v.aluno_desde) : null, saiu = v.saida_em ? fromKey(v.saida_em) : null;
+  return `<header class="profile">
+    <div class="cover"></div>
+    <div class="avatar" aria-hidden="true"><span class="ini">${esc(initials(v.nome))}</span></div>
+    <h1 class="h4">${esc(v.nome || "")}</h1>
+    <p class="sub"><span class="tag-ex">Ex-aluna</span>${desde ? ` · aluna desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>
+  </header>
+  <section class="tile wide v-aviso" style="margin-top:var(--s6)"><div class="tl"><h2 class="tt">Acesso reduzido</h2><span class="chip">Ex-aluna</span></div>
+    <p class="sub">Você vê a agenda do atelier (quantos alunos vêm em cada dia) e os eventos. Para marcar aulas, ter reposições e se inscrever em eventos, é só voltar às aulas.</p></section>
+  <div class="tiles off">
+    <section class="tile"><div class="tl"><h2 class="tt">Reposições</h2></div><div class="tv">—</div><p class="ts">${AVISO_V}</p></section>
+    <section class="tile"><div class="tl"><h2 class="tt">Seus dias</h2></div><div class="tv">—</div><p class="ts">${AVISO_V}</p></section>
+  </div>
+  <button class="signout" id="sair">Sair da conta</button>
+  <p class="foot">Alma Atelier · versão beta</p>`;
 }
 
 /* ---------- Agenda ---------- */
@@ -532,7 +617,7 @@ function sheetEvento(id){
     <p class="sub">${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)} · ${hh(e.ini)} às ${hh(e.fim)}${e.local ? ` · ${esc(e.local)}` : ""}</p>
     ${e.descricao ? `<p class="desc">${esc(e.descricao)}</p>` : ""}
     <div class="facts"><div><b class="tnum">${vag == null ? "—" : vag}</b><span>vagas livres</span></div><div><b class="tnum">${e.inscritos}</b><span>inscritos</span></div><div><b style="font-size:16px;line-height:28px">${esc(p1 || "—")}</b><span>${esc(p2 || "")}</span></div></div>
-    <div class="btns">${!S.aluno ? "" : e.inscrito ? `<button class="btn ghost" data-unev="${id}">Cancelar inscrição</button>` : `<button class="btn pri" data-inev="${id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>Inscrever-se</button>`}
+    <div class="btns">${S.visitante ? `<button class="btn pri" disabled>Inscrição só para alunos</button><p class="sub" style="text-align:center">Função ativa somente para alunos do atelier.</p>` : !S.aluno ? "" : e.inscrito ? `<button class="btn ghost" data-unev="${id}">Cancelar inscrição</button>` : `<button class="btn pri" data-inev="${id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>Inscrever-se</button>`}
     ${S.equipe ? `<button class="btn ghost" data-editev="${id}">Editar evento</button>` : ""}<button class="btn ghost" data-close>Fechar</button></div>`);
 }
 
@@ -879,6 +964,8 @@ function sheetPessoaEq(id){
 
       <div id="blocoSaida" ${p.vinculo === "ex_aluno" ? "" : "hidden"} class="form" style="margin-top:0">
         <label class="field"><span>Motivo da saída</span><input id="f_motivo" value="${esc(p.motivo_saida)}" placeholder="Mudou de cidade, horário…"></label>
+        <label class="check"><input type="checkbox" id="f_app_ex" ${p.vinculo === "ex_aluno" && p.acesso_app ? "checked" : ""}>Acesso reduzido ao app</label>
+        <p class="sub" style="margin-top:calc(-1 * var(--s2))">Vê a agenda (só quantos alunos vêm) e os eventos, sem marcar aula nem se inscrever.</p>
       </div>
 
       <p class="label" style="margin-top:var(--s2)">Relacionamento</p>
@@ -903,7 +990,7 @@ function sheetPessoaEq(id){
     const row = { nome: v("#f_nome"), email: (v("#f_email") || "").toLowerCase() || null, whatsapp: v("#f_whats"), vinculo: vinc,
       comprador_loja: $("#f_loja").checked, origem: v("#f_origem"), aceita_comunicacao: $("#f_lgpd").checked, observacoes: v("#f_obs"),
       interesses: $$("[data-int]").filter(c => c.checked).map(c => c.dataset.int) };
-    row.acesso_app = aluno && $("#f_app").checked;
+    row.acesso_app = aluno ? $("#f_app").checked : vinc === "ex_aluno" && !!($("#f_app_ex") || {}).checked;
     if(aluno) Object.assign(row, { aluno_desde: v("#f_desde"), aulas_anteriores: +($("#f_ant").value || 0), pagamento_status: $("#f_pag").value,
       pagamento_metodo: v("#f_metodo"), pagamento_ultimo: v("#f_ult"), pagamento_proximo_vencimento: v("#f_venc") });
     if(vinc === "ex_aluno") row.motivo_saida = v("#f_motivo");
@@ -1006,7 +1093,7 @@ function bind(){
   $$("#view [data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
   $$("#view [data-ev]").forEach(b => b.onclick = () => sheetEvento(b.dataset.ev));
   $$("#view [data-evf]").forEach(b => b.onclick = () => { S.evFiltro = b.dataset.evf; render(); });
-  $$("#view [data-day]").forEach(b => b.onclick = () => sheetDia(b.dataset.day));
+  $$("#view [data-day]").forEach(b => b.onclick = () => S.visitante ? sheetDiaV(b.dataset.day) : sheetDia(b.dataset.day));
   const vf = $("#voltarFixos"); if(vf) vf.onclick = sheetVoltar;
   const lb = $("#liveBtn"); if(lb) lb.onclick = sheetPessoas;
   const db = $("#desmBtn"); if(db) db.onclick = () => { const a = S.agenda.find(x => x.aula_id === db.dataset.aula); a && sheetDesmarcar(a); };

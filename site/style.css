@@ -286,3 +286,18 @@ nav svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.6;st
 .pedidos-banner{display:flex;align-items:center;gap:var(--s3);width:100%;min-height:52px;margin-top:var(--s4);padding:0 var(--s4);border-radius:16px;background:var(--accent);color:#000;font-size:var(--t-body);font-weight:500;text-align:left}
 .pedidos-banner .ind{width:8px;height:8px;border-radius:50%;background:#000;flex:none}
 .pedidos-banner .end{margin-left:auto;font-size:var(--t-body-s)}
+
+/* ---- Sem zoom: tela estável no celular ---- */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:manipulation}
+html,body{overflow-x:hidden;max-width:100%}
+input,select,textarea{font-size:16px}
+
+/* ---- Acesso reduzido (ex-aluno): tudo mais cinzento ---- */
+body.limitado{--accent:#ABAA98;--gold:#ABAA98}
+body.limitado .li.off,body.limitado .tiles.off,body.limitado .credits.off{opacity:.5}
+body.limitado .li.off .end{font-size:var(--t-label)}
+body.limitado .c.eqc.vis{box-shadow:inset 0 0 0 1.5px var(--past-ink)}
+body.limitado .c.eqc.vis b{color:var(--muted)}
+body.limitado .live .dot{background:var(--past-ink)}
+.tag-ex{display:inline-flex;align-items:center;height:22px;padding:0 var(--s2);border-radius:11px;border:1px solid var(--past-ink);color:var(--muted);font-size:var(--t-label);font-weight:500;letter-spacing:.04em;text-transform:uppercase;vertical-align:1px}
+.credits.off{display:flex;justify-content:space-between;align-items:center}
