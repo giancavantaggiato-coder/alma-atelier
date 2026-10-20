@@ -1,0 +1,231 @@
+/* Alma Centro de Estudos Visuais · site
+   Fiel ao Figma "Alma_Brandbook_2026 › Website - Autolayout" (quadro de 1920px, margem 64px). */
+
+:root{
+  --claro:#FEFCE6; --claro2:#D5D4BF; --claro3:#ABAA98;
+  --preto:#000; --cinza:#757575; --cinza-baixo:#3A3A3A;
+  --px:clamp(20px, 3.3333vw, 64px);          /* margem lateral: 64px a 1920 */
+  --gap:clamp(16px, 1.6667vw, 32px);         /* calha entre colunas: 32px */
+  --t1:clamp(40px, 3.3333vw, 64px);          /* Título 1 · 64/70 semibold */
+  --t2:clamp(28px, 2.1875vw, 42px);          /* Título 2 · 42/50 semibold */
+  --t3:clamp(23px, 1.875vw, 36px);           /* Título 3 · 36/44 regular */
+  --corpo:clamp(16px, 1.0417vw, 20px);       /* Corpo · 20/30 */
+  --ui:15px;                                  /* Interface · 15/20 */
+  --f:"Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--claro);color:var(--preto);font-family:var(--f);font-size:var(--corpo);line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img{display:block;max-width:100%}
+a{color:inherit}
+h1,h2,h3,p{margin:0}
+button,input,textarea{font:inherit;color:inherit}
+.wrap{padding-left:var(--px);padding-right:var(--px)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- Tipografia ---------- */
+.t1{font-size:var(--t1);line-height:1.094;font-weight:600;letter-spacing:0}
+.t2{font-size:var(--t2);line-height:1.19;font-weight:600}
+.t3{font-size:var(--t3);line-height:1.222;font-weight:400}
+.corpo{font-size:var(--corpo);line-height:1.5;color:var(--cinza)}
+.corpo p + p{margin-top:1.5em}
+.claro{color:var(--claro)}
+
+/* ---------- Botões ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:176px;height:52px;padding:0 32px;font-size:var(--ui);line-height:20px;text-decoration:none;border:1px solid transparent;cursor:pointer;white-space:nowrap;transition:opacity .2s}
+.btn:hover{opacity:.82}
+.btn-preto{background:var(--preto);color:#fff}
+.btn-claro{background:var(--claro);color:var(--preto)}
+.btn-linha{border-color:var(--claro);color:var(--claro);background:transparent}
+.seta{font-size:15px;line-height:1}
+.botoes{display:flex;flex-wrap:wrap;gap:32px}
+
+/* ---------- Navegação ---------- */
+.nav{position:absolute;inset:0 0 auto 0;height:90px;display:flex;align-items:center;justify-content:space-between;z-index:20;color:var(--claro)}
+.nav.solida{position:relative;background:var(--claro);color:var(--preto)}
+.nav .marca{display:block;width:124px;color:inherit}
+.nav .marca svg{width:124px;height:auto;display:block}
+.nav .esq{display:flex;align-items:center;gap:clamp(48px,10.8vw,208px)}
+.nav .menu{display:flex;gap:clamp(28px,4.1667vw,80px);font-size:20px;line-height:30px}
+.nav .menu a{text-decoration:none}
+.nav .menu a:hover,.nav .menu a[aria-current]{text-decoration:underline;text-underline-offset:6px;text-decoration-thickness:1px}
+.nav .loja{background:var(--claro);color:var(--preto)}
+.nav.solida .loja{background:var(--preto);color:#fff}
+.nav .abrir{display:none;background:none;border:0;padding:8px;margin-right:-8px;color:inherit;cursor:pointer}
+.nav .abrir svg{width:24px;height:24px;display:block}
+
+/* Gaveta (celular) */
+.gaveta{position:fixed;inset:0 auto 0 0;width:min(320px,86vw);background:var(--preto);color:#fff;padding:26px 20px;transform:translateX(-102%);transition:transform .28s ease;z-index:60;display:flex;flex-direction:column;gap:24px}
+.gaveta.aberta{transform:none}
+.gaveta .topo{display:flex;align-items:center;justify-content:space-between}
+.gaveta .topo svg.logo{width:66px;height:auto;color:var(--claro)}
+.gaveta .fechar{background:none;border:0;color:#fff;padding:6px;cursor:pointer}
+.gaveta nav{display:flex;flex-direction:column;gap:32px}
+.gaveta nav a{display:flex;align-items:flex-start;height:51px;padding-top:10px;border-top:1px solid #fff;font-size:15px;line-height:20px;text-decoration:none}
+.gaveta .loja-m{margin-top:8px;align-self:flex-start;flex:none}
+.veu{position:fixed;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .28s;z-index:50}
+.veu.aberto{opacity:1;pointer-events:auto}
+
+/* ---------- Abertura com foto (Início) ---------- */
+.hero{position:relative;background:var(--preto);height:clamp(560px,62.5vw,1200px);max-height:100svh;min-height:560px;display:flex;align-items:flex-end;padding-bottom:clamp(40px,4.1667vw,80px);overflow:hidden}
+.hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:62% 30%}
+.hero::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.7)}
+.hero .chamada{position:relative;z-index:1;width:100%;display:flex;align-items:flex-end;justify-content:space-between;gap:32px}
+.hero h1{color:var(--claro);max-width:1184px}
+.hero .botoes .btn{background:var(--preto);color:#fff}
+
+/* ---------- Abertura de texto (páginas internas) ---------- */
+.abertura{text-align:center;padding-top:clamp(150px,12.5vw,240px);padding-bottom:clamp(120px,14.1667vw,272px)}
+.abertura.escura{background:var(--preto)}
+.abertura.escura h1{color:var(--claro)}
+.abertura h1 + p{max-width:1032px;margin:clamp(40px,4.0625vw,78px) auto 0;font-size:var(--corpo);line-height:1.5;color:var(--cinza)}
+.abertura.curta{padding-bottom:clamp(80px,7.5vw,144px)}
+
+/* ---------- Faixa preta "Três frentes" ---------- */
+.faixa{background:var(--preto);padding-top:clamp(56px,5vw,96px);padding-bottom:clamp(56px,5vw,96px)}
+.faixa .lin{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--gap)}
+.faixa .txt{max-width:896px}
+.faixa h2{color:var(--claro);margin-bottom:clamp(24px,2.6vw,50px)}
+
+/* ---------- Intro em duas colunas ---------- */
+.duas{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap)}
+.intro .direita{display:flex;flex-direction:column;align-items:flex-start;gap:40px}
+.secao{padding-top:clamp(40px,3.125vw,60px)}
+.filete{border:0;border-top:1px solid var(--claro3);margin:0}
+
+/* ---------- Frentes (três imagens altas) ---------- */
+.tres{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--gap)}
+.frente{display:flex;flex-direction:column;gap:32px;text-decoration:none}
+.frente .foto{aspect-ratio:576/800;overflow:hidden;background:var(--claro3)}
+.frente .foto img{width:100%;height:100%;object-fit:cover;transition:transform .6s ease}
+.frente:hover .foto img{transform:scale(1.02)}
+.frente .txt{display:flex;flex-direction:column;gap:24px}
+
+/* ---------- Imagem larga ---------- */
+.larga{aspect-ratio:1792/800;overflow:hidden;background:var(--claro3)}
+.larga img{width:100%;height:100%;object-fit:cover}
+
+/* ---------- Notas e Ensaios (cartões) ---------- */
+.cartao{display:flex;flex-direction:column;gap:24px;text-decoration:none}
+.cartao .foto{aspect-ratio:581/360;overflow:hidden;background:var(--claro2)}
+.cartao .foto img{width:100%;height:100%;object-fit:cover}
+.meta{display:flex;gap:16px;align-items:baseline;line-height:20px}
+.meta .cat{font-size:16px;font-weight:500}
+.meta time{font-size:15px;color:var(--cinza);text-decoration:underline;text-underline-offset:3px}
+
+/* ---------- Como começar ---------- */
+.comecar{background:var(--claro2);padding-top:clamp(56px,4.1667vw,80px);padding-bottom:clamp(56px,4.1667vw,80px)}
+.comecar p.corpo{color:var(--cinza-baixo);max-width:880px;margin-top:24px}
+.form-linha{display:flex;gap:40px;margin-top:54px;align-items:center}
+.campo{height:52px;border:1px solid var(--cinza-baixo);background:transparent;padding:0 16px;font-size:15px;line-height:20px;width:min(880px,100%);border-radius:0;outline:none}
+.campo::placeholder{color:var(--cinza)}
+.campo:focus{border-color:var(--preto)}
+.comecar .btn{background:var(--preto);color:var(--claro)}
+.aviso{font-size:15px;line-height:20px;margin-top:12px;min-height:20px}
+
+/* ---------- Rodapé ---------- */
+.rodape{background:var(--preto);color:var(--claro);padding-top:clamp(72px,5.8vw,112px);padding-bottom:80px}
+.rodape .novidades{display:flex;flex-direction:column;gap:40px}
+.rodape .campo{border-color:var(--claro);color:var(--claro)}
+.rodape .campo::placeholder{color:var(--claro3)}
+.rodape .campo:focus{border-color:#fff}
+.rodape .form-linha{margin-top:0;gap:32px}
+.rodape .termos{font-size:15px;line-height:20px;margin-top:8px}
+.rodape .contatos{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:128px;font-size:var(--corpo);line-height:1.5}
+.rodape .contatos > div{display:flex;flex-direction:column;gap:24px}
+.rodape strong{font-weight:500}
+.rodape .links{display:flex;flex-wrap:wrap;gap:16px 40px;margin-top:128px;font-size:15px;line-height:20px}
+.rodape .links a{text-decoration:none}
+.rodape .links a:hover{text-decoration:underline}
+
+/* ---------- Sobre ---------- */
+.sobre-foto{margin-top:-69px;position:relative}
+.historia{position:relative;background:var(--preto);color:var(--claro);padding-top:clamp(48px,3.125vw,60px);padding-bottom:clamp(48px,3.125vw,60px);overflow:hidden}
+.historia > img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.32;filter:grayscale(1)}
+.historia .duas{position:relative}
+.historia .corpo{color:var(--claro2)}
+
+/* ---------- Acordeão (Sobre o ensino / FAQ) ---------- */
+.acordeao{margin-top:clamp(40px,3.125vw,60px)}
+.acordeao details{border-bottom:1px solid var(--claro3)}
+.acordeao summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:24px;padding:28px 0;cursor:pointer;font-size:var(--t3);line-height:1.222}
+.acordeao summary::-webkit-details-marker{display:none}
+.acordeao summary::after{content:"+";font-size:28px;line-height:1;font-weight:300;flex:none;transition:transform .2s}
+.acordeao details[open] summary::after{transform:rotate(45deg)}
+.acordeao .resp{padding:0 0 22px;max-width:1744px;font-size:var(--corpo);line-height:1.5;color:var(--cinza)}
+
+/* ---------- Trabalhos de alunos ---------- */
+.trilho{display:flex;gap:var(--gap);overflow-x:auto;scroll-snap-type:x mandatory;padding:0 var(--px);scrollbar-width:none;scroll-padding-inline:var(--px);margin-top:clamp(28px,2.6vw,50px)}
+.trilho::-webkit-scrollbar{display:none}
+.trilho figure{margin:0;flex:0 0 clamp(260px,32.6vw,626px);aspect-ratio:626/800;scroll-snap-align:start;overflow:hidden;background:var(--claro2)}
+.trilho img{width:100%;height:100%;object-fit:cover}
+
+/* ---------- Blog ---------- */
+.busca{max-width:880px;margin:0 auto;text-align:center}
+.busca label{display:block;font-size:13px;line-height:18px;color:var(--cinza);margin-bottom:18px}
+.busca .barra{display:flex;align-items:center;gap:18px;border-bottom:1px solid var(--claro3);padding:0 0 18px;max-width:834px;margin:0 auto}
+.busca .barra svg{width:26px;height:26px;flex:none}
+.busca input{flex:1;min-width:0;border:0;background:transparent;outline:none;font-size:clamp(22px,1.875vw,36px);line-height:1.2;font-weight:500}
+.busca input::placeholder{color:var(--claro3);font-weight:400}
+.tags{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:clamp(28px,2.4vw,46px)}
+.tags button{height:34px;padding:0 14px;border:1px solid var(--claro3);border-radius:6px;background:transparent;font-size:13px;color:var(--cinza-baixo);cursor:pointer}
+.tags button[aria-pressed="true"]{background:var(--preto);border-color:var(--preto);color:#fff}
+.contagem{text-align:center;margin-top:clamp(64px,5.5vw,104px)}
+.posts{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(40px,3.125vw,60px) var(--gap);margin-top:clamp(36px,3vw,58px)}
+.post{display:flex;flex-direction:column;text-decoration:none}
+.post .foto{aspect-ratio:576/400;overflow:hidden;background:var(--claro2)}
+.post .foto img{width:100%;height:100%;object-fit:cover}
+.post .cab{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-top:24px}
+.post .pill{flex:none;font-size:11px;line-height:14px;padding:6px 10px;background:var(--claro2);border-radius:4px;margin-top:6px}
+.post .corpo{margin-top:16px}
+.post .ler{margin-top:18px;font-size:16px;text-decoration:underline;text-underline-offset:4px}
+.post[hidden]{display:none}
+.vazio{text-align:center;color:var(--cinza);margin-top:40px}
+
+/* ---------- Faça Parte ---------- */
+.formulario{max-width:1184px;margin:0 auto;padding-bottom:clamp(64px,5vw,96px)}
+.formulario .grade{display:grid;grid-template-columns:1fr 1fr;gap:28px 32px}
+.formulario label{display:flex;flex-direction:column;gap:12px;font-size:var(--corpo);line-height:1.5;font-weight:500}
+.formulario input,.formulario textarea{height:52px;border:1px solid var(--claro2);background:transparent;padding:0 16px;font-size:16px;font-weight:400;border-radius:0;outline:none}
+.formulario textarea{height:420px;padding:14px 16px;resize:vertical}
+.formulario input:focus,.formulario textarea:focus{border-color:var(--preto)}
+.formulario .col{display:flex;flex-direction:column;gap:28px}
+.formulario .enviar{display:flex;justify-content:flex-end;margin-top:40px}
+
+/* ---------- Contato ---------- */
+.contatos-sec{padding-bottom:clamp(48px,3.75vw,72px)}
+.contatos-sec .lista{display:flex;flex-direction:column;gap:clamp(32px,2.5vw,48px)}
+.contatos-sec .lista div{display:flex;flex-direction:column;gap:24px}
+.mapa{min-height:480px;background:#E3E2D9;border:0;width:100%;height:100%}
+
+/* ---------- Revelar ao rolar ---------- */
+.rev{opacity:0;transform:translateY(16px);transition:opacity .7s ease,transform .7s ease}
+.rev.on{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.rev{opacity:1;transform:none;transition:none}}
+
+/* ---------- Telas menores ---------- */
+@media (max-width:1100px){
+  .nav .menu{gap:28px;font-size:17px}
+  .nav .esq{gap:48px}
+}
+@media (max-width:860px){
+  .nav{height:64px}
+  .nav .menu,.nav .loja{display:none}
+  .nav .abrir{display:block}
+  .nav .marca,.nav .marca svg{width:86px}
+  .hero .chamada,.faixa .lin{flex-direction:column;align-items:flex-start}
+  .duas,.rodape .contatos,.formulario .grade{grid-template-columns:1fr}
+  .duas{gap:20px}
+  .tres,.posts{grid-template-columns:1fr;gap:40px}
+  .frente .foto{aspect-ratio:4/5}
+  .larga{aspect-ratio:4/3}
+  .form-linha{flex-direction:column;align-items:stretch;gap:16px}
+  .campo{width:100%}
+  .botoes{gap:16px}
+  .btn{min-width:0;flex:1 1 auto}
+  .sobre-foto{margin-top:-40px}
+  .rodape .contatos,.rodape .links{margin-top:72px}
+  .acordeao summary::after{font-size:24px}
+  .mapa{min-height:300px}
+  .formulario textarea{height:240px}
+}
