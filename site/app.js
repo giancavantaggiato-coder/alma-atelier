@@ -263,6 +263,7 @@ function acabouDeEntrar(v){
   if(v !== undefined){ _entrou = v; try{ v ? sessionStorage.setItem("alma-entrou","1") : sessionStorage.removeItem("alma-entrou"); }catch(_){} return v; }
   if(_entrou) return true; try{ return sessionStorage.getItem("alma-entrou") === "1"; }catch(_){ return false; }
 }
+const livre = () => !!(S.aluno && S.aluno.plano === "livre");
 const precisaCompletar = () => !!(S.aluno && !S.aluno.cadastro_completo_em);
 const PA = { passo: 1, nome: "", sobrenome: "", whats: "", desde: "", freq: 0, dias: [], horarios: [], fixos: false };
 async function primeiroAcesso(){
@@ -280,7 +281,7 @@ async function primeiroAcesso(){
 }
 function renderPA(){
   $("#nav").hidden = true;
-  const pausado = S.aluno.vinculo !== "aluno", total = pausado ? 1 : 2;
+  const pausado = S.aluno.vinculo !== "aluno" || livre(), total = pausado ? 1 : 2;
   const passo = `<p class="apasso">${PA.passo} de ${total}</p>`;
   let panel;
   if(PA.passo === 1){
@@ -368,13 +369,13 @@ function viewHoje(){
     <span class="dot"></span><u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : "Ninguém no atelier agora"}</u>
   </button>
   ${nx ? `<section class="tile wide next">
-    <div class="tl"><h2 class="tt">Próxima aula</h2><span class="chip">${nx.reserva_tipo === "reposicao" ? "Reposição" : "Seu dia fixo"}</span></div>
+    <div class="tl"><h2 class="tt">Próxima aula</h2><span class="chip">${livre() ? "Aula marcada" : nx.reserva_tipo === "reposicao" ? "Reposição" : "Seu dia fixo"}</span></div>
     <div class="tv tnum">${cap1(WD[nx.ini.getDay()])}, ${dm(nx.ini)}</div>
     <p class="ts">${hh(nx.ini)} às ${hh(nx.fim)}</p>
     <button class="textbtn" id="desmBtn" data-aula="${nx.aula_id}">Não vou poder ir</button>
   </section>` : `<section class="tile wide next"><div class="tl"><h2 class="tt">Próxima aula</h2></div><p class="sub">Nenhuma aula marcada. Veja os dias com vaga na agenda.</p></section>`}
   <div class="list">
-    <button class="li" data-go="agenda"><span class="ind"></span><span class="tnum">${ac === 1 ? "1 reposição disponível" : `${ac} reposições disponíveis`}</span></button>
+    <button class="li" data-go="agenda"><span class="ind"></span><span class="tnum">${livre() ? "Plano livre · marque as aulas que quiser" : ac === 1 ? "1 reposição disponível" : `${ac} reposições disponíveis`}</span></button>
     <div class="li"><span class="ind n"></span>Mensalidade<span class="end">Em construção</span></div>
     ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
   </div>`;
@@ -501,12 +502,13 @@ function viewAgenda(){
   </div>
   <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
   <div class="grid">${cells}</div>
-  <div class="credits">
+  ${livre() ? `<div class="credits"><span><b>Plano livre</b> <span style="color:var(--muted)">· sem limite de aulas</span></span></div>
+  <div class="hint"><span>Toque num dia com vaga para marcar uma aula.</span><span>Toque numa aula marcada para desmarcar.</span></div>` : `<div class="credits">
     <span class="tnum"><b>${ac} de ${MAX_CRED}</b> <span style="color:var(--muted)">reposições disponíveis</span></span>
     <div class="dots" aria-hidden="true">${Array.from({length:MAX_CRED},(_,i)=>`<span class="${i<ac?"on":""}"></span>`).join("")}</div>
   </div>
-  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>
-  ${mudancas().total ? `<button class="textbtn voltar" id="voltarFixos">Reverter para meus dias fixos</button>` : ""}`;
+  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>`}
+  ${!livre() && mudancas().total ? `<button class="textbtn voltar" id="voltarFixos">Reverter para meus dias fixos</button>` : ""}`;
 }
 function mudancas(){
   const lim = new Date(+now() + 4*36e5);
@@ -558,6 +560,12 @@ function sheetAula(a){
     return sheet(`<p class="label">${a.reserva_tipo === "reposicao" ? "Reposição" : "Sua aula"}</p><h3 class="h5">${nome}</h3><p class="sub">${hr}. ${txt}</p>${close}`);
   }
   if(a.ini <= n) return sheet(`<h3 class="h5">${nome}</h3><p class="sub">${hr}. Esta aula já aconteceu.</p>${close}`);
+  if(livre()){
+    const v = vagas(a);
+    return sheet(`<p class="label">Atelier aberto</p><h3 class="h5">Marcar ${WD[a.ini.getDay()]}, ${dm(a.ini)}?</h3><p class="sub">${hr}. ${v <= 0 ? "Atelier lotado neste horário." : "Plano livre: marque quantas aulas quiser."}</p>
+      <div class="facts"><div><b class="tnum">${v}</b><span>vagas livres</span></div><div><b class="tnum">${a.ocupadas}</b><span>confirmados</span></div><div><b>∞</b><span>seu plano</span></div></div>
+      <div class="btns"><button class="btn pri" data-book="${a.aula_id}" ${v > 0 ? "" : "disabled"}>Marcar aula</button><button class="btn ghost" data-close>Agora não</button></div>`);
+  }
   const v = vagas(a), ac = nCred(), pode = v > 0 && ac > 0 && S.aluno.vinculo === "aluno";
   const motivo = v <= 0 ? "Atelier lotado neste horário." : ac === 0 ? "Você não tem reposições disponíveis." : S.aluno.vinculo !== "aluno" ? "Sua matrícula está pausada." : `Usa 1 das suas ${plural(ac, "reposição", "reposições")}.`;
   sheet(`<p class="label">Atelier aberto</p><h3 class="h5">Repor ${WD[a.ini.getDay()]}, ${dm(a.ini)}?</h3><p class="sub">${hr}. ${motivo}</p>
@@ -568,6 +576,7 @@ function sheetDesmarcar(a){
   const horas = (a.ini - now()) / 36e5, ok = horas >= 4, ac = nCred();
   const fim = new Date(a.ini); fim.setFullYear(fim.getFullYear()+1);
   const msg = !ok ? "Faltam menos de 4h. A ausência fica registrada, mas não gera reposição."
+    : livre() ? "A vaga fica livre para outra pessoa."
     : a.reserva_tipo === "reposicao" ? "O crédito usado nesta reposição volta para você."
     : ac >= MAX_CRED ? `Você já tem ${MAX_CRED} reposições, o limite. A ausência fica registrada sem novo crédito.`
     : "Você ganha 1 reposição para usar quando quiser.";
@@ -580,7 +589,7 @@ async function doCancel(id, btn){
   const { data, error } = await sb.rpc("desmarcar", { p_reserva: id });
   if(error){ busy(btn, false); return toast(errMsg(error)); }
   closeSheet();
-  toast({ credito_gerado: "Aula desmarcada. +1 reposição", credito_devolvido: "Reposição desmarcada. O crédito voltou.", ausencia_sem_credito: "Ausência registrada", limite_de_creditos: "Aula desmarcada" }[data] || "Aula desmarcada");
+  toast(livre() ? (data === "ausencia_sem_credito" ? "Ausência registrada" : "Aula desmarcada") : { credito_gerado: "Aula desmarcada. +1 reposição", credito_devolvido: "Reposição desmarcada. O crédito voltou.", ausencia_sem_credito: "Ausência registrada", limite_de_creditos: "Aula desmarcada" }[data] || "Aula desmarcada");
   await loadAluno(); render();
 }
 async function doBook(aulaId, btn){
@@ -590,7 +599,7 @@ async function doBook(aulaId, btn){
   const a = S.agenda.find(x => x.aula_id === aulaId);
   closeSheet(); await loadAluno();
   if(a){ S.justGrew = dkey(a.ini); S.mes = new Date(a.ini.getFullYear(), a.ini.getMonth(), 1); }
-  render(); toast("Reposição marcada");
+  render(); toast(livre() ? "Aula marcada" : "Reposição marcada");
 }
 
 /* ---------- Eventos ---------- */
@@ -702,7 +711,7 @@ function viewVoce(){
   <div class="stats">
     <div class="stat"><b class="tnum">${r.aulas_total ?? 0}</b><span>aulas<br>no atelier</span></div>
     <div class="stat"><b class="tnum">${r.presenca_90d == null ? "—" : r.presenca_90d + "%"}</b><span>presença<br>em 90 dias</span></div>
-    <div class="stat"><b class="tnum">${cr.length}<small> / ${MAX_CRED}</small></b><span>reposições<br>disponíveis</span></div>
+    ${livre() ? `<div class="stat"><b>∞</b><span>plano<br>livre</span></div>` : `<div class="stat"><b class="tnum">${cr.length}<small> / ${MAX_CRED}</small></b><span>reposições<br>disponíveis</span></div>`}
   </div>
   <div class="tiles">
     <section class="tile wide">
@@ -710,13 +719,13 @@ function viewVoce(){
       <div class="tv">Em construção</div>
       <p class="ts">Em breve você acompanha seus pagamentos por aqui.</p>
     </section>
-    <button class="tile" data-go="agenda">
+    ${livre() ? `<button class="tile" data-go="agenda"><div class="tl"><h2 class="tt">Seu plano</h2></div><div class="tv">Livre</div><p class="ts">Sem limite de aulas</p></button>` : `<button class="tile" data-go="agenda">
       <div class="tl"><h2 class="tt">Reposições</h2></div>
       <div class="tv tnum">${cr.length}<small> de ${MAX_CRED}</small></div>
-    </button>
+    </button>`}
     <section class="tile">
       <div class="tl"><h2 class="tt">Seus dias</h2>${turmas[0] && turmas.every(t => t.inicio === turmas[0].inicio && t.fim === turmas[0].fim) ? `<span class="chip">${hm(turmas[0].inicio)}–${hm(turmas[0].fim)}</span>` : ""}</div>
-      <div class="tv${turmas.length > 2 ? " tv-s" : ""}">${turmas.length ? turmas.slice().sort((x,y) => ((x.dia_semana+6)%7) - ((y.dia_semana+6)%7) || String(x.inicio).localeCompare(String(y.inicio))).map(t => cap1(WDS[t.dia_semana])).join(turmas.length > 2 ? "&nbsp;· " : " · ") : "—"}</div>
+      <div class="tv${turmas.length > 2 ? " tv-s" : ""}">${livre() && !turmas.length ? "Avulsos" : turmas.length ? turmas.slice().sort((x,y) => ((x.dia_semana+6)%7) - ((y.dia_semana+6)%7) || String(x.inicio).localeCompare(String(y.inicio))).map(t => cap1(WDS[t.dia_semana])).join(turmas.length > 2 ? "&nbsp;· " : " · ") : "—"}</div>
     </section>
   </div>
   ${blocoPedido()}
@@ -732,6 +741,7 @@ function blocoPedido(){
     <div class="pedido-acoes"><button class="textbtn" id="pedMudar">Alterar pedido</button><button class="textbtn" id="pedCancelar">Cancelar pedido</button></div></section>`;
   const aviso = recente && p.status === "aprovado" ? `<p class="sub pedido-aviso">Sua mudança para ${p.frequencia_nova}x por semana foi aprovada.</p>`
     : recente && p.status === "recusado" ? `<p class="sub pedido-aviso">Seu pedido de mudança não foi aprovado.${p.resposta_equipe ? ` ${esc(p.resposta_equipe)}` : ""}</p>` : "";
+  if(livre()) return aviso;
   return `${aviso}<button class="li mudar" id="pedMudar"><span class="ind n"></span>Mudar frequência ou dias</button>`;
 }
 async function sheetMudanca(){
@@ -859,7 +869,7 @@ function viewEquipe(){
         const aluno = ["aluno","pausado"].includes(p.vinculo);
         const tags = [p.fantasma ? "Fantasma" : VINC[p.vinculo || ""], p.comprador_loja ? "Loja" : ""].filter(Boolean);
         const det = aluno
-          ? [(E.mat[p.id] || []).map(id => { const t = E.turmas.find(x => x.id === id); return t ? cap1(WDS[t.dia_semana]) : ""; }).join(" · ") || "Sem dia fixo", `${E.cred[p.id] || 0} reposições`, !p.acesso_app ? "acesso bloqueado" : !p.auth_user_id ? "ainda não entrou no app" : p.cadastro_completo_em ? "usa o app" : "entrou, falta completar o cadastro"]
+          ? [(E.mat[p.id] || []).map(id => { const t = E.turmas.find(x => x.id === id); return t ? cap1(WDS[t.dia_semana]) : ""; }).join(" · ") || (p.plano === "livre" ? "Plano livre" : "Sem dia fixo"), p.plano === "livre" ? "marca as aulas que quiser" : `${E.cred[p.id] || 0} reposições`, !p.acesso_app ? "acesso bloqueado" : !p.auth_user_id ? "ainda não entrou no app" : p.cadastro_completo_em ? "usa o app" : "entrou, falta completar o cadastro"]
           : [p.origem ? `via ${p.origem}` : "", p.interesses && p.interesses.length ? p.interesses.join(", ") : "", p.vinculo === "ex_aluno" && p.saida_em ? `saiu em ${dm(fromKey(p.saida_em))}/${String(fromKey(p.saida_em).getFullYear()).slice(2)}` : ""];
         return `<button class="card" data-pessoa="${p.id}" style="text-align:left">
           <div class="row"><span class="title">${esc(p.nome || p.email || p.whatsapp)}</span>${aluno ? `<span class="pill ${p.pagamento_status === "em_dia" ? "ok" : "warn"}">${PAG[p.pagamento_status]}</span>` : ""}</div>
@@ -958,6 +968,7 @@ function sheetPessoaEq(id){
           <label class="field"><span>Forma</span><input id="f_metodo" value="${esc(p.pagamento_metodo)}" placeholder="Pix"></label></div>
         <div class="row2"><label class="field"><span>Último pagamento</span><input id="f_ult" type="date" value="${esc(p.pagamento_ultimo)}"></label>
           <label class="field"><span>Próximo vencimento</span><input id="f_venc" type="date" value="${esc(p.pagamento_proximo_vencimento)}"></label></div>
+        <label class="check"><input type="checkbox" id="f_livre" ${p.plano === "livre" ? "checked" : ""}>Plano livre (sem dias fixos, marca as aulas que quiser)</label>
         <p class="label" style="margin-top:var(--s2)">Dias fixos no atelier${p.frequencia_semanal ? ` · ${p.frequencia_semanal}x por semana` : ""}</p>
         ${E.turmas.map(t => `<label class="check"><input type="checkbox" data-mat="${t.id}" ${minhas.includes(t.id) ? "checked" : ""}>${esc(horarioNome(t))}</label>`).join("") || `<p class="sub">Cadastre os horários do atelier primeiro (Equipe → Horários).</p>`}
       </div>
@@ -991,6 +1002,7 @@ function sheetPessoaEq(id){
       comprador_loja: $("#f_loja").checked, origem: v("#f_origem"), aceita_comunicacao: $("#f_lgpd").checked, observacoes: v("#f_obs"),
       interesses: $$("[data-int]").filter(c => c.checked).map(c => c.dataset.int) };
     row.acesso_app = aluno ? $("#f_app").checked : vinc === "ex_aluno" && !!($("#f_app_ex") || {}).checked;
+    if(aluno) row.plano = $("#f_livre").checked ? "livre" : "fixo";
     if(aluno) Object.assign(row, { aluno_desde: v("#f_desde"), aulas_anteriores: +($("#f_ant").value || 0), pagamento_status: $("#f_pag").value,
       pagamento_metodo: v("#f_metodo"), pagamento_ultimo: v("#f_ult"), pagamento_proximo_vencimento: v("#f_venc") });
     if(vinc === "ex_aluno") row.motivo_saida = v("#f_motivo");
