@@ -53,6 +53,7 @@ main{padding-left:max(var(--s4),env(safe-area-inset-left,0px));padding-right:max
 .auth input.ain::placeholder{color:#757575}
 .auth input.ain:focus{outline:2px solid #FAE08F;outline-offset:0}
 .otp{position:relative;display:grid;grid-template-columns:repeat(6,1fr);gap:var(--s2)}
+.otp.pin{grid-template-columns:repeat(4,1fr);max-width:300px;width:100%;margin:0 auto}
 .otp span{height:56px;border-radius:12px;background:#2A2A28;display:grid;place-items:center;font-size:24px;font-weight:500;color:#FEFCE6}
 .otp span.caret{box-shadow:inset 0 0 0 2px #FAE08F}
 .otp span.caret::after{content:"";width:1.5px;height:24px;background:#FEFCE6;animation:blink 1s steps(1) infinite}

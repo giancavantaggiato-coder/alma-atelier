@@ -81,6 +81,7 @@ function go(t){
 function render(){
   if(!S.session) return renderLogin();
   if(precisaCompletar()) return PA.pronto ? renderPA() : primeiroAcesso();
+  if(NS.ativo) return renderNovaSenha();
   renderNav();
   const v = S.visitante && !isEqTab() ? ({ hoje: viewHojeV, agenda: viewAgendaV, eventos: viewEventos, voce: viewVoceV }[S.tab] || viewHojeV)
     : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, painel: viewPainel }[S.tab] || viewHoje);
@@ -102,11 +103,18 @@ function authHTML(step, email, reenvio){
       <p class="alegal">O acesso é liberado para alunos do atelier.</p>`;
   } else if(step === "email"){
     panel = `<form id="authForm" novalidate style="display:contents">
-      ${head("Entrar com e-mail", "Use o e-mail cadastrado no atelier. Enviamos um código, sem senha.")}
+      ${head("Entrar com e-mail", "Use o e-mail cadastrado no atelier.")}
       <input class="ain" id="lemail" type="email" autocomplete="email" inputmode="email" placeholder="voce@email.com" value="${esc(email)}" aria-label="E-mail">
       <p class="aerr" id="lerr" hidden></p>
-      <button class="abtn light" type="submit">Enviar código</button>
+      <button class="abtn light" type="submit">Continuar</button>
       <button class="abtn line" type="button" data-auth="inicio">Voltar</button></form>`;
+  } else if(step === "senha"){
+    panel = `<form id="authForm" novalidate style="display:contents">
+      ${head("Digite sua senha", `Os 4 números que você criou para <b>${esc(email)}</b>.`)}
+      ${pinBox("Senha de 4 números")}
+      <p class="aerr" id="lerr" hidden></p>
+      <button class="abtn light" type="submit">Entrar</button>
+      <div class="alinks"><button type="button" data-auth="email">Usar outro e-mail</button><button type="button" id="esqueci">Esqueci a senha</button></div></form>`;
   } else {
     panel = `<form id="authForm" novalidate style="display:contents">
       ${head("Digite o código", `Enviamos 6 dígitos para <b>${esc(email)}</b>.`)}
@@ -117,17 +125,24 @@ function authHTML(step, email, reenvio){
   }
   return `<div class="auth"><div class="auth-hero">${LOGO_ALMA}</div><div class="auth-panel">${panel}</div></div>`;
 }
+/* caixinhas para a senha de 4 números (mostra pontos, não os números) */
+const pinBox = rotulo => `<label class="otp pin" id="otpBox" aria-label="${rotulo}">${"<span></span>".repeat(4)}<input id="otp" type="tel" inputmode="numeric" autocomplete="off" maxlength="4" pattern="[0-9]*"></label>`;
 function bindOtp(onComplete){
   const otp = document.getElementById("otp"); if(!otp) return null;
+  const n = otp.maxLength > 0 ? otp.maxLength : 6, oculto = n === 4;
   const boxes = [...document.querySelectorAll("#otpBox span")];
-  const paint = () => { const v = otp.value.replace(/\D/g,"").slice(0,6); otp.value = v;
-    boxes.forEach((b,i) => { b.textContent = v[i] || ""; b.classList.toggle("caret", i === Math.min(v.length,5) && document.activeElement === otp && v.length < 6); });
-    if(v.length === 6) onComplete(); };
+  const paint = () => { const v = otp.value.replace(/\D/g,"").slice(0,n); otp.value = v;
+    boxes.forEach((b,i) => { b.textContent = v[i] ? (oculto ? "•" : v[i]) : ""; b.classList.toggle("caret", i === Math.min(v.length,n-1) && document.activeElement === otp && v.length < n); });
+    if(v.length === n) onComplete(); };
   otp.oninput = paint; otp.onfocus = paint; otp.onblur = paint; setTimeout(() => otp.focus(), 60); paint();
   return otp;
 }
 
-let loginEmail = "", loginStep = "inicio", reenvio = 0, reenvioT = null;
+const EMAIL_KEY = "alma-email";
+const emailLembrado = () => { try{ return localStorage.getItem(EMAIL_KEY) || ""; }catch(_){ return ""; } };
+const lembrarEmail = e => { try{ e ? localStorage.setItem(EMAIL_KEY, e) : localStorage.removeItem(EMAIL_KEY); }catch(_){} };
+const trocarSenhaDepois = v => { try{ if(v === undefined) return sessionStorage.getItem("alma-nova-senha") === "1"; v ? sessionStorage.setItem("alma-nova-senha","1") : sessionStorage.removeItem("alma-nova-senha"); }catch(_){ return false; } };
+let loginEmail = emailLembrado(), loginStep = "inicio", reenvio = 0, reenvioT = null;
 function startReenvio(){ reenvio = 60; clearInterval(reenvioT); reenvioT = setInterval(() => { reenvio--; const b = $("#reenviar"); if(b){ b.disabled = reenvio > 0; b.textContent = reenvio > 0 ? `Reenviar em ${reenvio}s` : "Reenviar código"; } if(reenvio <= 0) clearInterval(reenvioT); }, 1000); }
 async function enviarCodigo(){
   const { data: ok, error: e1 } = await sb.rpc("pode_entrar", { p_email: loginEmail });
@@ -143,23 +158,47 @@ function renderLogin(step){
   const err = $("#lerr"), btn = f.querySelector("button[type=submit]");
   const fail = m => { err.textContent = m; err.hidden = false; };
   const otp = bindOtp(() => { if(!btn.disabled) f.requestSubmit(); });
-  if(otp) $("#reenviar").onclick = async () => { try{ await enviarCodigo(); toast("Código reenviado"); }catch(ex){ fail(errMsg(ex)); } };
-  else setTimeout(() => $("#lemail").focus(), 60);
+  if($("#reenviar")) $("#reenviar").onclick = async () => { try{ await enviarCodigo(); toast("Código reenviado"); }catch(ex){ fail(errMsg(ex)); } };
+  if($("#esqueci")) $("#esqueci").onclick = async e => { const b = e.currentTarget; busy(b, true);
+    try{ await enviarCodigo(); trocarSenhaDepois(true); renderLogin("codigo"); toast("Enviamos um código para o seu e-mail"); }
+    catch(ex){ busy(b, false); fail(/rate|seconds/i.test(ex.message || "") ? "Aguarde um minuto antes de pedir outro código." : errMsg(ex)); } };
+  if(!otp) setTimeout(() => $("#lemail").focus(), 60);
   f.onsubmit = async e => {
     e.preventDefault(); err.hidden = true; busy(btn, true);
     try{
       if(loginStep === "email"){
         loginEmail = $("#lemail").value.trim().toLowerCase();
         if(!/^\S+@\S+\.\S+$/.test(loginEmail)) throw new Error("Confira o e-mail digitado.");
+        const { data: modo, error: em } = await sb.rpc("como_entrar", { p_email: loginEmail });
+        if(em) throw new Error("Não foi possível verificar o e-mail. Tente de novo.");
+        if(!modo) throw new Error("Este e-mail não está cadastrado no atelier. Use o e-mail que você passou para a equipe ou fale com a gente.");
+        if(modo === "senha") return renderLogin("senha");
         await enviarCodigo();
         renderLogin("codigo");
+      } else if(loginStep === "senha"){
+        const pin = otp.value;
+        if(pin.length < 4) throw new Error("A senha tem 4 números.");
+        const { data: r, error: ef } = await sb.functions.invoke("entrar-pin", { body: { email: loginEmail, pin } });
+        if(ef || !r) throw new Error("Não foi possível entrar agora. Tente de novo.");
+        if(r.status === "bloqueada"){
+          await enviarCodigo(); trocarSenhaDepois(true); renderLogin("codigo");
+          return $("#lerr") && Object.assign($("#lerr"), { hidden: false, textContent: "Senha bloqueada depois de 5 tentativas. Enviamos um código para o seu e-mail; depois você cria uma senha nova." });
+        }
+        if(r.status === "sem_senha"){ await enviarCodigo(); return renderLogin("codigo"); }
+        if(String(r.status).startsWith("errada")){ const resta = +String(r.status).split(":")[1];
+          throw new Error(`Senha errada.${resta === 1 ? " Resta 1 tentativa antes de bloquear." : resta <= 3 ? ` Restam ${resta} tentativas.` : ""}`); }
+        if(r.status !== "ok") throw new Error("Este e-mail não tem acesso liberado. Fale com a equipe.");
+        acabouDeEntrar(true);
+        const { error } = await sb.auth.verifyOtp({ token_hash: r.token_hash, type: "magiclink" });
+        if(error){ acabouDeEntrar(false); throw new Error("Não foi possível entrar agora. Tente de novo."); }
+        lembrarEmail(loginEmail); loginStep = "inicio";
       } else {
         const token = otp.value;
         if(token.length < 6) throw new Error("O código tem 6 dígitos.");
         acabouDeEntrar(true);
         const { error } = await sb.auth.verifyOtp({ email: loginEmail, token, type: "email" });
         if(error){ acabouDeEntrar(false); throw new Error("Código inválido ou vencido. Confira ou peça um novo."); }
-        loginStep = "inicio";
+        lembrarEmail(loginEmail); loginStep = "inicio";
       }
     }catch(ex){ fail(/rate|seconds/i.test(ex.message || "") ? "Aguarde um minuto antes de pedir outro código." : errMsg(ex)); busy(btn, false); if(otp){ otp.value = ""; otp.focus(); } }
   };
@@ -213,6 +252,7 @@ async function boot(){
     await loadMe();
     if(S.visitante && !S.equipe){
       if(!["hoje","agenda","eventos","voce"].includes(S.tab)) S.tab = "hoje";
+      if(await pedirSenha()) return;
       await loadVisitante(); render(); return;
     }
     if(!S.aluno && !S.equipe){
@@ -231,6 +271,7 @@ async function boot(){
       if(!acabouDeEntrar()){ await sb.auth.signOut(); return; }
       return primeiroAcesso();
     }
+    if(await pedirSenha()) return;
     if(!S.aluno){ S.tab = "eq:dia"; S.eq.sec = "dia"; }
     await Promise.all([loadAluno(), loadEventos()]);
     render();
@@ -241,10 +282,10 @@ async function boot(){
 }
 sb.auth.onAuthStateChange((ev, session) => {
   if(ev === "SIGNED_IN" && !S.session){ S.session = session; boot(); }
-  if(ev === "SIGNED_OUT"){ Object.assign(S, { session:null, aluno:null, equipe:false, tab:"hoje" }); renderLogin("inicio"); }
+  if(ev === "SIGNED_OUT"){ Object.assign(S, { session:null, aluno:null, equipe:false, tab:"hoje" }); NS.ativo = false; loginEmail = emailLembrado() || loginEmail; renderLogin(loginEmail && emailLembrado() ? "email" : "inicio"); }
   if(ev === "TOKEN_REFRESHED") S.session = session;
 });
-document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao(); if(S.aluno && !precisaCompletar()) refresh(); else if(S.visitante) loadVisitante().then(render); } });
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao(); if(NS.ativo) return; if(S.aluno && !precisaCompletar()) refresh(); else if(S.visitante) loadVisitante().then(render); } });
 /* Atualiza o app sozinho quando sai uma versão nova (sem precisar sair e entrar) */
 let VERSAO = null;
 async function checarVersao(){
@@ -252,10 +293,59 @@ async function checarVersao(){
     const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" }); if(!r.ok) return;
     const { v } = await r.json(); if(!v) return;
     if(VERSAO === null){ VERSAO = v; return; }
-    if(v !== VERSAO && !document.querySelector("#sheet.show") && !document.querySelector("#paForm")) location.reload();
+    if(v !== VERSAO && !document.querySelector("#sheet.show") && !document.querySelector("#paForm") && !document.querySelector("#nsForm")) location.reload();
   }catch(_){}
 }
 checarVersao(); setInterval(checarVersao, 5 * 60 * 1000);
+
+/* ---------- senha de 4 números ---------- */
+const NS = { ativo: false, passo: 1, pin: "", troca: false };
+async function pedirSenha(){
+  if(NS.ativo) { renderNovaSenha(); return true; }
+  const forcar = trocarSenhaDepois();
+  if(!forcar){ const { data: tem, error } = await sb.rpc("tenho_senha"); if(error || tem) return false; }
+  Object.assign(NS, { ativo: true, passo: 1, pin: "", troca: forcar });
+  renderNovaSenha(); return true;
+}
+function abrirTrocaSenha(){ closeSheet(); Object.assign(NS, { ativo: true, passo: 1, pin: "", troca: true, voltar: true }); renderNovaSenha(); }
+function renderNovaSenha(){
+  $("#nav").hidden = true;
+  const titulo = NS.passo === 1 ? (NS.troca ? "Crie uma senha nova" : "Crie sua senha") : "Confirme a senha";
+  const texto = NS.passo === 1 ? "São 4 números. Da próxima vez você entra com eles, sem esperar código no e-mail." : "Digite os mesmos 4 números de novo.";
+  $("#view").innerHTML = `<div class="auth"><div class="auth-hero">${LOGO_ALMA}</div><div class="auth-panel"><form id="nsForm" novalidate style="display:contents">
+    <p class="apasso">${NS.passo} de 2</p>
+    <div class="auth-head"><h1>${titulo}</h1><p>${texto}</p></div>
+    ${pinBox(titulo)}
+    <p class="aerr" id="nsErr" hidden></p>
+    <button class="abtn light" type="submit">${NS.passo === 1 ? "Continuar" : "Salvar senha"}</button>
+    <button class="abtn line" type="button" id="nsVoltar">${NS.passo === 2 ? "Voltar" : NS.voltar ? "Cancelar" : "Sair"}</button></form></div></div>`;
+  const f = $("#nsForm"), err = $("#nsErr"), btn = f.querySelector("button[type=submit]");
+  const otp = bindOtp(() => { if(!btn.disabled) f.requestSubmit(); });
+  const fail = m => { err.textContent = m; err.hidden = false; busy(btn, false); otp.value = ""; otp.focus(); otp.dispatchEvent(new Event("input")); };
+  $("#nsVoltar").onclick = () => {
+    if(NS.passo === 2){ NS.passo = 1; NS.pin = ""; return renderNovaSenha(); }
+    if(NS.voltar){ NS.ativo = false; NS.voltar = false; return render(); }
+    NS.ativo = false; sb.auth.signOut();
+  };
+  f.onsubmit = async e => {
+    e.preventDefault(); err.hidden = true;
+    const v = otp.value;
+    if(v.length < 4) return fail("A senha tem 4 números.");
+    if(NS.passo === 1){
+      if(/^(\d)\1{3}$/.test(v) || "0123456789".includes(v) || "9876543210".includes(v)) return fail("Evite sequências como 1234 ou 1111. Escolha outros números.");
+      NS.pin = v; NS.passo = 2; return renderNovaSenha();
+    }
+    if(v !== NS.pin){ NS.passo = 1; NS.pin = ""; renderNovaSenha(); return Object.assign($("#nsErr"), { hidden: false, textContent: "As senhas não batem. Crie de novo." }); }
+    busy(btn, true);
+    const { error } = await sb.rpc("definir_senha", { p_pin: v });
+    if(error) return fail(errMsg(error));
+    const voltar = NS.voltar;
+    Object.assign(NS, { ativo: false, passo: 1, pin: "", troca: false, voltar: false }); trocarSenhaDepois(false);
+    if(S.session && S.session.user && S.session.user.email) lembrarEmail(S.session.user.email.toLowerCase());
+    toast("Senha salva");
+    if(voltar) render(); else boot();
+  };
+}
 
 /* ---------- primeiro acesso ---------- */
 let _entrou = false;
@@ -455,6 +545,7 @@ function viewVoceV(){
     <section class="tile"><div class="tl"><h2 class="tt">Reposições</h2></div><div class="tv">—</div><p class="ts">${AVISO_V}</p></section>
     <section class="tile"><div class="tl"><h2 class="tt">Seus dias</h2></div><div class="tv">—</div><p class="ts">${AVISO_V}</p></section>
   </div>
+  <button class="signout" id="trocarSenha">Trocar senha de acesso</button>
   <button class="signout" id="sair">Sair da conta</button>
   <p class="foot">Alma Atelier · versão beta</p>`;
 }
@@ -670,6 +761,7 @@ function viewPainel(){
     <button class="li" id="pnPerfil"><span class="ind n"></span>Editar nome e cargo</button>
     <button class="li" id="pnFantasma"><span class="ind n"></span>Ver o app como aluno</button>
   </div>
+  <button class="signout" id="trocarSenha">Trocar senha de acesso</button>
   <button class="signout" id="sair">Sair da conta</button>
   <p class="foot">${esc(p.email || "")}${desde ? ` · na equipe desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>`;
 }
@@ -732,6 +824,7 @@ function viewVoce(){
     </section>
   </div>
   ${blocoPedido()}
+  <button class="signout" id="trocarSenha">Trocar senha de acesso</button>
   <button class="signout" id="sair">Sair da conta</button>
   <p class="foot">Alma Atelier · versão beta</p>`;
 }
@@ -1120,6 +1213,7 @@ function bind(){
   const ci = $("#capaIn"); if(ci) ci.onchange = () => uploadFoto(ci, "capa");
   const ai = $("#avIn"); if(ai) ai.onchange = () => uploadFoto(ai, "avatar");
   const sair = $("#sair"); if(sair) sair.onclick = () => sb.auth.signOut();
+  const ts = $("#trocarSenha"); if(ts) ts.onclick = abrirTrocaSenha;
   const pm = $("#pedMudar"); if(pm) pm.onclick = sheetMudanca;
   const pc = $("#pedCancelar"); if(pc) pc.onclick = async () => { busy(pc, true); const { error } = await sb.rpc("cancelar_pedido_mudanca"); if(error){ busy(pc, false); return toast(errMsg(error)); } await loadAluno(); render(); toast("Pedido cancelado"); };
   const vp = $("#verPedidos"); if(vp) vp.onclick = sheetPedidosEq;

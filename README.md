@@ -33,7 +33,13 @@ Uma tabela só (`pessoas`) para todo mundo que se relaciona com o Alma. Cada pes
 4. **Authentication → URL Configuration → Site URL**: o endereço onde o app ficar (ex.: `https://app.almaestudosvisuais.com.br`).
 
 ## Acesso ao app
-- Quem está cadastrado como **Aluno** com e-mail entra direto: o app manda o código para esse e-mail.
+- Quem está cadastrado como **Aluno** com e-mail entra direto: no primeiro acesso o app manda o código para esse e-mail.
+- Depois de entrar, a pessoa cria uma **senha de 4 números**. Das próximas vezes digita o e-mail e a senha, sem código.
+  - O app lembra o e-mail no aparelho. Sequências óbvias (1234, 1111) não são aceitas.
+  - **Esqueci a senha**: o app manda o código por e-mail e pede uma senha nova.
+  - 5 senhas erradas bloqueiam a senha; a pessoa entra pelo código e cria outra.
+  - Trocar a senha: aba **Você → Trocar senha de acesso**.
+  - Por trás: tabela `senhas_app` (só o hash), funções em `supabase/13_senha_pin.sql` e a Edge Function `entrar-pin`.
 - Para cadastrar vários de uma vez: Equipe → Pessoas → **Adicionar alunos por e-mail**.
 - No primeiro acesso o aluno completa primeiro nome, sobrenome, quantas vezes por semana vem e escolhe os dias (só aparecem horários com vaga). Se a equipe já marcou os dias dele, eles aparecem prontos.
 - Para bloquear alguém: desligue **Acesso ao app** na ficha da pessoa. E-mail fora da base nem recebe o código.
