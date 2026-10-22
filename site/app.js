@@ -921,15 +921,46 @@ const EVI_TOPO = {
   hora:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
   foto:'<svg viewBox="0 0 24 24"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.5" r="3.3"/></svg>'
 };
-/* reações flutuando na capa: um emoji por reação, em posições fixas para não pular a cada atualização */
+/* reações na capa: um emoji fixo no canto de baixo e um fluxo de emojis subindo dele,
+   como as reações de transmissão ao vivo (cada um com velocidade, tamanho e balanço sorteados) */
+function poolReacoes(){ const l = []; EMOJIS.forEach(em => { const r = EV.reac.find(x => x.emoji === em); if(r) for(let k = 0; k < r.total; k++) l.push(em); }); return l; }
 function capaReacoesHTML(){
-  const lista = []; EMOJIS.forEach(em => { const r = EV.reac.find(x => x.emoji === em); if(r) for(let k = 0; k < r.total; k++) lista.push(em); });
-  if(!lista.length) return "";
-  const novoIdx = EV.novo ? lista.lastIndexOf(EV.novo) : -1;
-  return `<div class="evfloat" aria-hidden="true">${lista.slice(0, 16).map((em, i) => {
-    const x = 18 + ((i * 47 + 13) % 60), y = 32 + ((i * 29 + 7) % 26), t = 3.6 + (i % 4) * .7, d = -((i * 1.3) % t);
-    const sz = 22 + ((i * 7) % 3) * 4, rot = ((i * 37) % 21) - 10;
-    return `<span class="${i === novoIdx ? "novo" : ""}" style="--x:${x}%;--y:${y}%;--t:${t}s;--d:${d.toFixed(2)}s;--s:${sz}px;--r:${rot}deg">${em}</span>`; }).join("")}</div>`;
+  if(!EV.reac.length) return "";
+  const topo = EV.novo || [...EV.reac].sort((a, b) => b.total - a.total)[0].emoji;
+  return `<div class="evfloat" id="evFloat" aria-hidden="true"><span class="evancora${EV.novo ? " pulo" : ""}">${topo}</span></div>`;
+}
+const semMovimento = () => window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+function bolhaReacao(em, rapido){
+  const box = $("#evFloat"); if(!box || semMovimento() || box.childElementCount > 9) return;
+  const alt = box.clientHeight, rnd = (a, b) => a + Math.random() * (b - a);
+  const out = document.createElement("span"), inn = document.createElement("span");
+  out.className = "evbolha"; inn.textContent = em; out.appendChild(inn);
+  out.style.fontSize = `${Math.round(rnd(28, 40))}px`; box.appendChild(out);
+  const dur = rapido ? rnd(1800, 2600) : rnd(3400, 5200), sobe = alt * rnd(.55, .8), lado = rnd(14, 30) * (Math.random() < .5 ? -1 : 1);
+  out.animate([
+    { transform: "translateY(0) scale(.2)", opacity: 0 },
+    { transform: `translateY(-${sobe * .12}px) scale(1.05)`, opacity: 1, offset: .12 },
+    { transform: `translateY(-${sobe * .2}px) scale(1)`, opacity: 1, offset: .2 },
+    { transform: `translateY(-${sobe * .7}px) scale(.95)`, opacity: .85, offset: .7 },
+    { transform: `translateY(-${sobe}px) scale(.8)`, opacity: 0 }
+  ], { duration: dur, easing: "cubic-bezier(.25,.6,.45,1)", fill: "forwards" }).onfinish = () => out.remove();
+  inn.animate([
+    { transform: "translateX(0) rotate(0deg)" },
+    { transform: `translateX(${lado}px) rotate(${lado / 3}deg)` },
+    { transform: `translateX(${-lado * .7}px) rotate(${-lado / 4}deg)` },
+    { transform: `translateX(${lado * .4}px) rotate(${lado / 6}deg)` },
+    { transform: "translateX(0) rotate(0deg)" }
+  ], { duration: dur, easing: "ease-in-out", fill: "forwards" });
+}
+function iniciarFluxo(){
+  if(EV.fluxo || semMovimento()) return;
+  const tick = () => {
+    if(S.tab !== "evento" || !$("#evFloat")){ EV.fluxo = null; return; }
+    const pool = poolReacoes();
+    if(pool.length && !document.hidden) bolhaReacao(pool[Math.floor(Math.random() * pool.length)]);
+    EV.fluxo = setTimeout(tick, 1100 + Math.random() * 1700 - Math.min(pool.length, 10) * 60);
+  };
+  EV.fluxo = setTimeout(tick, 500);
 }
 /* explosão de emojis subindo a partir do botão tocado */
 function soltarEmojis(em, el){
@@ -946,6 +977,7 @@ function soltarEmojis(em, el){
   }
 }
 function viewEventoPag(){
+  EV.vivas = $$("#evFloat .evbolha");   // emojis no meio do voo passam para a capa nova sem sumir
   const e = S.eventos.find(x => x.id === EV.id);
   if(!e){ setTimeout(() => S.tab === "evento" && go(EV.volta || "eventos")); return ""; }
   const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
@@ -998,6 +1030,8 @@ function bindEventoPag(){
   const id = EV.id;
   const vb = $("#view [data-evvoltar]"); if(vb) vb.onclick = () => go(EV.volta || "eventos");
   const fi = $("#evFotoIn"); if(fi) fi.onchange = () => enviarFotoEvento(id, fi);
+  const fl = $("#evFloat"); if(fl && EV.vivas && EV.vivas.length){ EV.vivas.forEach(b => fl.appendChild(b)); } EV.vivas = null;
+  iniciarFluxo();
   $$("#view [data-inev]").forEach(b => b.onclick = async () => { busy(b, true); const { error } = await sb.rpc("inscrever_evento", { p_evento: id });
     if(error){ busy(b, false); return toast(errMsg(error)); } vibrar(); toast("Inscrição feita"); await loadEventos(); render(); });
   $$("#view [data-unev]").forEach(b => b.onclick = async () => { busy(b, true); const { error } = await sb.rpc("cancelar_inscricao", { p_evento: id });
@@ -1008,7 +1042,7 @@ function bindEventoPag(){
     const em = b.dataset.reac, antes = EV.reac.map(r => ({ ...r })), minha = (EV.reac.find(r => r.minha) || {}).emoji;
     EV.reac = EV.reac.map(r => r.emoji === minha ? { ...r, total: r.total - 1, minha: false } : r).filter(r => r.total > 0);
     if(minha !== em){ const r = EV.reac.find(x => x.emoji === em); if(r){ r.total++; r.minha = true; } else EV.reac.push({ evento_id: id, emoji: em, total: 1, minha: true }); vibrar();
-      soltarEmojis(em, b); EV.novo = em; clearTimeout(EV.novoT); EV.novoT = setTimeout(() => { EV.novo = null; }, 1500); }
+      soltarEmojis(em, b); EV.novo = em; setTimeout(() => { for(let k = 0; k < 5; k++) setTimeout(() => bolhaReacao(em, true), k * 140); }, 60); clearTimeout(EV.novoT); EV.novoT = setTimeout(() => { EV.novo = null; }, 1500); }
     render();
     const { error } = await sb.rpc("reagir_evento", { p_evento: id, p_emoji: em });
     if(error){ EV.reac = antes; render(); return toast(errMsg(error)); }

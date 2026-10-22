@@ -683,14 +683,16 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .mvazio{margin:0;font-size:var(--t-body-s);color:var(--muted)}
 .mcount{display:block;margin-top:var(--s2);font-size:var(--t-label);color:var(--muted)}
 
-/* reações flutuando na capa do evento */
+/* reações na capa do evento: emoji fixo no canto e fluxo subindo */
 .evhero.comreac:not(.comfoto){min-height:calc(230px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;justify-content:space-between}
-.evfloat{position:absolute;inset:0;z-index:1;pointer-events:none}
-.evfloat span{position:absolute;left:var(--x);top:var(--y);font-size:var(--s);line-height:1;transform:rotate(var(--r));
-  filter:drop-shadow(0 2px 6px rgba(0,0,0,.25));animation:evbob var(--t) ease-in-out var(--d) infinite alternate}
-.evfloat span.novo{animation:evpop .6s cubic-bezier(.2,1.6,.4,1) both,evbob var(--t) ease-in-out .6s infinite alternate}
-@keyframes evbob{from{transform:translateY(-6px) rotate(var(--r))}to{transform:translateY(6px) rotate(calc(var(--r) * -1))}}
-@keyframes evpop{from{opacity:0;transform:translateY(40px) scale(.2)}to{opacity:1;transform:translateY(0) scale(1) rotate(var(--r))}}
+.evfloat{position:absolute;left:0;right:0;top:0;bottom:28px;z-index:1;pointer-events:none;overflow:hidden}
+.evancora,.evbolha{position:absolute;right:max(var(--s5),env(safe-area-inset-right,0px));bottom:var(--s3);line-height:1;filter:drop-shadow(0 3px 8px rgba(0,0,0,.3))}
+.evancora{font-size:44px;transform-origin:50% 90%;animation:evrespira 2.8s ease-in-out infinite}
+.evancora.pulo{animation:evpulo .55s cubic-bezier(.2,1.8,.4,1),evrespira 2.8s ease-in-out .55s infinite}
+.evbolha{right:calc(max(var(--s5),env(safe-area-inset-right,0px)) + 6px);bottom:calc(var(--s3) + 18px);will-change:transform,opacity}
+.evbolha span{display:block;will-change:transform}
+@keyframes evrespira{0%,100%{transform:scale(1) rotate(-3deg)}50%{transform:scale(1.07) rotate(3deg)}}
+@keyframes evpulo{0%{transform:scale(.4)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
 .evburst{position:fixed;z-index:40;font-size:26px;line-height:1;pointer-events:none;transform:translate(-50%,-50%);animation:evsobe 1.4s cubic-bezier(.2,.7,.3,1) both}
 @keyframes evsobe{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}
   100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.9) rotate(var(--rr))}}
