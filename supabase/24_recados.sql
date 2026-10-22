@@ -111,3 +111,12 @@ begin
   update public.recados set lido_em = now()
    where lido_em is null and ((v_eu is not null and para_pessoa = v_eu) or (v_eu is null and para_equipe and public.sou_equipe()));
 end $$;
+
+-- O recado da equipe aparece com o primeiro nome (ex.: "Giancarlo") e vem primeiro no Hoje.
+create or replace function public.nome_equipe(p_email text default null) returns text
+language sql stable security definer set search_path = public as $$
+  select coalesce(nullif(split_part(e.nome, ' ', 1), ''), 'Atelier')
+    from public.equipe e where p_email is null or e.email = p_email
+   order by e.criado_em limit 1
+$$;
+-- (recado_destinatarios, enviar_recado e meus_recados foram refeitas com nome_equipe; ver migração 24b no projeto)

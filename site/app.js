@@ -1586,8 +1586,8 @@ const avatarRec = (nome, url, prof) => prof && !url ? `<span class="rec-av prof"
 function blocoRecados(){
   const l = R.lista || []; if(!l.length) return "";
   const mostra = l.slice(0, 3);
-  return `<div class="recados">${mostra.map(r => `<section class="recado${r.lido ? "" : " novo"}">
-      <div class="rec-top">${avatarRec(r.de_nome, r.de_avatar, r.de_equipe)}<span class="rec-de"><b>${r.de_equipe ? "Recado do professor" : `Recado de ${esc(r.de_nome)}`}</b><span>${tempoRel(r.quando)}</span></span></div>
+  return `<div class="recados">${mostra.map(r => `<section class="recado${r.de_equipe ? " prof" : r.lido ? "" : " novo"}">
+      <div class="rec-top">${avatarRec(r.de_nome, r.de_avatar, r.de_equipe)}<span class="rec-de"><b>Recado de ${esc(r.de_nome)}</b><span>${tempoRel(r.quando)}</span></span></div>
       <p class="rec-txt">${esc(r.texto)}</p>
       <div class="rec-acoes"><button class="textbtn" data-recresp="${r.id}">Responder</button><button class="textbtn" data-recok="${r.id}">Ok, visto</button></div>
     </section>`).join("")}
@@ -1614,13 +1614,13 @@ async function arquivarRecado(id, btn){
 }
 function responderRecado(id){
   const r = (R.lista || []).find(x => x.id === id); if(!r) return;
-  novoRecado(r.de_equipe ? { id: null, nome: "Professor", equipe: true } : { id: r.de_id, nome: r.de_nome, avatar_url: r.de_avatar }, r);
+  novoRecado(r.de_equipe ? { id: null, nome: r.de_nome, avatar_url: r.de_avatar, equipe: true } : { id: r.de_id, nome: r.de_nome, avatar_url: r.de_avatar }, r);
 }
 function sheetRecados(){
   const l = R.lista || [];
   sheet(`<p class="label">Recados</p><h3 class="h5">${l.length ? plural(l.length, "recado para você", "recados para você") : "Nenhum recado"}</h3>
-    <div class="rec-lista" id="recLista">${l.map(r => `<div class="rec-item">${avatarRec(r.de_nome, r.de_avatar, r.de_equipe)}<div class="rec-corpo">
-      <p class="rec-de"><b>${r.de_equipe ? "Professor" : esc(r.de_nome)}</b><span>${tempoRel(r.quando)}</span></p><p class="rec-txt">${esc(r.texto)}</p>
+    <div class="rec-lista" id="recLista">${l.map(r => `<div class="rec-item${r.de_equipe ? " prof" : ""}">${avatarRec(r.de_nome, r.de_avatar, r.de_equipe)}<div class="rec-corpo">
+      <p class="rec-de"><b>${esc(r.de_nome)}</b><span>${tempoRel(r.quando)}</span></p><p class="rec-txt">${esc(r.texto)}</p>
       <div class="rec-acoes"><button class="textbtn" data-recresp="${r.id}">Responder</button><button class="textbtn" data-recok="${r.id}">Ok, visto</button></div></div></div>`).join("")}</div>
     <div class="btns"><button class="btn pri" id="recNovo">Novo recado</button><button class="btn ghost" data-close>Fechar</button></div>`);
   $("#recNovo").onclick = () => novoRecado(null);
@@ -1634,7 +1634,7 @@ async function novoRecado(para, resp){
     if(!R.dest){ const { data, error } = await sb.rpc("recado_destinatarios"); if(error) return sheet(`<h3 class="h5">Novo recado</h3><p class="sub">${esc(errMsg(error))}</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`); R.dest = data || []; }
     const desenha = q => {
       const f = R.dest.filter(d => !q || d.nome.toLowerCase().includes(q.toLowerCase()));
-      $("#recDest").innerHTML = f.length ? f.map((d, k) => `<button class="rec-pessoa${d.equipe ? " prof" : ""}" data-recpara="${R.dest.indexOf(d)}">${d.equipe ? `<span class="rec-av prof">${ICO_RECADO}</span>` : avatarRec(d.nome, d.avatar_url)}<span>${esc(d.nome)}</span></button>`).join("") : `<p class="sub">Ninguém com esse nome.</p>`;
+      $("#recDest").innerHTML = f.length ? f.map((d, k) => `<button class="rec-pessoa${d.equipe ? " prof" : ""}" data-recpara="${R.dest.indexOf(d)}">${avatarRec(d.nome, d.avatar_url, d.equipe)}<span>${esc(d.nome)}</span></button>`).join("") : `<p class="sub">Ninguém com esse nome.</p>`;
       $$("#recDest [data-recpara]").forEach(b => b.onclick = () => novoRecado(R.dest[+b.dataset.recpara]));
     };
     sheet(`<p class="label">Novo recado</p><h3 class="h5">Para quem?</h3>
@@ -1647,9 +1647,9 @@ async function novoRecado(para, resp){
   }
   const sugestoes = para.equipe ? ["Vou me atrasar um pouco hoje.", "Não vou conseguir ir hoje.", "Tenho uma dúvida sobre a aula."]
     : S.equipe && !S.aluno ? ["Não esquece de trazer o material.", "Sua obra está pronta para buscar.", "Parabéns pelo trabalho!"]
-    : ["Não esquece de levar ", "Pode me trazer ", "Obrigado pela ajuda!"];
+    : ["Não esquece de levar ", "Você vai na aula de hoje?", "Adorei o seu trabalho!"];
   sheet(`<p class="label">${resp ? "Responder" : "Novo recado"}</p>
-    <div class="rec-para">${para.equipe ? `<span class="rec-av prof">${ICO_RECADO}</span>` : avatarRec(para.nome, para.avatar_url)}<span>Para <b>${esc(para.nome)}</b></span>${resp ? "" : `<button class="textbtn" id="recTroca">Trocar</button>`}</div>
+    <div class="rec-para">${avatarRec(para.nome, para.avatar_url, para.equipe)}<span>Para <b>${esc(para.nome)}</b></span>${resp ? "" : `<button class="textbtn" id="recTroca">Trocar</button>`}</div>
     ${resp ? `<p class="rec-cita">“${esc(resp.texto)}”</p>` : ""}
     <div class="chips rec-sug">${sugestoes.map(t => `<button type="button" data-recsug="${esc(t)}">${esc(t.trim())}</button>`).join("")}</div>
     <label class="field rec-campo"><span class="sr">Recado</span><textarea id="recTxt" maxlength="280" placeholder="Escreva o recado"></textarea></label>
@@ -1665,7 +1665,7 @@ async function novoRecado(para, resp){
     const { error } = await sb.rpc("enviar_recado", { p_para: para.equipe ? null : para.id, p_texto: tx.value });
     if(error){ busy(env, false); const e = $("#recErr"); e.textContent = errMsg(error); e.hidden = false; return; }
     if(resp) { await sb.rpc("arquivar_recado", { p_id: resp.id }); R.lista = R.lista.filter(r => r.id !== resp.id); }
-    closeSheet(); vibrar(); toast(para.equipe ? "Recado enviado para o professor" : `Recado enviado para ${firstName(para.nome)}`); render();
+    closeSheet(); vibrar(); toast(`Recado enviado para ${firstName(para.nome)}`); render();
   };
 }
 

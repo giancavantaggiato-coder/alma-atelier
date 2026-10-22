@@ -579,3 +579,11 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .rec-campo{margin-top:var(--s3)}
 .rec-campo textarea{height:112px;font-size:16px}
 .rec-conta{text-align:right;margin-top:var(--s1) !important;font-size:var(--t-label)}
+/* recado do Giancarlo em destaque */
+.recado.prof{background:var(--fg);color:var(--bg)}
+.recado.prof .rec-de span{color:var(--past-ink)}
+.recado.prof .textbtn{color:var(--bg);text-decoration-color:var(--past-ink)}
+.recado.prof .rec-av{box-shadow:0 0 0 2px var(--accent)}
+.recado.prof .rec-av.prof{background:var(--accent);color:#000}
+.rec-item.prof .rec-de b{font-weight:600}
+.rec-item.prof .rec-av{box-shadow:0 0 0 2px var(--accent)}
