@@ -302,3 +302,25 @@ body.limitado .c.eqc.vis b{color:var(--muted)}
 body.limitado .live .dot{background:var(--past-ink)}
 .tag-ex{display:inline-flex;align-items:center;height:22px;padding:0 var(--s2);border-radius:11px;border:1px solid var(--past-ink);color:var(--muted);font-size:var(--t-label);font-weight:500;letter-spacing:.04em;text-transform:uppercase;vertical-align:1px}
 .credits.off{display:flex;justify-content:space-between;align-items:center}
+
+/* reações nos eventos */
+.ev{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;transition:transform .18s ease,background .18s ease;border-radius:12px}
+.ev.lifted{transform:scale(1.02);background:var(--bg);box-shadow:0 8px 28px rgba(0,0,0,.18);position:relative;z-index:61}
+.reacts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.rx{display:inline-flex;align-items:center;gap:4px;font-size:13px;line-height:1;padding:4px 8px;border-radius:999px;box-shadow:inset 0 0 0 1px var(--line)}
+.rx b{font-size:var(--t-label);font-weight:500;color:var(--strong)}
+.rx.mine{background:var(--accent);box-shadow:none}
+.rx.mine b{color:var(--accent-ink)}
+.rxlayer{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.08)}
+.rxbar{position:fixed;display:flex;gap:2px;padding:6px;border-radius:999px;background:var(--bg);box-shadow:0 10px 30px rgba(0,0,0,.22),inset 0 0 0 1px var(--line);animation:rxin .2s cubic-bezier(.2,.9,.3,1.3) both}
+.rxbar button{width:44px;height:44px;border-radius:50%;font-size:26px;line-height:1;display:grid;place-items:center;animation:rxpop .28s cubic-bezier(.2,.9,.3,1.4) both;transition:transform .12s ease}
+.rxbar button:active{transform:scale(1.3)}
+.rxbar button.on{background:var(--line)}
+.rxrow{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s3)}
+.rxrow button{display:inline-flex;align-items:center;gap:4px;min-height:40px;padding:0 12px;border-radius:999px;font-size:20px;box-shadow:inset 0 0 0 1px var(--line)}
+.rxrow button b{font-size:var(--t-label);font-weight:500;color:var(--strong)}
+.rxrow button.on{background:var(--accent);box-shadow:none}
+.rxrow button.on b{color:var(--accent-ink)}
+@keyframes rxin{from{opacity:0;transform:translateY(6px) scale(.9)}to{opacity:1;transform:none}}
+@keyframes rxpop{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.rxbar,.rxbar button{animation:none}.ev{transition:none}}

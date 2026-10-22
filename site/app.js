@@ -238,8 +238,9 @@ async function loadAluno(){
   if(al) S.aluno = al;
 }
 async function loadEventos(){
-  const { data } = await sb.rpc("eventos_lista");
-  S.eventos = (data || []).map(e => ({ ...e, ini: new Date(e.inicia_em), fim: new Date(e.termina_em) }));
+  const [{ data }, { data: rx }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("reacoes_eventos")]);
+  const porEv = {}; (rx || []).forEach(r => (porEv[r.evento_id] = porEv[r.evento_id] || []).push(r));
+  S.eventos = (data || []).map(e => ({ ...e, ini: new Date(e.inicia_em), fim: new Date(e.termina_em), reacoes: ordenarReacoes(porEv[e.id] || []) }));
 }
 async function refresh(){ await Promise.all([loadAluno(), loadEventos()]); render(); }
 
@@ -711,10 +712,57 @@ function viewEventos(){
     const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
     return `<button class="ev" data-ev="${e.id}">
       <div class="date"><b class="tnum">${pad(e.ini.getDate())}</b><span>${MES[e.ini.getMonth()].slice(0,3)}</span></div>
-      <div class="info"><p class="label">${esc(e.tipo)}${e.publicado ? "" : " · rascunho"}</p><span class="title">${esc(e.titulo)}</span><span class="sub">${WD[e.ini.getDay()]}, ${hh(e.ini)} às ${hh(e.fim)}</span></div>
+      <div class="info"><p class="label">${esc(e.tipo)}${e.publicado ? "" : " · rascunho"}</p><span class="title">${esc(e.titulo)}</span><span class="sub">${WD[e.ini.getDay()]}, ${hh(e.ini)} às ${hh(e.fim)}</span>${reacoesHTML(e)}</div>
       <span class="tag ${e.inscrito ? "in" : ""}">${e.inscrito ? "Inscrito" : vag == null ? "Aberto" : vag ? `${vag} vagas` : "Esgotado"}</span>
     </button>`; }).join("") : `<p class="empty">${S.evFiltro === "meus" ? "Você ainda não se inscreveu em nenhum evento." : "Nenhum evento marcado por enquanto."}</p>`}</div>`;
 }
+/* ---------- reações nos eventos (segurar o card) ---------- */
+const EMOJIS = ["❤️","😍","👏","🎨","🔥","😂"];
+const ordenarReacoes = l => l.slice().sort((a,b) => b.total - a.total || EMOJIS.indexOf(a.emoji) - EMOJIS.indexOf(b.emoji));
+const minhaReacao = e => ((e.reacoes || []).find(r => r.minha) || {}).emoji || null;
+const reacoesHTML = e => (e.reacoes || []).length
+  ? `<span class="reacts" aria-label="Reações">${e.reacoes.map(r => `<span class="rx${r.minha ? " mine" : ""}">${r.emoji}<b class="tnum">${r.total}</b></span>`).join("")}</span>` : "";
+function abrirReacoes(card){
+  const e = S.eventos.find(x => x.id === card.dataset.ev); if(!e || !S.aluno) return;
+  fecharReacoes();
+  try{ navigator.vibrate && navigator.vibrate(12); }catch(_){}
+  const r = card.getBoundingClientRect(), atual = minhaReacao(e);
+  const wrap = document.createElement("div"); wrap.className = "rxlayer"; wrap.id = "rxLayer";
+  wrap.innerHTML = `<div class="rxbar" role="menu" aria-label="Reagir ao evento">${EMOJIS.map((em, i) =>
+    `<button role="menuitem" data-rx="${em}" class="${em === atual ? "on" : ""}" style="animation-delay:${i * 25}ms" aria-label="Reagir com ${em}">${em}</button>`).join("")}</div>`;
+  document.body.appendChild(wrap);
+  card.classList.add("lifted");
+  const bar = wrap.firstElementChild, bw = bar.offsetWidth, bh = bar.offsetHeight;
+  const left = Math.max(12, Math.min(window.innerWidth - bw - 12, r.left + r.width / 2 - bw / 2));
+  const top = r.top - bh - 8 > 12 ? r.top - bh - 8 : r.bottom + 8;
+  Object.assign(bar.style, { left: left + "px", top: top + "px" });
+  wrap.addEventListener("click", ev => {
+    const b = ev.target.closest("[data-rx]"); fecharReacoes();
+    if(b) reagir(e, b.dataset.rx);
+  });
+}
+function fecharReacoes(){ const l = $("#rxLayer"); if(l) l.remove(); $$(".ev.lifted").forEach(c => c.classList.remove("lifted")); }
+async function reagir(e, emoji){
+  const antes = e.reacoes, atual = minhaReacao(e);
+  let l = (e.reacoes || []).map(r => ({ ...r }));
+  if(atual){ const r = l.find(x => x.emoji === atual); r.total--; r.minha = false; }
+  if(atual !== emoji){ let r = l.find(x => x.emoji === emoji); if(!r){ r = { emoji, total: 0 }; l.push(r); } r.total++; r.minha = true; }
+  e.reacoes = ordenarReacoes(l.filter(x => x.total > 0)); render();
+  const { error } = await sb.rpc("reagir_evento", { p_evento: e.id, p_emoji: emoji });
+  if(error){ e.reacoes = antes; render(); toast(errMsg(error)); }
+}
+function bindSegurar(card, onTap){
+  let t = null, x0 = 0, y0 = 0, segurou = false;
+  const cancelar = () => { clearTimeout(t); t = null; };
+  card.addEventListener("pointerdown", ev => { segurou = false; x0 = ev.clientX; y0 = ev.clientY; cancelar();
+    t = setTimeout(() => { t = null; segurou = true; abrirReacoes(card); }, 450); });
+  card.addEventListener("pointermove", ev => { if(t && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10) cancelar(); });
+  ["pointerup","pointercancel","pointerleave"].forEach(n => card.addEventListener(n, cancelar));
+  card.addEventListener("contextmenu", ev => ev.preventDefault());
+  card.onclick = ev => { if(segurou){ ev.preventDefault(); segurou = false; return; } onTap(); };
+}
+window.addEventListener("scroll", fecharReacoes, { passive: true });
+
 function sheetEvento(id){
   const e = S.eventos.find(x => x.id === id); if(!e) return;
   const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
@@ -722,6 +770,8 @@ function sheetEvento(id){
   sheet(`<p class="label">${esc(e.tipo)}</p><h3 class="h5">${esc(e.titulo)}</h3>
     <p class="sub">${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)} · ${hh(e.ini)} às ${hh(e.fim)}${e.local ? ` · ${esc(e.local)}` : ""}</p>
     ${e.descricao ? `<p class="desc">${esc(e.descricao)}</p>` : ""}
+    ${S.aluno ? `<div class="rxrow" role="group" aria-label="Reagir">${EMOJIS.map(em => { const r = (e.reacoes || []).find(x => x.emoji === em);
+      return `<button data-rxev="${id}" data-rx="${em}" class="${r && r.minha ? "on" : ""}" aria-pressed="${!!(r && r.minha)}">${em}${r ? `<b class="tnum">${r.total}</b>` : ""}</button>`; }).join("")}</div>` : reacoesHTML(e)}
     <div class="facts"><div><b class="tnum">${vag == null ? "—" : vag}</b><span>vagas livres</span></div><div><b class="tnum">${e.inscritos}</b><span>inscritos</span></div><div><b style="font-size:16px;line-height:28px">${esc(p1 || "—")}</b><span>${esc(p2 || "")}</span></div></div>
     <div class="btns">${S.visitante ? `<button class="btn pri" disabled>Inscrição só para alunos ativos</button><p class="sub" style="text-align:center">Função ativa somente para alunos ativos.</p>` : !S.aluno ? "" : e.inscrito ? `<button class="btn ghost" data-unev="${id}">Cancelar inscrição</button>` : `<button class="btn pri" data-inev="${id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>Inscrever-se</button>`}
     ${S.equipe ? `<button class="btn ghost" data-editev="${id}">Editar evento</button>` : ""}<button class="btn ghost" data-close>Fechar</button></div>`);
@@ -1204,7 +1254,7 @@ function sheetEventoEq(id){
 /* ---------- ligações ---------- */
 function bind(){
   $$("#view [data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
-  $$("#view [data-ev]").forEach(b => b.onclick = () => sheetEvento(b.dataset.ev));
+  $$("#view [data-ev]").forEach(b => b.classList.contains("ev") && S.aluno ? bindSegurar(b, () => sheetEvento(b.dataset.ev)) : (b.onclick = () => sheetEvento(b.dataset.ev)));
   $$("#view [data-evf]").forEach(b => b.onclick = () => { S.evFiltro = b.dataset.evf; render(); });
   $$("#view [data-day]").forEach(b => b.onclick = () => S.visitante ? sheetDiaV(b.dataset.day) : sheetDia(b.dataset.day));
   const vf = $("#voltarFixos"); if(vf) vf.onclick = sheetVoltar;
@@ -1274,6 +1324,7 @@ function sheetPessoas(){
 $("#sheetBody").addEventListener("click", async e => {
   const t = e.target.closest("button"); if(!t) return;
   if(t.hasAttribute("data-close")) return closeSheet();
+  if(t.dataset.rxev){ const ev = S.eventos.find(x => x.id === t.dataset.rxev); if(ev){ await reagir(ev, t.dataset.rx); sheetEvento(ev.id); } return; }
   if(t.dataset.aula && t.classList.contains("opt")){ const a = S.agenda.find(x => x.aula_id === t.dataset.aula); return a && sheetAula(a); }
   if(t.dataset.book) return doBook(t.dataset.book, t);
   if(t.dataset.remarcar){ busy(t, true); const { error } = await sb.rpc("remarcar_aula", { p_reserva: t.dataset.remarcar });

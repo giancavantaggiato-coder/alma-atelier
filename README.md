@@ -46,6 +46,11 @@ Uma tabela só (`pessoas`) para todo mundo que se relaciona com o Alma. Cada pes
 - As aulas das próximas 10 semanas são criadas sozinhas (toda segunda às 9h, horário UTC).
 - Trava extra no servidor (uma vez): **Authentication → Auth Hooks → Before User Created → Postgres → função `hook_antes_de_criar_usuario`** → Create/Enable.
 
+## Reações nos eventos
+- Na aba Eventos, o aluno segura um evento e escolhe um emoji (❤️ 😍 👏 🎨 🔥 😂). As contagens aparecem no card para todos.
+- Uma reação por pessoa em cada evento; tocar no mesmo emoji tira a reação. Também dá para reagir dentro da ficha do evento.
+- Banco: `supabase/15_reacoes_eventos.sql`.
+
 ## Publicar
 O app fica em https://app.almaestudosvisuais.com.br, publicado pelo GitHub Pages (workflow em `.github/workflows/pages.yml`) a cada alteração na branch main.
 DNS na GoDaddy: CNAME `app` → `giancavantaggiato-coder.github.io`. A loja usa CNAME `loja` → `shops.myshopify.com`.
