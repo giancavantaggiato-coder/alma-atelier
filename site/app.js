@@ -611,12 +611,12 @@ function viewAgenda(){
   <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
   <div class="grid">${cells}</div>
   ${repoLivre() ? `<div class="credits"><span><b>Reposições sem limite</b> <span style="color:var(--muted)">· marque quantas quiser</span></span></div>
-  <div class="hint"><span>O número em cada dia é quantos alunos vêm.</span><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>` : livre() ? `<div class="credits"><span><b>Plano livre</b> <span style="color:var(--muted)">· sem limite de aulas</span></span></div>
-  <div class="hint"><span>O número em cada dia é quantos alunos vêm.</span><span>Toque num dia com vaga para marcar uma aula.</span><span>Toque numa aula marcada para desmarcar.</span></div>` : `<div class="credits">
+  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>` : livre() ? `<div class="credits"><span><b>Plano livre</b> <span style="color:var(--muted)">· sem limite de aulas</span></span></div>
+  <div class="hint"><span>Toque num dia com vaga para marcar uma aula.</span><span>Toque numa aula marcada para desmarcar.</span></div>` : `<div class="credits">
     <span class="tnum"><b>${ac} de ${MAX_CRED}</b> <span style="color:var(--muted)">reposições disponíveis</span></span>
     <div class="dots" aria-hidden="true">${Array.from({length:MAX_CRED},(_,i)=>`<span class="${i<ac?"on":""}"></span>`).join("")}</div>
   </div>
-  <div class="hint"><span>O número em cada dia é quantos alunos vêm.</span><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>`}
+  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>`}
   ${!livre() && mudancas().total ? `<button class="textbtn voltar" id="voltarFixos">Reverter para meus dias fixos</button>` : ""}`;
 }
 function mudancas(){
@@ -1015,7 +1015,7 @@ function viewEquipe(){
       </div>
       <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
       <div class="grid">${cells}</div>
-      <div class="hint"><span>O número em cada dia é quantos alunos vêm.</span><span>Toque no dia para ver quem estará no atelier.</span></div>`;
+      <div class="hint"><span>Toque no dia para ver quem estará no atelier.</span></div>`;
   } else if(E.sec === "pessoas"){
     const f = E.filtro || "alunos", q = (E.busca || "").toLowerCase();
     const grupos = { alunos: p => ["aluno","pausado"].includes(p.vinculo) && !p.fantasma, interessados: p => p.vinculo === "interessado",
