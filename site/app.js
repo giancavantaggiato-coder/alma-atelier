@@ -65,7 +65,7 @@ document.addEventListener("keydown", e => { if(e.key === "Escape") closeSheet();
 function renderNav(){
   const tabs = [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]];
   if(S.equipe) tabs.push(["equipe","Equipe"]);
-  const lista = S.visitante && !S.equipe ? [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]] : adminOnly() ? [["eqhoje","Hoje"],["eq:dia","Calendário"],["eq:pessoas","Pessoas"],["eq:eventos","Eventos"],["painel","Você"]] : tabs;
+  const lista = S.visitante && !S.equipe ? [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]] : adminOnly() ? [["eqhoje","Hoje"],["eq:dia","Calendário"],["eq:pessoas","Alunos"],["eq:eventos","Eventos"],["painel","Você"]] : tabs;
   $("#nav").innerHTML = `<div class="in" role="tablist">${lista.map(([k,l]) =>
     `<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}"><span class="pillbg">${NAV_ICO[k] || ICO[k]}</span>${l}</button>`).join("")}</div>`;
   $("#nav").hidden = false;
@@ -992,7 +992,7 @@ async function eqLoad(){
 }
 function viewEquipe(){
   const E = S.eq;
-  const seg = `<div class="seg" role="group" aria-label="Seção">${[["dia","Calendário"],["pessoas","Pessoas"],["turmas","Horários"],["eventos","Eventos"]].map(([k,l]) =>
+  const seg = `<div class="seg" role="group" aria-label="Seção">${[["dia","Calendário"],["pessoas","Alunos"],["turmas","Horários"],["eventos","Eventos"]].map(([k,l]) =>
     `<button data-eqsec="${k}" aria-pressed="${E.sec === k}">${l}</button>`).join("")}</div>`;
   let body = "";
   if(E.sec === "dia"){
@@ -1017,15 +1017,15 @@ function viewEquipe(){
       <div class="grid">${cells}</div>
       <div class="hint"><span>Toque no dia para ver quem estará no atelier.</span></div>`;
   } else if(E.sec === "pessoas"){
-    const f = E.filtro || "alunos", q = (E.busca || "").toLowerCase();
-    const grupos = { alunos: p => ["aluno","pausado"].includes(p.vinculo) && !p.fantasma, interessados: p => p.vinculo === "interessado",
-      ex: p => p.vinculo === "ex_aluno", loja: p => p.comprador_loja, todos: () => true };
+    const f = ["todos","alunos","suspensos","ex"].includes(E.filtro) ? E.filtro : "alunos"; q = (E.busca || "").toLowerCase();
+    const grupos = { todos: p => ["aluno","pausado","ex_aluno"].includes(p.vinculo), alunos: p => p.vinculo === "aluno" && !p.fantasma,
+      suspensos: p => p.vinculo === "pausado", ex: p => p.vinculo === "ex_aluno" };
     const lista = E.alunos.filter(grupos[f]).filter(p => !q || [p.nome, p.email, p.whatsapp].some(x => String(x || "").toLowerCase().includes(q)));
     const n = k => E.alunos.filter(grupos[k]).length;
-    body = `<div class="chips">${[["alunos","Alunos"],["interessados","Interessados"],["ex","Ex-alunos"],["loja","Loja"],["todos","Todos"]].map(([k,l]) =>
+    body = `<div class="chips">${[["todos","Todos"],["alunos","Alunos"],["suspensos","Suspensos"],["ex","Ex-alunos"]].map(([k,l]) =>
         `<button data-pfiltro="${k}" aria-pressed="${f === k}">${l} <span class="tnum">${n(k)}</span></button>`).join("")}</div>
       <div class="daybar"><label class="field" style="flex:1;margin-right:var(--s3)"><input id="pBusca" type="search" placeholder="Buscar nome, e-mail ou WhatsApp" value="${esc(E.busca || "")}"></label>
-        <button class="addbtn" data-pessoa="novo">Nova pessoa</button></div>
+        <button class="addbtn" data-pessoa="novo">Novo aluno</button></div>
       ${f === "alunos" ? `<button class="textbtn" id="addEmails">Adicionar alunos por e-mail</button>` : ""}
       <div class="cards">${lista.length ? lista.map(p => {
         const aluno = ["aluno","pausado"].includes(p.vinculo);
@@ -1051,7 +1051,7 @@ function viewEquipe(){
   const np = (E.pedidos || []).length;
   const banner = np ? `<button class="pedidos-banner" id="verPedidos"><span class="ind"></span><span>${np === 1 ? "1 pedido de mudança de dias" : `${np} pedidos de mudança de dias`}</span><span class="end">Ver</span></button>` : "";
   if(adminOnly()){
-    const tit = { dia: "Calendário", pessoas: "Pessoas", turmas: "Horários", eventos: "Eventos" }[E.sec] || "Equipe";
+    const tit = { dia: "Calendário", pessoas: "Alunos", turmas: "Horários", eventos: "Eventos" }[E.sec] || "Equipe";
     return `<h1 class="h4">${tit}</h1>${banner}${body}`;
   }
   return `<h1 class="h4">Equipe</h1>${banner}${seg}${body}`;
@@ -1107,7 +1107,7 @@ function sheetExcluirEq(id){
   const v = $("[data-pessoa-voltar]"); if(v) v.onclick = () => sheetPessoaEq(id);
 }
 function sheetPessoaEq(id){
-  const E = S.eq, p = id === "novo" ? { vinculo: E.filtro === "interessados" ? "interessado" : "aluno", pagamento_status: "em_dia", aulas_anteriores: 0, interesses: [], comprador_loja: E.filtro === "loja", acesso_app: true } : E.alunos.find(x => x.id === id);
+  const E = S.eq, p = id === "novo" ? { vinculo: E.filtro === "suspensos" ? "pausado" : E.filtro === "ex" ? "ex_aluno" : "aluno", pagamento_status: "em_dia", aulas_anteriores: 0, interesses: [], comprador_loja: false, acesso_app: true } : E.alunos.find(x => x.id === id);
   const minhas = E.mat[p.id] || [];
   const ehAluno = v => ["aluno","pausado"].includes(v);
   sheet(`<p class="label">${id === "novo" ? "Nova pessoa" : VINC[p.vinculo || ""] || "Contato"}</p><h3 class="h5">${esc(p.nome || "Cadastro")}</h3>

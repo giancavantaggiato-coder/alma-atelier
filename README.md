@@ -40,7 +40,7 @@ Uma tabela só (`pessoas`) para todo mundo que se relaciona com o Alma. Cada pes
   - 5 senhas erradas bloqueiam a senha; a pessoa entra pelo código e cria outra.
   - Trocar a senha: aba **Você → Trocar senha de acesso**.
   - Por trás: tabela `senhas_app` (só o hash), funções em `supabase/13_senha_pin.sql` e a Edge Function `entrar-pin`.
-- Para cadastrar vários de uma vez: Equipe → Pessoas → **Adicionar alunos por e-mail**.
+- Para cadastrar vários de uma vez: Equipe → Alunos → **Adicionar alunos por e-mail**.
 - No primeiro acesso o aluno completa primeiro nome, sobrenome, quantas vezes por semana vem e escolhe os dias (só aparecem horários com vaga). Se a equipe já marcou os dias dele, eles aparecem prontos.
 - Para bloquear alguém: desligue **Acesso ao app** na ficha da pessoa. E-mail fora da base nem recebe o código.
 - As aulas das próximas 10 semanas são criadas sozinhas (toda segunda às 9h, horário UTC).
@@ -70,5 +70,5 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 4. Avisar os alunos para instalarem o app e entrarem com esse e-mail.
 
 ## Login fantasma
-- `gianc.avantaggiato@gmail.com` entra como aluno fantasma: vê e usa todas as telas de aluno, mas não aparece em "alunos em aula", na chamada, nas vagas, nos inscritos de eventos nem na lista de Alunos (só em Pessoas → Todos, marcado como "Fantasma").
+- `gianc.avantaggiato@gmail.com` entra como aluno fantasma: vê e usa todas as telas de aluno, mas não aparece em "alunos em aula", na chamada, nas vagas, nos inscritos de eventos nem na lista de Alunos (só em Alunos → Todos, marcado como "Fantasma").
 - Mensalidade aparece como "Em construção" para os alunos por enquanto.
