@@ -618,8 +618,7 @@ function viewVoceV(){
     <section class="tile"><div class="tl"><h2 class="tt">Seus dias</h2></div><div class="tv">—</div><p class="ts">${AVISO_V}</p></section>
   </div>
   <button class="signout" id="trocarSenha">Trocar senha de acesso</button>
-  <button class="signout" id="sair">Sair da conta</button>
-  <p class="foot">Alma Atelier · versão beta</p>`;
+  <button class="signout" id="sair">Sair da conta</button>`;
 }
 
 /* ---------- Agenda ---------- */
@@ -979,8 +978,7 @@ function viewVoce(){
     ${linhaPush()}
     <button class="li" id="trocarSenha"><span class="ind n"></span>Trocar senha de acesso</button>
     <button class="li sairli" id="sair"><span class="ind n"></span>Sair da conta</button>
-  </div>
-  <p class="foot">Alma Atelier · versão beta</p>`;
+  </div>`;
 }
 function blocoPedido(){
   const p = S.pedido, n = now();
