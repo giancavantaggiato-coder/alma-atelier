@@ -844,13 +844,23 @@ function viewEventos(){
   ${S.aluno ? `<div class="seg" role="group" aria-label="Filtro">
     <button data-evf="proximos" aria-pressed="${S.evFiltro === "proximos"}">Próximos</button>
     <button data-evf="meus" aria-pressed="${S.evFiltro === "meus"}">Inscrito</button></div>` : ""}
-  <div class="events">${lista.length ? lista.map(e => {
-    const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
-    return `<button class="ev" data-ev="${e.id}">
-      <div class="date"><b class="tnum">${pad(e.ini.getDate())}</b><span>${MES[e.ini.getMonth()].slice(0,3)}</span></div>
-      <div class="info"><p class="label">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</p><span class="title">${esc(e.titulo)}</span><span class="sub">${WD[e.ini.getDay()]}, ${hh(e.ini)} às ${hh(e.fim)}</span>${quemVaiHTML(e)}${muralContaHTML(e)}</div>
-      <span class="tag ${e.inscrito ? "in" : ""}">${e.inscrito ? "Inscrito" : vag == null ? "Aberto" : vag ? `${vag} vagas` : "Esgotado"}</span>
-    </button>`; }).join("") : `<p class="empty">${S.evFiltro === "meus" ? "Você ainda não se inscreveu em nenhum evento." : "Nenhum evento marcado por enquanto."}</p>`}</div>`;
+  <div class="evcards">${lista.length ? lista.map(e => cardEventoHTML(e)).join("") : `<p class="empty">${S.evFiltro === "meus" ? "Você ainda não se inscreveu em nenhum evento." : "Nenhum evento marcado por enquanto."}</p>`}</div>`;
+}
+/* cartão de evento das listas (aluno e equipe): foto em cima, data com hierarquia, título e quem vai */
+const dataPonto = d => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
+function cardEventoHTML(e, eq){
+  const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
+  const tag = eq ? `<span class="evc-tag">${e.inscritos}${e.vagas ? "/" + e.vagas : ""} inscritos</span>`
+    : `<span class="evc-tag${e.inscrito ? " in" : ""}">${e.inscrito ? "Inscrito" : vag == null ? "Aberto" : vag ? plural(vag, "vaga", "vagas") : "Esgotado"}</span>`;
+  return `<button class="evcard${e.foto_url ? "" : " semfoto"}" data-ev="${e.id}">
+    ${e.foto_url ? `<span class="evc-foto"><img src="${esc(e.foto_url)}" alt="" loading="lazy">${tag}</span>` : ""}
+    <span class="evc-corpo">
+      <span class="evc-data"><b class="tnum">${dataPonto(e.ini)}</b><span>${WD[e.ini.getDay()]}, ${hh(e.ini)} às ${hh(e.fim)}</span>${e.foto_url ? "" : tag}</span>
+      <span class="evc-tit">${esc(e.titulo)}</span>
+      <span class="evc-tipo">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</span>
+      ${(e.quem || []).length || e.nc ? `<span class="evc-pe">${quemVaiHTML(e, 5)}${e.nc ? `<span class="evc-nc">${plural(e.nc, "comentário", "comentários")}</span>` : ""}</span>` : ""}
+    </span>
+  </button>`;
 }
 /* ---------- Página do evento: detalhes, reações e mural ---------- */
 const EMOJIS = ["❤️","😍","👏","🎨","🔥","😂"];
@@ -994,7 +1004,7 @@ function viewEventoPag(){
       <div class="evhero-top"><button class="evround" data-evvoltar aria-label="Voltar">${EVI_TOPO.voltar}</button>
         ${S.equipe ? `<span class="evhero-acoes"><label class="evround" aria-label="${e.foto_url ? "Trocar foto" : "Adicionar foto"}">${EVI_TOPO.foto}<input type="file" accept="image/*" id="evFotoIn" hidden></label><button class="evround" data-editev="${e.id}" aria-label="Editar evento">${EVI_TOPO.editar}</button></span>` : ""}</div>
       ${capaReacoesHTML()}
-      <div class="evdate"><b class="tnum">${e.ini.getDate()}</b><span><span>${MES[e.ini.getMonth()]}</span><span>${WD[e.ini.getDay()]}</span></span></div>
+      <div class="evdate"><b class="tnum">${dataPonto(e.ini)}</b><span>${cap1(WD[e.ini.getDay()])}</span></div>
     </header>
     <article class="evbody${barra ? " combarra" : ""}">
       <span class="evtag">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</span>
@@ -1417,8 +1427,7 @@ function viewEquipe(){
         <p class="sub">${t.capacidade} vagas</p></button>`).join("")}</div>`;
   } else {
     body = `<div class="daybar"><p class="sub">${plural(S.eventos.length,"evento","eventos")}</p><button class="addbtn" data-editev="novo">Novo evento</button></div>
-      <div class="cards">${S.eventos.map(e => `<button class="card" data-ev="${e.id}" style="text-align:left"><div class="row"><span class="title">${esc(e.titulo)}</span><span class="pill">${e.inscritos}${e.vagas ? "/" + e.vagas : ""} inscritos</span></div>
-        <p class="sub">${esc(e.tipo)}, ${WD[e.ini.getDay()]} ${dm(e.ini)}, ${hh(e.ini)}${e.publicado ? "" : " (rascunho)"}</p>${quemVaiHTML(e, 8)}${muralContaHTML(e)}</button>`).join("")}</div>`;
+      <div class="evcards">${S.eventos.map(e => cardEventoHTML(e, true)).join("")}</div>`;
   }
   const np = (E.pedidos || []).length;
   const banner = np ? `<button class="pedidos-banner" id="verPedidos"><span class="ind"></span><span>${np === 1 ? "1 pedido de mudança de dias" : `${np} pedidos de mudança de dias`}</span><span class="end">Ver</span></button>` : "";
