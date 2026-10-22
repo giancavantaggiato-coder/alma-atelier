@@ -534,7 +534,7 @@ function viewAgendaV(){
   <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
   <div class="grid">${cells}</div>
   <div class="credits off"><span><b>Reposições</b> <span style="color:var(--muted)">· ${AVISO_V.toLowerCase()}</span></span></div>
-  <div class="hint"><span>O número em cada dia é quantos alunos vêm ao atelier.</span><span>Marcar aulas é uma função ativa somente para alunos.</span></div>`;
+  <div class="hint"><span>Marcar aulas é uma função ativa somente para alunos.</span></div>`;
 }
 function sheetDiaV(k){
   const d = fromKey(k), list = (S.agendaV || []).filter(a => dkey(a.ini) === k);
