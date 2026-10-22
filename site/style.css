@@ -493,3 +493,7 @@ body.comoaluno .ptr{top:calc(44px + var(--s2) + env(safe-area-inset-top,0px))}
 .ptr.girando svg{opacity:0}
 .ptr.girando::after{content:"";position:absolute;width:18px;height:18px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--fg);animation:gira .7s linear infinite}
 @keyframes gira{to{transform:rotate(360deg)}}
+
+/* ---- Você: tempo de atelier no cabeçalho ---- */
+.profile .tempo{margin:var(--s1) 0 0;font-size:var(--t-title);line-height:24px;font-weight:500;color:var(--fg)}
+.profile .sub.desde{font-size:var(--t-body-s);margin:0}
