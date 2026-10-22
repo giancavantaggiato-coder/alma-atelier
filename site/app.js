@@ -1057,8 +1057,8 @@ function viewEventoPag(){
       <h1 class="evtit">${esc(e.titulo)}</h1>
       <ul class="evinfo">
         <li>${seloData(e.ini)}<span><b>${cap1(WD[e.ini.getDay()])}, ${e.ini.getDate()} de ${MES[e.ini.getMonth()]}</b><span>${hh(e.ini)} às ${hh(e.fim)}</span></span></li>
-        ${e.local ? `<li><span class="dchip ico">${EVI.local}</span><span><b>${esc(e.local)}</b>${/atelier/i.test(e.local) ? `<span>Rua São Paulo, 864, São Caetano do Sul</span>` : ""}</span></li>` : ""}
-        ${!S.aluno && preco1 ? `<li><span class="dchip ico">${EVI.valor}</span><span><b>${esc(preco1)}</b>${precoResto.length ? `<span>${esc(precoResto.join(", "))}</span>` : ""}</span></li>` : ""}
+        ${e.local ? `<li class="lin"><span class="evico">${EVI.local}</span><span><b>${esc(e.local)}</b>${/atelier/i.test(e.local) ? `<span>, Rua São Paulo, 864</span>` : ""}</span></li>` : ""}
+        ${!S.aluno && preco1 ? `<li class="lin"><span class="evico">${EVI.valor}</span><span><b>${esc(preco1)}</b>${precoResto.length ? `<span>, ${esc(precoResto.join(", "))}</span>` : ""}</span></li>` : ""}
       </ul>
       <div class="evgente">${(e.quem || []).length ? quemVaiHTML(e, 5) : `<span class="fpt">Ninguém inscrito ainda</span>`}${vagasTxt ? `<span class="evvag">${vagasTxt}</span>` : ""}</div>
       ${e.descricao ? `<h2 class="evsec">Sobre</h2><p class="evdesc">${esc(e.descricao)}</p>` : ""}
