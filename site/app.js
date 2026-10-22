@@ -1027,15 +1027,18 @@ function viewEquipe(){
         `<button data-pfiltro="${k}" aria-pressed="${f === k}">${l} <span class="tnum">${n(k)}</span></button>`).join("")}</div>
       <div class="daybar"><label class="field" style="flex:1;margin-right:var(--s3)"><input id="pBusca" type="search" placeholder="Buscar nome, e-mail ou WhatsApp" value="${esc(E.busca || "")}"></label>
         <button class="addbtn" data-pessoa="novo">Novo aluno</button></div>
+      ${(() => { const c = {}; lista.forEach(p => { const t = (statusApp(p).match(/>([^<]+)</) || [])[1]; if(t) c[t] = (c[t] || 0) + 1; });
+        const ord = ["Usa o app","Falta cadastro","Não entrou","Sem app","Sem acesso"].filter(k => c[k]);
+        return ord.length ? `<p class="sub" style="margin-top:var(--s3)">${ord.map(k => `${c[k]} ${k.toLowerCase()}`).join(" · ")}</p>` : ""; })()}
       ${f === "alunos" ? `<button class="textbtn" id="addEmails">Adicionar alunos por e-mail</button>` : ""}
       <div class="cards">${lista.length ? lista.map(p => {
         const aluno = ["aluno","pausado"].includes(p.vinculo);
         const tags = [p.fantasma ? "Fantasma" : VINC[p.vinculo || ""], p.comprador_loja ? "Loja" : ""].filter(Boolean);
         const det = aluno
-          ? [((E.mat || {})[p.id] || []).map(id => { const t = (E.turmas || []).find(x => x.id === id); return t ? cap1(WDS[t.dia_semana]) : ""; }).join(" · ") || (p.plano === "livre" ? "Plano livre" : "Sem dia fixo"), p.plano === "livre" ? "marca as aulas que quiser" : p.reposicao_livre ? "reposições sem limite" : `${(E.cred || {})[p.id] || 0} reposições`, !p.acesso_app ? (p.email ? "acesso bloqueado" : "não usa o app") : !p.auth_user_id ? "ainda não entrou no app" : p.cadastro_completo_em ? "usa o app" : "entrou, falta completar o cadastro"]
+          ? [((E.mat || {})[p.id] || []).map(id => { const t = (E.turmas || []).find(x => x.id === id); return t ? cap1(WDS[t.dia_semana]) : ""; }).join(" · ") || (p.plano === "livre" ? "Plano livre" : "Sem dia fixo"), p.plano === "livre" ? "marca as aulas que quiser" : p.reposicao_livre ? "reposições sem limite" : `${(E.cred || {})[p.id] || 0} reposições`]
           : [p.origem ? `via ${p.origem}` : "", p.interesses && p.interesses.length ? p.interesses.join(", ") : "", p.vinculo === "ex_aluno" && p.saida_em ? `saiu em ${dm(fromKey(p.saida_em))}/${String(fromKey(p.saida_em).getFullYear()).slice(2)}` : ""];
         return `<button class="card" data-pessoa="${p.id}" style="text-align:left">
-          <div class="row"><span class="title">${esc(p.nome || p.email || p.whatsapp)}</span>${aluno ? `<span class="pill ${p.pagamento_status === "em_dia" ? "ok" : "warn"}">${PAG[p.pagamento_status]}</span>` : ""}</div>
+          <div class="row"><span class="title">${esc(p.nome || p.email || p.whatsapp)}</span>${statusApp(p)}</div>
           <p class="sub">${esc([tags.join(" · "), ...det].filter(Boolean).join(" · "))}</p></button>`; }).join("") : `<p class="empty">Ninguém nesta lista${q ? " com essa busca" : ""}.</p>`}</div>`;
   } else if(E.sec === "turmas"){
     const ate = dkey(addDays(new Date(), 56));
@@ -1056,6 +1059,16 @@ function viewEquipe(){
     return `<h1 class="h4">${tit}</h1>${banner}${body}`;
   }
   return `<h1 class="h4">Equipe</h1>${banner}${seg}${body}`;
+}
+/* situação no app, no lugar do status de pagamento (que ainda não existe) */
+function statusApp(p){
+  if(p.fantasma) return "";
+  const [cls, txt] = !p.email ? ["mute", "Sem app"]
+    : !p.acesso_app ? ["mute", "Sem acesso"]
+    : !p.auth_user_id ? ["wait", "Não entrou"]
+    : !p.cadastro_completo_em && p.vinculo === "aluno" ? ["wait", "Falta cadastro"]
+    : ["ok", "Usa o app"];
+  return `<span class="pill ${cls}">${txt}</span>`;
 }
 const VINC = { aluno: "Aluno", pausado: "Aluno suspenso", ex_aluno: "Ex-aluno", interessado: "Interessado", "": "" };
 const INTERESSES = ["Desenho","Pintura","Aquarela","Escultura","Cerâmica","Fotografia","Arte digital","Jovens Artistas"];
