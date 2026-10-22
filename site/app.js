@@ -95,6 +95,7 @@ function renderNav(){
 }
 $("#nav").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if(b) go(b.dataset.tab); });
 function go(t){
+  if(t !== "evento" && typeof sairCanalEvento === "function") sairCanalEvento();
   S.tab = t; if(String(t).startsWith("eq:")) S.eq.sec = t.slice(3);
   window.scrollTo(0,0); render();
   if(isEqTab()) eqLoad();
@@ -899,7 +900,7 @@ function reacoesHTML(){
   const txt = !nomes.length ? "" : nomes.length <= 2 ? cap1(nomes.join(" e ")) : `${cap1(nomes.slice(0, 2).join(", "))} e mais ${nomes.length - 2}`;
   if(!ativas.length && !pode) return "";
   return `<div class="rbar">
-    ${ativas.map(r => `<button class="rchip" data-reac="${r.emoji}" aria-pressed="${!!r.minha}" ${pode ? "" : "disabled"}><span>${r.emoji}</span><span class="tnum">${r.total}</span></button>`).join("")}
+    ${ativas.map(r => `<button class="rchip${r.minha && EV.novo === r.emoji ? " pulo" : ""}" data-reac="${r.emoji}" aria-pressed="${!!r.minha}" ${pode ? "" : "disabled"}><span>${r.emoji}</span><span class="tnum">${r.total}</span></button>`).join("")}
     ${pode ? `<button class="rchip radd" id="rAdd" aria-expanded="${!!EV.tray}" aria-label="Reagir">${EVI.reagir}${ativas.length ? "" : "<span>Reagir</span>"}</button>` : ""}
     ${txt ? `<span class="rquem">${esc(txt)}</span>` : ""}
   </div>
@@ -918,7 +919,8 @@ function muralHTML(){
       <button class="mpub" type="submit" aria-label="Publicar" ${EV.rascunho.trim() ? "" : "disabled"}>${EVI.enviar}</button></div></form>`
     : `<p class="mnota">Comentar fica aberto para alunos ativos e equipe.</p>`;
   if(EV.mural === null) return `${comp}<div class="mlista sk-lista" aria-hidden="true"><span class="sk sk-card"></span><span class="sk sk-card"></span></div>`;
-  return `${comp}<div class="mlista">${EV.mural.length ? EV.mural.map(c => `<article class="mc">
+  const chegou = EV.chegou; EV.chegou = false;
+  return `${comp}<div class="mlista">${EV.mural.length ? EV.mural.map((c, i) => `<article class="mc${chegou && i === 0 && !c.sou_eu ? " chegou" : ""}">
       ${avatarMural(c)}
       <div class="mcb"><p class="mch"><b>${c.sou_eu ? "Você" : esc(c.nome)}</b>${c.equipe ? `<span class="meq">Equipe</span>` : ""}</p>
         <p class="mtx">${esc(c.texto)}</p>
@@ -940,11 +942,12 @@ function capaReacoesHTML(){
   return `<div class="evfloat" id="evFloat" aria-hidden="true"><span class="evancora${EV.novo ? " pulo" : ""}">${topo}</span></div>`;
 }
 const semMovimento = () => window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-function bolhaReacao(em, rapido){
+function bolhaReacao(em, rapido, nome){
   const box = $("#evFloat"); if(!box || semMovimento() || box.childElementCount > 9) return;
   const alt = box.clientHeight, rnd = (a, b) => a + Math.random() * (b - a);
   const out = document.createElement("span"), inn = document.createElement("span");
   out.className = "evbolha"; inn.textContent = em; out.appendChild(inn);
+  if(nome){ const tag = document.createElement("small"); tag.textContent = nome; inn.appendChild(tag); out.classList.add("comnome"); }
   out.style.fontSize = `${Math.round(rnd(28, 40))}px`; box.appendChild(out);
   const dur = rapido ? rnd(1800, 2600) : rnd(3400, 5200), sobe = alt * rnd(.55, .8), lado = rnd(14, 30) * (Math.random() < .5 ? -1 : 1);
   out.animate([
@@ -973,18 +976,54 @@ function iniciarFluxo(){
   EV.fluxo = setTimeout(tick, 500);
 }
 /* explosão de emojis subindo a partir do botão tocado */
+/* resposta ao toque: o chip dá um apertinho e um único emoji sobe dele, com curva desacelerada (Material 3) */
+const M3_ENF = "cubic-bezier(.05,.7,.1,1)", M3_PADRAO = "cubic-bezier(.2,0,0,1)";
 function soltarEmojis(em, el){
-  if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-  for(let i = 0; i < 7; i++){
-    const sp = document.createElement("span"); sp.className = "evburst"; sp.textContent = em;
-    sp.style.left = cx + "px"; sp.style.top = cy + "px";
-    sp.style.setProperty("--dx", `${Math.round((Math.random() - .5) * 120)}px`);
-    sp.style.setProperty("--dy", `${-140 - Math.round(Math.random() * 120)}px`);
-    sp.style.setProperty("--rr", `${Math.round((Math.random() - .5) * 60)}deg`);
-    sp.style.animationDelay = `${i * 60}ms`;
-    document.body.appendChild(sp); setTimeout(() => sp.remove(), 1600 + i * 60);
-  }
+  if(semMovimento() || !el) return;
+  const r = el.getBoundingClientRect();
+  const sp = document.createElement("span"); sp.className = "evburst"; sp.textContent = em;
+  sp.style.left = `${r.left + r.width / 2}px`; sp.style.top = `${r.top + r.height / 2}px`;
+  document.body.appendChild(sp);
+  sp.animate([
+    { transform: "translate(-50%,-50%) scale(.6)", opacity: 0 },
+    { transform: "translate(-50%,-90%) scale(1.25)", opacity: 1, offset: .35 },
+    { transform: "translate(-50%,-260%) scale(1)", opacity: 0 }
+  ], { duration: 900, easing: M3_ENF, fill: "forwards" }).onfinish = () => sp.remove();
+}
+/* ---------- ao vivo: quem está na página vê as reações e os comentários dos outros na hora ---------- */
+function meuNomeCurto(){ return firstName((S.aluno && S.aluno.nome) || (S.painel && S.painel.nome) || (S.pessoa && S.pessoa.nome) || ""); }
+function souFantasma(){ return !!(S.aluno && S.aluno.fantasma); }
+function canalEvento(){
+  if(!sb.channel) return;
+  const id = EV.id;
+  if(EV.canal && EV.canalId === id) return;
+  sairCanalEvento();
+  const ch = sb.channel(`evento-${id}`, { config: { broadcast: { self: false }, presence: { key: (S.session && S.session.user.id) || String(Math.random()) } } });
+  ch.on("broadcast", { event: "reacao" }, ({ payload }) => {
+    if(S.tab !== "evento" || EV.id !== id || !payload) return;
+    bolhaReacao(payload.emoji, false, payload.nome); atualizarAoVivo();
+  });
+  ch.on("broadcast", { event: "comentario" }, () => { if(S.tab === "evento" && EV.id === id){ EV.chegou = true; atualizarAoVivo(); } });
+  ch.on("presence", { event: "sync" }, () => {
+    const st = ch.presenceState(), meu = S.session && S.session.user.id;
+    EV.aqui = Object.entries(st).filter(([k]) => k !== meu).map(([, v]) => v[0]).filter(Boolean);
+    const el = $("#evAqui"); if(el) el.outerHTML = aquiHTML();
+  });
+  ch.subscribe(st => { if(st === "SUBSCRIBED" && !souFantasma()) ch.track({ nome: meuNomeCurto(), avatar: (S.aluno && S.aluno.avatar_url) || (S.painel && S.painel.avatar_url) || null }); });
+  EV.canal = ch; EV.canalId = id;
+}
+function sairCanalEvento(){ if(EV.canal){ try{ sb.removeChannel(EV.canal); }catch(_){} } EV.canal = null; EV.canalId = null; EV.aqui = []; }
+function avisarCanal(evento, payload){ if(EV.canal && !souFantasma()) EV.canal.send({ type: "broadcast", event: evento, payload: { ...payload, nome: meuNomeCurto() } }).catch(() => {}); }
+function atualizarAoVivo(){
+  clearTimeout(EV.vivoT);
+  EV.vivoT = setTimeout(async () => { await Promise.all([loadEventoPag(), loadEventos()]); if(S.tab === "evento" && !document.activeElement?.matches?.("#mTxt")) render(); }, 700);
+}
+function aquiHTML(){
+  const l = EV.aqui || [];
+  if(!l.length) return `<span id="evAqui"></span>`;
+  const nomes = l.map(q => q.nome).filter(Boolean);
+  const txt = nomes.length === 1 ? `${nomes[0]} está aqui agora` : nomes.length === 2 ? `${nomes[0]} e ${nomes[1]} estão aqui agora` : `${nomes.length} pessoas aqui agora`;
+  return `<span id="evAqui" class="evaqui"><span class="fps">${l.slice(0, 3).map(q => `<span class="fp">${q.avatar ? `<img src="${esc(q.avatar)}" alt="">` : esc(initials(q.nome || ""))}</span>`).join("")}</span><span class="evaqui-t">${esc(txt)}</span></span>`;
 }
 function viewEventoPag(){
   EV.vivas = $$("#evFloat .evbolha");   // emojis no meio do voo passam para a capa nova sem sumir
@@ -1013,7 +1052,7 @@ function viewEventoPag(){
       <div class="evgente">${(e.quem || []).length ? quemVaiHTML(e, 5) : `<span class="fpt">Ninguém inscrito ainda</span>`}${vagasTxt ? `<span class="evvag">${vagasTxt}</span>` : ""}</div>
       ${e.descricao ? `<h2 class="evsec">Sobre</h2><p class="evdesc">${esc(e.descricao)}</p>` : ""}
       <section class="evmural">
-        <div class="mtopo"><h2 class="evsec">Mural</h2>${EV.mural && EV.mural.length ? `<span class="tnum">${EV.mural.length}</span>` : ""}</div>
+        <div class="mtopo"><h2 class="evsec">Mural</h2>${aquiHTML()}</div>
         ${reacoesHTML()}
         ${muralHTML()}
       </section>
@@ -1041,7 +1080,7 @@ function bindEventoPag(){
   const vb = $("#view [data-evvoltar]"); if(vb) vb.onclick = () => go(EV.volta || "eventos");
   const fi = $("#evFotoIn"); if(fi) fi.onchange = () => enviarFotoEvento(id, fi);
   const fl = $("#evFloat"); if(fl && EV.vivas && EV.vivas.length){ EV.vivas.forEach(b => fl.appendChild(b)); } EV.vivas = null;
-  iniciarFluxo();
+  iniciarFluxo(); canalEvento();
   $$("#view [data-inev]").forEach(b => b.onclick = async () => { busy(b, true); const { error } = await sb.rpc("inscrever_evento", { p_evento: id });
     if(error){ busy(b, false); return toast(errMsg(error)); } vibrar(); toast("Inscrição feita"); await loadEventos(); render(); });
   $$("#view [data-unev]").forEach(b => b.onclick = async () => { busy(b, true); const { error } = await sb.rpc("cancelar_inscricao", { p_evento: id });
@@ -1052,7 +1091,7 @@ function bindEventoPag(){
     const em = b.dataset.reac, antes = EV.reac.map(r => ({ ...r })), minha = (EV.reac.find(r => r.minha) || {}).emoji;
     EV.reac = EV.reac.map(r => r.emoji === minha ? { ...r, total: r.total - 1, minha: false } : r).filter(r => r.total > 0);
     if(minha !== em){ const r = EV.reac.find(x => x.emoji === em); if(r){ r.total++; r.minha = true; } else EV.reac.push({ evento_id: id, emoji: em, total: 1, minha: true }); vibrar();
-      soltarEmojis(em, b); EV.novo = em; setTimeout(() => { for(let k = 0; k < 5; k++) setTimeout(() => bolhaReacao(em, true), k * 140); }, 60); clearTimeout(EV.novoT); EV.novoT = setTimeout(() => { EV.novo = null; }, 1500); }
+      soltarEmojis(em, b); EV.novo = em; setTimeout(() => bolhaReacao(em, false), 120); avisarCanal("reacao", { emoji: em }); clearTimeout(EV.novoT); EV.novoT = setTimeout(() => { EV.novo = null; }, 1500); }
     render();
     const { error } = await sb.rpc("reagir_evento", { p_evento: id, p_emoji: em });
     if(error){ EV.reac = antes; render(); return toast(errMsg(error)); }
@@ -1069,7 +1108,7 @@ function bindEventoPag(){
     const btn = $("#mForm .mpub"); busy(btn, true); ta.disabled = true;
     const { error } = await sb.rpc("comentar_evento", { p_evento: id, p_texto: txt });
     if(error){ busy(btn, false); ta.disabled = false; return toast(errMsg(error)); }
-    EV.rascunho = ""; vibrar(); await loadEventoPag(); if(S.tab === "evento") render();
+    EV.rascunho = ""; vibrar(); avisarCanal("comentario", {}); await loadEventoPag(); if(S.tab === "evento") render();
   };
   $$("#view [data-mdel]").forEach(b => b.onclick = () => sheet(`<p class="label">Mural</p><h3 class="h5">Apagar este comentário?</h3>
     <p class="sub">Ele sai do mural para todo mundo.</p>

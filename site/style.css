@@ -641,7 +641,7 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .btn.ghost-line{box-shadow:inset 0 0 0 1px var(--line);color:var(--fg)}
 .evbar-aviso{font-size:var(--t-body-s);color:var(--muted);text-align:right}
 .evmural{margin-top:var(--s2)}
-.mtopo{display:flex;align-items:baseline;gap:var(--s2)}
+.mtopo{display:flex;align-items:center;gap:var(--s2)}
 .mtopo .tnum{margin-left:auto;font-size:var(--t-body-s);color:var(--muted)}
 .rbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:var(--s3)}
 .rchip{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 10px;border-radius:16px;background:var(--tile);font-size:var(--t-body-s);font-weight:500;transition:transform .15s}
@@ -692,9 +692,21 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .evbolha span{display:block;will-change:transform}
 @keyframes evrespira{0%,100%{transform:scale(1) rotate(-3deg)}50%{transform:scale(1.07) rotate(3deg)}}
 @keyframes evpulo{0%{transform:scale(.4)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
-.evburst{position:fixed;z-index:40;font-size:26px;line-height:1;pointer-events:none;transform:translate(-50%,-50%);animation:evsobe 1.4s cubic-bezier(.2,.7,.3,1) both}
-@keyframes evsobe{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}
-  100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.9) rotate(var(--rr))}}
+.evburst{position:fixed;z-index:40;font-size:30px;line-height:1;pointer-events:none;filter:drop-shadow(0 3px 8px rgba(0,0,0,.25))}
+.rchip,.rtray button{transition:transform .35s cubic-bezier(.2,0,0,1)}
+.rchip:active,.rtray button:active{transform:scale(.9);transition-duration:.1s}
+.rchip.pulo{animation:rchipok .45s cubic-bezier(.05,.7,.1,1)}
+@keyframes rchipok{0%{transform:scale(.9)}55%{transform:scale(1.08)}100%{transform:scale(1)}}
+.evbolha.comnome span{display:flex;flex-direction:column;align-items:center;gap:4px}
+.evbolha small{font-size:11px;line-height:1;font-weight:600;padding:4px 8px;border-radius:10px;background:rgba(0,0,0,.5);color:#FEFCE6;white-space:nowrap;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.evaqui{display:inline-flex;align-items:center;gap:var(--s2);margin-left:auto;min-width:0}
+.evaqui .fp{width:22px;height:22px;font-size:9px}
+.evaqui .fp::after{content:none}
+.evaqui-t{font-size:var(--t-label);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evaqui .fps{position:relative}
+.evaqui .fps::after{content:"";position:absolute;right:-2px;bottom:-1px;width:8px;height:8px;border-radius:50%;background:#5BC27A;box-shadow:0 0 0 2px var(--bg)}
+.mc.chegou{animation:mchegou .5s cubic-bezier(.05,.7,.1,1)}
+@keyframes mchegou{from{opacity:0;transform:translateY(-8px)}}
 @media (prefers-reduced-motion:reduce){.evfloat span{animation:none}}
 .evdate{z-index:2}
 
@@ -718,3 +730,5 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .evc-pe .facepile{margin-top:0}
 .evc-pe .fp{box-shadow:0 0 0 2px var(--tile)}
 .evc-nc{font-size:var(--t-label);color:var(--muted);white-space:nowrap;margin-left:auto}
+.mtopo{margin-top:var(--s6)}
+.mtopo .evsec{margin:0}
