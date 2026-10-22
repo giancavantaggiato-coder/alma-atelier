@@ -51,6 +51,7 @@ const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const firstName = n => String(n||"").trim().split(/\s+/)[0] || "";
 const initials = n => String(n||"").trim().split(/\s+/).map(p => p[0]).slice(0,2).join("").toUpperCase();
+const saudacao = () => { const h = new Date().getHours(); return h >= 5 && h < 12 ? "Bom dia" : h >= 12 && h < 18 ? "Boa tarde" : "Boa noite"; };
 const errMsg = e => (e && (e.message || e.error_description)) || "Algo deu errado. Tente de novo.";
 
 /* ---------- estado ---------- */
@@ -68,7 +69,16 @@ const esqueleto = () => `<div class="sk-tela" aria-busy="true" aria-label="Carre
   <span class="sk sk-l" style="width:30%"></span><span class="sk sk-h"></span><span class="sk sk-l" style="width:55%;margin-top:var(--s5)"></span>
   <span class="sk sk-tile"></span>
   <span class="sk sk-row"></span><span class="sk sk-row"></span><span class="sk sk-row"></span></div>`;
-function toast(t){ const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2800); }
+function toast(t){ const el = $("#toast"); el.classList.remove("acao"); el.textContent = t; el.classList.add("show"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2800); }
+/* aviso com uma ação (ex.: Desfazer), visível por alguns segundos */
+function toastAcao(t, rotulo, fn, ms = 6000){
+  const el = $("#toast");
+  el.innerHTML = `<span>${esc(t)}</span><button type="button">${esc(rotulo)}</button>`;
+  el.classList.add("show", "acao"); clearTimeout(el._t);
+  const fechar = () => { el.classList.remove("show"); setTimeout(() => el.classList.remove("acao"), 300); };
+  el._t = setTimeout(fechar, ms);
+  el.querySelector("button").onclick = () => { clearTimeout(el._t); fechar(); fn(); };
+}
 function sheet(html){ $("#sheetBody").innerHTML = html; $("#scrim").classList.add("show"); $("#sheet").classList.add("show"); if(window.matchMedia && matchMedia("(pointer: fine)").matches){ const f = $("#sheetBody").querySelector("input,select,button:not([disabled])"); f && f.focus({preventScroll:true}); } }
 function closeSheet(){ $("#scrim").classList.remove("show"); $("#sheet").classList.remove("show"); }
 function busy(btn, on){ if(!btn) return; btn.disabled = on; if(on){ btn.dataset.t = btn.textContent; btn.textContent = "Aguarde…"; } else if(btn.dataset.t){ btn.textContent = btn.dataset.t; } }
@@ -521,7 +531,7 @@ function viewHoje(){
   return `
   <header class="hello">
     <p class="label">${cap1(WD[n.getDay()])}, ${dm(n)}</p>
-    <h1 class="h4">Olá, ${esc(firstName(S.aluno.nome))}</h1>
+    <h1 class="h4">${saudacao()}, ${esc(firstName(S.aluno.nome))}</h1>
     ${estado ? `<p class="sub" style="font-size:var(--t-body)">${estado}</p>` : ""}
   </header>
   <button class="live" id="liveBtn" ${live ? "" : "disabled"}>
@@ -560,7 +570,7 @@ function viewHojeV(){
   const hoje = (S.agendaV || []).filter(a => !a.cancelada && dkey(a.ini) === dkey(n));
   return `<header class="hello">
     <p class="label">${cap1(WD[n.getDay()])}, ${dm(n)}</p>
-    <h1 class="h4">Olá, ${esc(firstName(v.nome))}</h1>
+    <h1 class="h4">${saudacao()}, ${esc(firstName(v.nome))}</h1>
     <p class="sub" style="font-size:var(--t-body)">${hoje.length ? `O atelier abre hoje às ${hh(hoje[0].ini)}.` : "Hoje o atelier não abre."}</p>
   </header>
   <div class="live" aria-disabled="true"><span class="dot"></span><span>${live ? `${plural(live,"aluno","alunos")} no atelier agora` : "Ninguém no atelier agora"}</span></div>
@@ -760,7 +770,16 @@ async function doCancel(id, btn){
   const { data, error } = await sb.rpc("desmarcar", { p_reserva: id });
   if(error){ busy(btn, false); return toast(errMsg(error)); }
   closeSheet();
-  toast(livre() ? (data === "ausencia_sem_credito" ? "Ausência registrada" : "Aula desmarcada") : { credito_gerado: "Aula desmarcada. +1 reposição", credito_devolvido: "Reposição desmarcada. O crédito voltou.", ausencia_sem_credito: "Ausência registrada", limite_de_creditos: "Aula desmarcada" }[data] || "Aula desmarcada");
+  const r = S.agenda.find(a => a.reserva_id === id);
+  const msg = livre() ? (data === "ausencia_sem_credito" ? "Ausência registrada" : "Aula desmarcada") : { credito_gerado: "Aula desmarcada. +1 reposição", credito_devolvido: "Reposição desmarcada. O crédito voltou.", ausencia_sem_credito: "Ausência registrada", limite_de_creditos: "Aula desmarcada" }[data] || "Aula desmarcada";
+  /* desfazer: aula fixa volta a valer; reposição (que some ao desmarcar) é marcada de novo */
+  const desfazer = async () => {
+    const res = r && r.reserva_tipo === "fixa" ? await sb.rpc("remarcar_aula", { p_reserva: id })
+      : r ? await sb.rpc("marcar_reposicao", { p_aula: r.aula_id }) : { error: new Error("Não foi possível desfazer.") };
+    if(res.error) return toast(errMsg(res.error));
+    await loadAluno(); render(); vibrar(); toast("Pronto, sua aula voltou");
+  };
+  toastAcao(msg, "Desfazer", desfazer);
   await loadAluno(); render();
 }
 async function doBook(aulaId, btn){
@@ -832,7 +851,7 @@ function viewHojeEq(){
   return `
   <header class="hello">
     <p class="label">${cap1(WD[n.getDay()])}, ${dm(n)}</p>
-    <h1 class="h4">Olá, ${esc(firstName(p.nome) || "equipe")}</h1>
+    <h1 class="h4">${saudacao()}, ${esc(firstName(p.nome) || "equipe")}</h1>
     <p class="sub" style="font-size:var(--t-body)">${estado}</p>
   </header>
   <button class="live" id="liveBtn" ${live ? "" : "disabled"}>
