@@ -854,9 +854,10 @@ const mesSigla = d => MES[d.getMonth()].slice(0, 3).toUpperCase();
 const seloData = (d, cls = "") => `<span class="dchip ${cls}" aria-hidden="true"><span>${mesSigla(d)}</span><b class="tnum">${d.getDate()}</b></span>`;
 function cardEventoHTML(e, eq){
   const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
-  const status = eq ? `<span class="evc-st">${e.inscritos}${e.vagas ? `<span>/${e.vagas}</span>` : ""} inscritos</span>`
+  const num = (n, rot) => `<span class="evc-st"><b class="tnum">${n}</b> <span>${rot}</span></span>`;
+  const status = eq ? num(e.vagas ? `${e.inscritos} de ${e.vagas}` : e.inscritos, e.inscritos === 1 && !e.vagas ? "inscrito" : "inscritos")
     : e.inscrito ? `<span class="evc-st in">Inscrito</span>`
-    : `<span class="evc-st${vag === 0 ? " esg" : ""}">${vag == null ? "Aberto" : vag ? plural(vag, "vaga", "vagas") : "Esgotado"}</span>`;
+    : vag == null ? `<span class="evc-st"><span>Vagas abertas</span></span>` : vag ? num(vag, vag === 1 ? "vaga" : "vagas") : `<span class="evc-st"><span>Esgotado</span></span>`;
   const quem = (e.quem || []).length ? quemVaiHTML(e, 4) : `<span class="fpt">Ninguém inscrito ainda</span>`;
   return `<button class="evcard${e.foto_url ? " comfoto" : ""}" data-ev="${e.id}" aria-label="${esc(e.titulo)}, ${WD[e.ini.getDay()]} ${e.ini.getDate()} de ${MES[e.ini.getMonth()]}">
     ${e.foto_url ? `<span class="evc-foto"><img src="${esc(e.foto_url)}" alt="" loading="lazy">${seloData(e.ini, "sobre")}</span>` : ""}
