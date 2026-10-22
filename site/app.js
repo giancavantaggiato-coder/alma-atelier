@@ -1954,28 +1954,64 @@ const contaPalavras = t => (String(t || "").trim().match(/\S+/g) || []).length;
 const novoId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 async function assinarFotos(paths){
-  const falta = [...new Set(paths)].filter(p => p && (!D.urls[p] || D.urls[p].ate < Date.now() + 6e4));
+  const agora = Date.now();
+  const falta = [...new Set(paths)].filter(p => p && (!D.urls[p] || D.urls[p].ate < agora + 6e4));
   if(!falta.length) return;
-  const { data } = await sb.storage.from("diario").createSignedUrls(falta, 3600);
-  (data || []).forEach(x => { const u = x.signedUrl || x.signedURL; if(u && x.path) D.urls[x.path] = { url: u, ate: Date.now() + 3500e3 }; });
+  const guarda = (path, u) => { if(path && u) D.urls[path] = { url: u, ate: Date.now() + 3500e3 }; };
+  try{
+    const { data } = await sb.storage.from("diario").createSignedUrls(falta, 3600);
+    (data || []).forEach(x => guarda(x.path, x.signedUrl || x.signedURL));
+  }catch(_){}
+  /* o que não veio no lote: tenta um a um e, em último caso, baixa a foto direto */
+  for(const p of falta.filter(p => !D.urls[p] || D.urls[p].ate < agora + 6e4)){
+    try{
+      const { data } = await sb.storage.from("diario").createSignedUrl(p, 3600);
+      if(data && data.signedUrl){ guarda(p, data.signedUrl); continue; }
+    }catch(_){}
+    try{
+      const { data } = await sb.storage.from("diario").download(p);
+      if(data) D.urls[p] = { url: URL.createObjectURL(data), ate: Date.now() + 864e5 };
+    }catch(_){}
+  }
 }
+/* qualquer foto do diário na tela sem endereço ainda é preenchida assim que o endereço chega */
 const fotoUrl = p => (D.urls[p] || {}).url || "";
+const fotoImg = (p, extra) => { const u = fotoUrl(p); return `<img data-fpath="${esc(p)}"${u ? ` src="${esc(u)}"` : ""} alt="" loading="lazy"${extra || ""}>`; };
+let hidratando = false;
+async function hidratarFotos(){
+  if(hidratando) return; hidratando = true;
+  try{
+    for(let tentativa = 0; tentativa < 3; tentativa++){
+      const imgs = [...document.querySelectorAll("img[data-fpath]")].filter(i => !i.getAttribute("src"));
+      if(!imgs.length) break;
+      await assinarFotos(imgs.map(i => i.dataset.fpath));
+      document.querySelectorAll("img[data-fpath]").forEach(i => { if(!i.getAttribute("src")){ const u = fotoUrl(i.dataset.fpath); if(u) i.src = u; } });
+      if(tentativa < 2 && [...document.querySelectorAll("img[data-fpath]")].some(i => !i.getAttribute("src"))) await new Promise(r => setTimeout(r, 1500 * (tentativa + 1)));
+    }
+  } finally { hidratando = false; }
+}
+new MutationObserver(() => { if(document.querySelector("img[data-fpath]:not([src])")) hidratarFotos(); }).observe(document.body, { childList: true, subtree: true });
+/* link vencido ou falha ao carregar: pede de novo uma vez */
+document.addEventListener("error", e => {
+  const i = e.target; if(!(i instanceof HTMLImageElement) || !i.dataset.fpath || i.dataset.refeito) return;
+  i.dataset.refeito = "1"; delete D.urls[i.dataset.fpath]; i.removeAttribute("src"); hidratarFotos();
+}, true);
 async function loadDiario(){
   if(!S.aluno) return;
   const { data, error } = await sb.from("diario").select("*").eq("aluno_id", S.aluno.id)
     .order("data", { ascending: false }).order("criado_em", { ascending: false });
   if(error){ if(D.itens === null) D.itens = []; return; }
   D.itens = data || [];
-  await assinarFotos(D.itens.flatMap(i => i.fotos || []));
+  try{ await assinarFotos(D.itens.flatMap(i => i.fotos || [])); }catch(_){}
 }
 
 /* cartão do diário (mesma peça para o aluno e para a equipe) */
 function cartaoDiario(i, attr){
-  const fotos = i.fotos || [], capa = fotos[0] && fotoUrl(fotos[0]);
+  const fotos = i.fotos || [], capa = fotos[0];
   const trecho = String(i.texto || "").replace(/\s+/g, " ").trim();
   const temCorpo = i.titulo || (trecho && !capa) || (trecho && capa);
   return `<button class="dcard${capa ? " foto" : ""}" ${attr}="${i.id}">
-    ${capa ? `<span class="dimg"><img src="${esc(capa)}" alt="" loading="lazy">${fotos.length > 1 ? `<span class="dmais tnum">+${fotos.length - 1}</span>` : ""}</span>` : ""}
+    ${capa ? `<span class="dimg">${fotoImg(capa)}${fotos.length > 1 ? `<span class="dmais tnum">+${fotos.length - 1}</span>` : ""}</span>` : ""}
     ${temCorpo ? `<span class="dbody">${i.titulo ? `<span class="dtit">${esc(i.titulo)}</span>` : ""}${trecho ? `<span class="dtxt">${esc(trecho.slice(0, 220))}</span>` : ""}</span>` : ""}
     <span class="dfoot"><span>${dataLonga(fromKey(i.data))}</span><span class="dtag">${DTIPO[i.tipo] || "Notas"}</span></span>
   </button>`;
@@ -2030,7 +2066,7 @@ function sheetRegistro(i, meu){
   if(!i) return;
   sheet(`<p class="label">${DTIPO[i.tipo] || "Notas"}</p><p class="sub dsheet-data">${dataLonga(fromKey(i.data))}</p>
     ${i.titulo ? `<h3 class="h5">${esc(i.titulo)}</h3>` : ""}
-    ${(i.fotos || []).length ? `<div class="dfotos">${i.fotos.map(p => `<img src="${esc(fotoUrl(p))}" alt="" loading="lazy">`).join("")}</div>` : ""}
+    ${(i.fotos || []).length ? `<div class="dfotos">${i.fotos.map(p => fotoImg(p)).join("")}</div>` : ""}
     ${i.texto ? `<p class="desc dtexto">${esc(i.texto)}</p>` : ""}
     <div class="btns">${meu ? `<button class="btn pri" data-deditar="${i.id}">Editar</button>` : ""}<button class="btn ghost" data-close>Fechar</button>
       ${meu ? `<button class="btn ghost dperigo" data-dapagar="${i.id}">Excluir registro</button>` : ""}</div>`);
@@ -2131,7 +2167,7 @@ function renderEditor(){
 function desenharFotosEd(){
   const e = D.ed, box = $("#edFotos"); if(!e || !box) return;
   box.hidden = !e.fotos.length;
-  box.innerHTML = e.fotos.map((f, k) => `<div class="ded-foto"><img src="${esc(f.url || fotoUrl(f.path))}" alt=""><button type="button" data-edrm="${k}" aria-label="Remover foto">×</button></div>`).join("");
+  box.innerHTML = e.fotos.map((f, k) => `<div class="ded-foto">${f.url ? `<img src="${esc(f.url)}" alt="">` : fotoImg(f.path)}<button type="button" data-edrm="${k}" aria-label="Remover foto">×</button></div>`).join("");
   $$("#edFotos [data-edrm]").forEach(b => b.onclick = () => {
     const f = e.fotos.splice(+b.dataset.edrm, 1)[0];
     if(f){ if(f.url) URL.revokeObjectURL(f.url); else if(f.path) e.removidas.push(f.path); }
@@ -2176,12 +2212,12 @@ async function salvarRegistro(btn){
 /* resumo do diário na aba Você */
 function blocoDiario(){
   const it = D.itens || [], ult = it[0], capa = it.find(i => (i.fotos || []).length);
-  const url = capa && fotoUrl(capa.fotos[0]);
+  const foto = capa && capa.fotos[0];
   return `<button class="dteaser" data-go="diario">
     <span class="dteaser-t"><span class="label">Diário</span>
       <span class="title">${it.length ? plural(it.length, "registro", "registros") : "Comece seu diário"}</span>
       <span class="sub">${ult ? `Último em ${dataLonga(fromKey(ult.data)).replace(/^./, c => c.toLowerCase())}` : "Notas e fotos do seu percurso no atelier"}</span></span>
-    ${url ? `<span class="dteaser-img"><img src="${esc(url)}" alt="" loading="lazy"></span>` : `<span class="dteaser-mais">${ICO_MAIS}</span>`}
+    ${foto ? `<span class="dteaser-img">${fotoImg(foto)}</span>` : `<span class="dteaser-mais">${ICO_MAIS}</span>`}
   </button>`;
 }
 
@@ -2192,7 +2228,7 @@ async function sheetDiarioEq(pid){
   const { data, error } = await sb.from("diario").select("*").eq("aluno_id", pid).order("data", { ascending: false }).order("criado_em", { ascending: false });
   if(error) return sheet(`<p class="label">Diário</p><h3 class="h5">${esc(p.nome || "Aluno")}</h3><p class="sub">${esc(errMsg(error))}</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
   D.eq = data || [];
-  await assinarFotos(D.eq.flatMap(i => i.fotos || []));
+  try{ await assinarFotos(D.eq.flatMap(i => i.fotos || [])); }catch(_){}
   sheet(`<p class="label">Diário</p><h3 class="h5">${esc(p.nome || "Aluno")}</h3>
     <p class="sub">${D.eq.length ? plural(D.eq.length, "registro", "registros") : "Ainda não escreveu no diário."}</p>
     ${D.eq.length ? `<div class="dlista dlista-eq">${listaDiarioHTML(D.eq, "data-dregeq")}</div>` : ""}
