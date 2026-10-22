@@ -63,6 +63,11 @@ const S = {
 };
 
 /* ---------- interface comum ---------- */
+/* contorno da tela enquanto os dados chegam */
+const esqueleto = () => `<div class="sk-tela" aria-busy="true" aria-label="Carregando">
+  <span class="sk sk-l" style="width:30%"></span><span class="sk sk-h"></span><span class="sk sk-l" style="width:55%;margin-top:var(--s5)"></span>
+  <span class="sk sk-tile"></span>
+  <span class="sk sk-row"></span><span class="sk sk-row"></span><span class="sk sk-row"></span></div>`;
 function toast(t){ const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2800); }
 function sheet(html){ $("#sheetBody").innerHTML = html; $("#scrim").classList.add("show"); $("#sheet").classList.add("show"); const f = $("#sheetBody").querySelector("input,select,button:not([disabled])"); f && f.focus({preventScroll:true}); }
 function closeSheet(){ $("#scrim").classList.remove("show"); $("#sheet").classList.remove("show"); }
@@ -294,7 +299,7 @@ function abrirLinkDireto(){
   if(aula && S.aluno){ const a = S.agenda.find(x => x.aula_id === aula); if(a) sheetAula(a); }
 }
 async function boot(){
-  $("#view").innerHTML = `<div class="loading">Carregando…</div>`;
+  $("#view").innerHTML = esqueleto();
   const { data } = await sb.auth.getSession();
   S.session = data.session;
   if(!S.session) return renderLogin();
@@ -534,7 +539,6 @@ function viewHoje(){
   <div class="list">
     ${espFila.map(a => `<button class="li" data-abreaula="${a.aula_id}"><span class="ind n"></span>Na lista de espera<span class="end tnum">${WDS[a.ini.getDay()]} ${dm(a.ini)} · ${hh(a.ini)}</span></button>`).join("")}
     <button class="li" data-go="agenda"><span class="ind"></span><span class="tnum">${livre() ? "Plano livre · marque as aulas que quiser" : repoLivre() ? "Reposições sem limite" : ac === 1 ? "1 reposição disponível" : `${ac} reposições disponíveis`}</span></button>
-    <div class="li"><span class="ind n"></span>Mensalidade<span class="end">Em construção</span></div>
     ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
   </div>
   ${cartaoPush()}`;
@@ -819,7 +823,7 @@ async function loadHojeEq(){
 }
 function viewHojeEq(){
   const n = now(), E = S.eq, p = S.painel || {};
-  if(!E.hojePronto) return `<div class="loading">Carregando…</div>`;
+  if(!E.hojePronto) return esqueleto();
   const abertas = (E.prox || []).filter(a => !a.cancelada);
   const agora = abertas.find(a => a.ini <= n && a.fim > n);
   const hoje = abertas.filter(a => dkey(a.ini) === dkey(n) && a.fim > n);
@@ -959,11 +963,6 @@ function viewVoce(){
   </div>
   ${blocoDiario()}
   <div class="tiles">
-    <section class="tile wide">
-      <div class="tl"><h2 class="tt">Mensalidade</h2><span class="chip">Em breve</span></div>
-      <div class="tv">Em construção</div>
-      <p class="ts">Em breve você acompanha seus pagamentos por aqui.</p>
-    </section>
     ${repoLivre() ? `<button class="tile" data-go="agenda"><div class="tl"><h2 class="tt">Reposições</h2></div><div class="tv">∞</div><p class="ts">Sem limite</p></button>` : livre() ? `<button class="tile" data-go="agenda"><div class="tl"><h2 class="tt">Seu plano</h2></div><div class="tv">Livre</div><p class="ts">Sem limite de aulas</p></button>` : `<button class="tile" data-go="agenda">
       <div class="tl"><h2 class="tt">Reposições</h2></div>
       <div class="tv tnum">${cr.length}<small> de ${MAX_CRED}</small></div>
@@ -974,9 +973,13 @@ function viewVoce(){
     </section>
   </div>
   ${blocoPedido()}
-  ${linhaPush() ? `<div class="list">${linhaPush()}</div>` : ""}
-  <button class="signout" id="trocarSenha">Trocar senha de acesso</button>
-  <button class="signout" id="sair">Sair da conta</button>
+  <div class="list ajustes">
+    ${!livre() && !(S.pedido && S.pedido.status === "pendente") ? `<button class="li" id="pedMudar"><span class="ind n"></span>Mudar frequência ou dias</button>` : ""}
+    <div class="li"><span class="ind n"></span>Mensalidade<span class="end">Em breve</span></div>
+    ${linhaPush()}
+    <button class="li" id="trocarSenha"><span class="ind n"></span>Trocar senha de acesso</button>
+    <button class="li sairli" id="sair"><span class="ind n"></span>Sair da conta</button>
+  </div>
   <p class="foot">Alma Atelier · versão beta</p>`;
 }
 function blocoPedido(){
@@ -988,8 +991,7 @@ function blocoPedido(){
     <div class="pedido-acoes"><button class="textbtn" id="pedMudar">Alterar pedido</button><button class="textbtn" id="pedCancelar">Cancelar pedido</button></div></section>`;
   const aviso = recente && p.status === "aprovado" ? `<p class="sub pedido-aviso">Sua mudança para ${p.frequencia_nova}x por semana foi aprovada.</p>`
     : recente && p.status === "recusado" ? `<p class="sub pedido-aviso">Seu pedido de mudança não foi aprovado.${p.resposta_equipe ? ` ${esc(p.resposta_equipe)}` : ""}</p>` : "";
-  if(livre()) return aviso;
-  return `${aviso}<button class="li mudar" id="pedMudar"><span class="ind n"></span>Mudar frequência ou dias</button>`;
+  return aviso;
 }
 async function sheetMudanca(){
   if(S.aluno.vinculo !== "aluno") return toast("Sua matrícula está pausada. Fale com o atelier.");
@@ -1543,7 +1545,7 @@ function viewDiario(){
   const topo = `<div class="dtopo"><button class="dvoltar" data-go="voce">${CHEV_L}<span>Você</span></button>
     <button class="iconbtn" id="dBusca" aria-label="Buscar no diário" aria-pressed="${D.buscando}">${ICO_BUSCA}</button></div>
     <h1 class="h4">Diário</h1>`;
-  if(D.itens === null) return `${topo}<div class="loading">Carregando…</div>`;
+  if(D.itens === null) return `${topo}<div class="dlista sk-lista" aria-hidden="true"><span class="sk sk-mes"></span><span class="sk sk-card alto"></span><span class="sk sk-card"></span></div>`;
   const all = D.itens, ano = now().getFullYear();
   const doAno = all.filter(i => fromKey(i.data).getFullYear() === ano).length;
   const q = D.busca.trim().toLowerCase();
@@ -1867,3 +1869,38 @@ $("#sheetBody").addEventListener("click", async e => {
 
 if(!CFG.url || CFG.url.includes("__")) { $("#view").innerHTML = `<div class="loading">App ainda não configurado.</div>`; }
 else boot();
+
+/* ---------- puxar para atualizar (Hoje, Agenda, Eventos e telas da equipe) ---------- */
+(function(){
+  const LIM = 64, el = document.createElement("div");
+  el.id = "ptr"; el.className = "ptr"; el.setAttribute("aria-hidden", "true");
+  el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v11M7 11l5 5 5-5"/></svg>';
+  document.body.appendChild(el);
+  let y0 = null, d = 0, ocupado = false;
+  const pode = () => S.session && !NS.ativo && !precisaCompletar() && !document.querySelector("#sheet.show") && !document.querySelector("#dEditor")
+    && (["hoje","agenda","eventos","eqhoje","painel"].includes(S.tab) || isEqTab());
+  const pos = v => { el.style.transform = `translate(-50%, ${v}px)`; el.style.opacity = Math.min(1, v / 40); el.classList.toggle("pronto", v >= LIM); };
+  document.addEventListener("touchstart", e => { if(ocupado || window.scrollY > 0 || !pode() || e.touches.length !== 1) { y0 = null; return; } y0 = e.touches[0].clientY; d = 0; }, { passive: true });
+  document.addEventListener("touchmove", e => {
+    if(y0 === null) return;
+    const dy = e.touches[0].clientY - y0;
+    if(dy <= 0 || window.scrollY > 0){ d = 0; pos(0); return; }
+    d = Math.min(96, dy * .5); pos(d);
+    if(e.cancelable) e.preventDefault();
+  }, { passive: false });
+  document.addEventListener("touchend", async () => {
+    if(y0 === null) return; y0 = null;
+    if(d < LIM){ el.classList.add("volta"); pos(0); setTimeout(() => el.classList.remove("volta"), 250); return; }
+    ocupado = true; el.classList.add("girando"); pos(56);
+    try{
+      if(S.visitante && !S.equipe) await loadVisitante();
+      else if(S.tab === "eqhoje") await loadHojeEq();
+      else if(S.tab === "painel") await loadPainel();
+      else if(isEqTab()) await eqLoad();
+      else await Promise.all([loadAluno(), loadEventos()]);
+      render();
+    }catch(_){ toast("Não foi possível atualizar. Verifique a conexão."); }
+    el.classList.remove("girando"); el.classList.add("volta"); pos(0);
+    setTimeout(() => { el.classList.remove("volta"); ocupado = false; }, 250);
+  });
+})();
