@@ -59,6 +59,10 @@ O app confere `version.json` ao voltar para a tela e recarrega sozinho quando sa
 Abrir o endereço no Safari → Compartilhar → Adicionar à Tela de Início.
 O login é por código de 6 dígitos (e não por link) justamente para funcionar dentro do app instalado.
 
+## Tela inicial da equipe
+- O admin abre em **Hoje**: saudação, se o atelier está aberto, quem está em aula agora, próxima aula (quantos vêm e "Ver quem vem"), pedidos de mudança, resumo dos próximos 7 dias, próximo evento e atalho para adicionar alunos.
+- Menu do admin: Hoje · Calendário · Pessoas · Eventos · Você. **Horários** fica em Você → Horários do atelier.
+
 ## Primeiros passos da equipe
 1. Entrar com o e-mail da equipe → aba **Equipe**.
 2. **Horários**: conferir dias, horários e vagas.

@@ -18,7 +18,7 @@ const ICO = {
   pessoas:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.9-3.4 3.2-5.2 6-5.2s5.1 1.8 6 5.2"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.6 14.6c1.6.7 2.8 2.3 3.4 4.9"/></svg>',
   horarios:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>'
 };
-const NAV_ICO = { "eq:dia": ICO.agenda, "eq:pessoas": ICO.pessoas, "eq:turmas": ICO.horarios, "eq:eventos": ICO.eventos, painel: ICO.voce };
+const NAV_ICO = { eqhoje: ICO.hoje, "eq:dia": ICO.agenda, "eq:pessoas": ICO.pessoas, "eq:turmas": ICO.horarios, "eq:eventos": ICO.eventos, painel: ICO.voce };
 const adminOnly = () => S.equipe && !S.aluno;
 const isEqTab = () => S.tab === "equipe" || String(S.tab).startsWith("eq:");
 const CAM = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
@@ -65,7 +65,7 @@ document.addEventListener("keydown", e => { if(e.key === "Escape") closeSheet();
 function renderNav(){
   const tabs = [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]];
   if(S.equipe) tabs.push(["equipe","Equipe"]);
-  const lista = S.visitante && !S.equipe ? [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]] : adminOnly() ? [["eq:dia","Calendário"],["eq:pessoas","Pessoas"],["eq:turmas","Horários"],["eq:eventos","Eventos"],["painel","Você"]] : tabs;
+  const lista = S.visitante && !S.equipe ? [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]] : adminOnly() ? [["eqhoje","Hoje"],["eq:dia","Calendário"],["eq:pessoas","Pessoas"],["eq:eventos","Eventos"],["painel","Você"]] : tabs;
   $("#nav").innerHTML = `<div class="in" role="tablist">${lista.map(([k,l]) =>
     `<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}"><span class="pillbg">${NAV_ICO[k] || ICO[k]}</span>${l}</button>`).join("")}</div>`;
   $("#nav").hidden = false;
@@ -76,6 +76,7 @@ function go(t){
   window.scrollTo(0,0); render();
   if(isEqTab()) eqLoad();
   if(t === "painel") loadPainel();
+  if(t === "eqhoje") loadHojeEq();
 }
 
 function render(){
@@ -84,7 +85,7 @@ function render(){
   if(NS.ativo) return renderNovaSenha();
   renderNav();
   const v = S.visitante && !isEqTab() ? ({ hoje: viewHojeV, agenda: viewAgendaV, eventos: viewEventos, voce: viewVoceV }[S.tab] || viewHojeV)
-    : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, painel: viewPainel }[S.tab] || viewHoje);
+    : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, painel: viewPainel, eqhoje: viewHojeEq }[S.tab] || (adminOnly() ? viewHojeEq : viewHoje));
   $("#view").innerHTML = v();
   bind();
 }
@@ -283,7 +284,7 @@ async function boot(){
       return primeiroAcesso();
     }
     if(await pedirSenha()) return;
-    if(!S.aluno){ S.tab = "eq:dia"; S.eq.sec = "dia"; }
+    if(!S.aluno){ if(!["eqhoje","painel"].includes(S.tab) && !isEqTab()) S.tab = "eqhoje"; if(S.tab === "eqhoje") loadHojeEq(); }
     await Promise.all([loadAluno(), loadEventos()]);
     render();
     if(isEqTab()) eqLoad();
@@ -296,7 +297,7 @@ sb.auth.onAuthStateChange((ev, session) => {
   if(ev === "SIGNED_OUT"){ Object.assign(S, { session:null, aluno:null, equipe:false, tab:"hoje" }); NS.ativo = false; loginEmail = emailLembrado() || loginEmail; renderLogin(loginEmail && emailLembrado() ? "email" : "inicio"); }
   if(ev === "TOKEN_REFRESHED") S.session = session;
 });
-document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao(); if(NS.ativo) return; if(S.aluno && !precisaCompletar()) refresh(); else if(S.visitante) loadVisitante().then(render); } });
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao(); if(NS.ativo) return; if(adminOnly() && S.tab === "eqhoje") loadHojeEq(); if(S.aluno && !precisaCompletar()) refresh(); else if(S.visitante) loadVisitante().then(render); } });
 /* Atualiza o app sozinho quando sai uma versão nova (sem precisar sair e entrar) */
 let VERSAO = null;
 async function checarVersao(){
@@ -739,6 +740,53 @@ function sheetEvento(id){
     ${S.equipe ? `<button class="btn ghost" data-editev="${id}">Editar evento</button>` : ""}<button class="btn ghost" data-close>Fechar</button></div>`);
 }
 
+/* ---------- Hoje da equipe (tela inicial do admin) ---------- */
+async function loadHojeEq(){
+  const de = startOfDay(new Date()), ate = addDays(de, 21);
+  const [ms, live, pd, pn] = await Promise.all([
+    sb.rpc("equipe_mes", { p_de: dkey(de), p_ate: dkey(ate) }), sb.rpc("em_aula_agora"),
+    sb.rpc("equipe_pedidos"), S.painel ? Promise.resolve({ data: S.painel }) : sb.rpc("meu_painel_equipe"), loadEventos()
+  ]);
+  S.eq.prox = (ms.data || []).map(a => ({ ...a, ini: new Date(a.inicia_em), fim: new Date(a.termina_em) })).sort((a,b) => a.ini - b.ini);
+  S.live = live.data || []; S.eq.pedidos = pd.data || []; S.painel = pn.data || S.painel || {};
+  S.eq.hojePronto = true;
+  if(S.tab === "eqhoje") render();
+}
+function viewHojeEq(){
+  const n = now(), E = S.eq, p = S.painel || {};
+  if(!E.hojePronto) return `<div class="loading">Carregando…</div>`;
+  const abertas = (E.prox || []).filter(a => !a.cancelada);
+  const agora = abertas.find(a => a.ini <= n && a.fim > n);
+  const hoje = abertas.filter(a => dkey(a.ini) === dkey(n) && a.fim > n);
+  const nx = abertas.find(a => a.fim > n && a !== agora) || null;
+  const estado = agora ? `Atelier aberto agora, até as ${hh(agora.fim)}.` : hoje.length ? `Hoje o atelier abre às ${hh(hoje[0].ini)}.` : abertas.some(a => dkey(a.ini) === dkey(n)) ? "As aulas de hoje já terminaram." : "Hoje o atelier está fechado.";
+  const live = S.live.length, np = (E.pedidos || []).length;
+  const ev = S.eventos.find(e => e.fim > n);
+  const sem = abertas.filter(a => a.ini >= startOfDay(n) && a.ini < addDays(startOfDay(n), 7));
+  const vagasSem = sem.reduce((t, a) => t + Math.max(0, a.capacidade - a.ocupadas), 0);
+  return `
+  <header class="hello">
+    <p class="label">${cap1(WD[n.getDay()])}, ${dm(n)}</p>
+    <h1 class="h4">Olá, ${esc(firstName(p.nome) || "equipe")}</h1>
+    <p class="sub" style="font-size:var(--t-body)">${estado}</p>
+  </header>
+  <button class="live" id="liveBtn" ${live ? "" : "disabled"}>
+    <span class="dot"></span><u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : "Ninguém no atelier agora"}</u>
+  </button>
+  ${nx ? `<section class="tile wide next">
+    <div class="tl"><h2 class="tt">Próxima aula</h2><span class="chip tnum">${plural(nx.ocupadas, "aluno", "alunos")} · ${nx.capacidade} vagas</span></div>
+    <div class="tv tnum">${dkey(nx.ini) === dkey(n) ? "Hoje" : dkey(nx.ini) === dkey(addDays(n,1)) ? "Amanhã" : cap1(WD[nx.ini.getDay()])}, ${dm(nx.ini)}</div>
+    <p class="ts">${hh(nx.ini)} às ${hh(nx.fim)}</p>
+    <button class="textbtn" data-eqdia="${dkey(nx.ini)}">Ver quem vem</button>
+  </section>` : `<section class="tile wide next"><div class="tl"><h2 class="tt">Próxima aula</h2></div><p class="sub">Nenhuma aula nas próximas semanas. Confira os horários do atelier.</p></section>`}
+  <div class="list">
+    <button class="li" id="pnPedidos"><span class="ind ${np ? "" : "n"}"></span>Pedidos de mudança<span class="end tnum">${np ? `${np} aguardando` : "nenhum"}</span></button>
+    <button class="li" data-tabgo="eq:dia"><span class="ind n"></span>Próximos 7 dias<span class="end tnum">${plural(sem.length, "aula", "aulas")} · ${plural(vagasSem, "vaga", "vagas")}</span></button>
+    ${ev ? `<button class="li" data-editev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${ev.inscritos ? ` · ${ev.inscritos}` : ""}</span></button>` : `<button class="li" data-editev="novo"><span class="ind n"></span>Criar evento</button>`}
+    <button class="li" id="pnEmails"><span class="ind n"></span>Adicionar alunos por e-mail</button>
+  </div>`;
+}
+
 /* ---------- Painel da equipe ---------- */
 async function loadPainel(){
   const [pn, pd, ps] = await Promise.all([sb.rpc("meu_painel_equipe"), sb.rpc("equipe_pedidos"), sb.from("pessoas").select("id,email,nome,vinculo")]);
@@ -772,7 +820,7 @@ function viewPainel(){
     <button class="li" id="pnPedidos"><span class="ind ${np ? "" : "n"}"></span>Pedidos de mudança<span class="end tnum">${np ? `${np} aguardando` : "nenhum"}</span></button>
     <button class="li" id="pnEmails"><span class="ind n"></span>Adicionar alunos por e-mail</button>
     <button class="li" id="pnEvento"><span class="ind n"></span>Criar evento</button>
-    <button class="li" id="pnHorario"><span class="ind n"></span>Novo horário do atelier</button>
+    <button class="li" id="pnHorario"><span class="ind n"></span>Horários do atelier</button>
     <button class="li" id="pnPerfil"><span class="ind n"></span>Editar nome e cargo</button>
     <button class="li" id="pnFantasma"><span class="ind n"></span>Ver o app como aluno</button>
   </div>
@@ -1236,13 +1284,14 @@ function bind(){
   on("#pnPedidos", () => (S.eq.pedidos || []).length ? sheetPedidosEq() : toast("Nenhum pedido aguardando"));
   on("#pnEmails", sheetEmailsEq);
   on("#pnEvento", () => sheetEventoEq("novo"));
-  on("#pnHorario", () => sheetTurmaEq("novo"));
+  on("#pnHorario", () => go("eq:turmas"));
   on("#pnPerfil", sheetPerfilEq);
   on("#pnFantasma", () => sheet(`<p class="label">Ver como aluno</p><h3 class="h5">Seu login fantasma</h3><p class="sub">Abra o app numa aba anônima (ou em outro navegador) e entre com <b>gianc.avantaggiato@gmail.com</b>. Você vê e usa tudo como um aluno, sem aparecer para ninguém e sem ocupar vaga.</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`));
   // equipe
   $$("#view [data-eqsec]").forEach(b => b.onclick = () => { S.eq.sec = b.dataset.eqsec; render(); eqLoad(); });
   $$("#view [data-eqday]").forEach(b => b.onclick = () => { S.eq.dia = addDays(S.eq.dia, +b.dataset.eqday); eqLoad(); });
   $$("#view [data-eqdia]").forEach(b => b.onclick = () => sheetDiaEq(b.dataset.eqdia));
+  $$("#view [data-tabgo]").forEach(b => b.onclick = () => go(b.dataset.tabgo));
   const ep = $("#eqPrevM"), en = $("#eqNextM");
   if(ep) ep.onclick = () => { S.eq.mes = new Date(S.eq.mes.getFullYear(), S.eq.mes.getMonth()-1, 1); eqLoad(); };
   if(en) en.onclick = () => { S.eq.mes = new Date(S.eq.mes.getFullYear(), S.eq.mes.getMonth()+1, 1); eqLoad(); };
