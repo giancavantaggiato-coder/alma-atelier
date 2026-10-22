@@ -255,7 +255,7 @@ async function loadMe(){
 /* liga/desliga o modo aluno sem sair da conta */
 async function trocarModoAluno(ligar){
   closeSheet(); verAluno(ligar);
-  D.itens = null; D.filtro = "todos"; D.busca = "";
+  D.itens = null; D.filtro = "todos"; D.busca = ""; R.lista = []; R.dest = null;
   Object.assign(S, { tab: ligar ? "hoje" : "painel", aluno: null, agenda: [], live: [], resumo: null, creditos: [], matriculas: [], pedido: null });
   window.scrollTo(0,0); await boot();
   if(!ligar) loadPainel();
@@ -275,6 +275,7 @@ async function loadAluno(){
   ]);
   if(semRede(ag.error)) throw new Error("offline");
   S.espera = (le && le.data) || [];
+  await loadRecados();
   S.pedido = (pd.data && pd.data[0]) || null;
   S.agenda = (ag.data || []).map(a => ({ ...a, ini: new Date(a.inicia_em), fim: new Date(a.termina_em) }));
   S.live = live.data || [];
@@ -577,6 +578,7 @@ function viewHoje(){
     <span class="dot"></span><u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : "Ninguém no atelier agora"}</u>
   </button>
   ${aniversarioAtelier()}
+  ${blocoRecados()}
   ${nx ? `<section class="tile wide next">
     <div class="tl"><h2 class="tt">Próxima aula</h2><span class="chip">${livre() ? "Aula marcada" : nx.reserva_tipo === "reposicao" ? "Reposição" : "Seu dia fixo"}</span></div>
     <div class="tv tnum">${cap1(WD[nx.ini.getDay()])}, ${dm(nx.ini)}</div>
@@ -591,7 +593,8 @@ function viewHoje(){
     <button class="li" data-go="agenda"><span class="ind"></span><span class="tnum">${livre() ? "Plano livre: marque as aulas que quiser" : repoLivre() ? "Reposições sem limite" : ac === 1 ? "1 reposição disponível" : `${ac} reposições disponíveis`}</span></button>
     ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
   </div>
-  ${cartaoPush()}`;
+  ${cartaoPush()}
+  ${botaoRecado()}`;
 }
 
 /* ---------- Aluno suspenso / ex-aluno (acesso reduzido) ---------- */
@@ -866,7 +869,7 @@ async function loadHojeEq(){
   const [ms, live, pd, pn, , al] = await Promise.all([
     sb.rpc("equipe_mes", { p_de: dkey(de), p_ate: dkey(ate) }), sb.rpc("em_aula_agora"),
     sb.rpc("equipe_pedidos"), S.painel ? Promise.resolve({ data: S.painel }) : sb.rpc("meu_painel_equipe"), loadEventos(),
-    sb.rpc("equipe_alertas")
+    sb.rpc("equipe_alertas"), loadRecados()
   ]);
   const ordem = { faltas: 0, reposicoes: 1, espera: 2 };
   S.eq.alertas = (al.data || []).sort((a, b) => (ordem[a.tipo] ?? 9) - (ordem[b.tipo] ?? 9) || b.valor - a.valor);
@@ -896,6 +899,7 @@ function viewHojeEq(){
   <button class="live" id="liveBtn" ${live ? "" : "disabled"}>
     <span class="dot"></span><u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : "Ninguém no atelier agora"}</u>
   </button>
+  ${blocoRecados()}
   ${nx ? `<section class="tile wide next">
     <div class="tl"><h2 class="tt">Próxima aula</h2><span class="chip tnum">${plural(nx.ocupadas, "aluno", "alunos")} de ${nx.capacidade}</span></div>
     <div class="tv tnum">${dkey(nx.ini) === dkey(n) ? "Hoje" : dkey(nx.ini) === dkey(addDays(n,1)) ? "Amanhã" : cap1(WD[nx.ini.getDay()])}, ${dm(nx.ini)}</div>
@@ -908,7 +912,8 @@ function viewHojeEq(){
     ${ev ? `<button class="li" data-editev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${ev.inscritos ? `, ${plural(ev.inscritos, "inscrito", "inscritos")}` : ""}</span></button>` : `<button class="li" data-editev="novo"><span class="ind n"></span>Criar evento</button>`}
     <button class="li" id="pnEmails"><span class="ind n"></span>Adicionar alunos por e-mail</button>
   </div>
-  ${blocoAlertas()}`;
+  ${blocoAlertas()}
+  ${botaoRecado()}`;
 }
 /* alertas: faltas seguidas, reposições perto do limite e lista de espera */
 const ALERTA_T = { faltas: "Sem vir há algumas aulas", reposicoes: "Perto do limite de reposições", espera: "Lista de espera" };
@@ -1563,6 +1568,107 @@ function bindPush(){
   const pd = $("#pushDepois"); if(pd) pd.onclick = () => { pushDispensado(true); render(); };
 }
 
+
+/* ---------- Recados (entre alunos e com o professor) ---------- */
+const ICO_RECADO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5h15v10h-8l-4.5 3.5v-3.5h-2.5z"/><path d="M8.5 10.5h7"/></svg>';
+const R = { lista: [], dest: null, ed: null };
+const tempoRel = d => {
+  const m = Math.round((now() - d) / 6e4);
+  if(m < 1) return "agora"; if(m < 60) return `há ${m} min`;
+  const h = Math.round(m / 60); if(h < 24) return `há ${h} h`;
+  const dd = Math.round(h / 24); return dd === 1 ? "ontem" : `há ${dd} dias`;
+};
+async function loadRecados(){
+  const { data, error } = await sb.rpc("meus_recados");
+  if(!error) R.lista = (data || []).map(r => ({ ...r, quando: new Date(r.criado_em) }));
+}
+const avatarRec = (nome, url, prof) => prof && !url ? `<span class="rec-av prof">${ICO_RECADO}</span>` : url ? `<span class="rec-av"><img src="${esc(url)}" alt=""></span>` : `<span class="rec-av">${esc(initials(String(nome || "").replace(".", "")))}</span>`;
+function blocoRecados(){
+  const l = R.lista || []; if(!l.length) return "";
+  const mostra = l.slice(0, 3);
+  return `<div class="recados">${mostra.map(r => `<section class="recado${r.lido ? "" : " novo"}">
+      <div class="rec-top">${avatarRec(r.de_nome, r.de_avatar, r.de_equipe)}<span class="rec-de"><b>${r.de_equipe ? "Recado do professor" : `Recado de ${esc(r.de_nome)}`}</b><span>${tempoRel(r.quando)}</span></span></div>
+      <p class="rec-txt">${esc(r.texto)}</p>
+      <div class="rec-acoes"><button class="textbtn" data-recresp="${r.id}">Responder</button><button class="textbtn" data-recok="${r.id}">Ok, visto</button></div>
+    </section>`).join("")}
+    ${l.length > 3 ? `<button class="textbtn rec-mais" id="recTodos">Ver mais ${plural(l.length - 3, "recado", "recados")}</button>` : ""}</div>`;
+}
+function botaoRecado(){
+  if(S.visitante && !S.equipe) return "";
+  const n = (R.lista || []).length;
+  return `<button class="fab fab-rec" id="recBtn" aria-label="Recados${n ? `, ${n} para ver` : ""}">${ICO_RECADO}${n ? `<span class="rec-badge tnum">${n > 9 ? "9+" : n}</span>` : ""}</button>`;
+}
+function bindRecados(){
+  const b = $("#recBtn"); if(b) b.onclick = () => (R.lista || []).length ? sheetRecados() : novoRecado(null);
+  const t = $("#recTodos"); if(t) t.onclick = sheetRecados;
+  $$("#view [data-recok]").forEach(x => x.onclick = () => arquivarRecado(x.dataset.recok, x));
+  $$("#view [data-recresp]").forEach(x => x.onclick = () => responderRecado(x.dataset.recresp));
+  if((R.lista || []).some(r => !r.lido)) { sb.rpc("ler_recados").then(() => (R.lista || []).forEach(r => r.lido = true)); }
+}
+async function arquivarRecado(id, btn){
+  if(btn) busy(btn, true);
+  const { error } = await sb.rpc("arquivar_recado", { p_id: id });
+  if(error){ if(btn) busy(btn, false); return toast(errMsg(error)); }
+  R.lista = R.lista.filter(r => r.id !== id);
+  if($("#sheet.show") && $("#recLista")) sheetRecados(); else render();
+}
+function responderRecado(id){
+  const r = (R.lista || []).find(x => x.id === id); if(!r) return;
+  novoRecado(r.de_equipe ? { id: null, nome: "Professor", equipe: true } : { id: r.de_id, nome: r.de_nome, avatar_url: r.de_avatar }, r);
+}
+function sheetRecados(){
+  const l = R.lista || [];
+  sheet(`<p class="label">Recados</p><h3 class="h5">${l.length ? plural(l.length, "recado para você", "recados para você") : "Nenhum recado"}</h3>
+    <div class="rec-lista" id="recLista">${l.map(r => `<div class="rec-item">${avatarRec(r.de_nome, r.de_avatar, r.de_equipe)}<div class="rec-corpo">
+      <p class="rec-de"><b>${r.de_equipe ? "Professor" : esc(r.de_nome)}</b><span>${tempoRel(r.quando)}</span></p><p class="rec-txt">${esc(r.texto)}</p>
+      <div class="rec-acoes"><button class="textbtn" data-recresp="${r.id}">Responder</button><button class="textbtn" data-recok="${r.id}">Ok, visto</button></div></div></div>`).join("")}</div>
+    <div class="btns"><button class="btn pri" id="recNovo">Novo recado</button><button class="btn ghost" data-close>Fechar</button></div>`);
+  $("#recNovo").onclick = () => novoRecado(null);
+  $$("#recLista [data-recok]").forEach(x => x.onclick = () => arquivarRecado(x.dataset.recok, x));
+  $$("#recLista [data-recresp]").forEach(x => x.onclick = () => responderRecado(x.dataset.recresp));
+}
+/* escolher para quem (ou já vem escolhido ao responder) e escrever */
+async function novoRecado(para, resp){
+  if(!para){
+    sheet(`<p class="label">Novo recado</p><h3 class="h5">Para quem?</h3><p class="sub">Carregando…</p>`);
+    if(!R.dest){ const { data, error } = await sb.rpc("recado_destinatarios"); if(error) return sheet(`<h3 class="h5">Novo recado</h3><p class="sub">${esc(errMsg(error))}</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`); R.dest = data || []; }
+    const desenha = q => {
+      const f = R.dest.filter(d => !q || d.nome.toLowerCase().includes(q.toLowerCase()));
+      $("#recDest").innerHTML = f.length ? f.map((d, k) => `<button class="rec-pessoa${d.equipe ? " prof" : ""}" data-recpara="${R.dest.indexOf(d)}">${d.equipe ? `<span class="rec-av prof">${ICO_RECADO}</span>` : avatarRec(d.nome, d.avatar_url)}<span>${esc(d.nome)}</span></button>`).join("") : `<p class="sub">Ninguém com esse nome.</p>`;
+      $$("#recDest [data-recpara]").forEach(b => b.onclick = () => novoRecado(R.dest[+b.dataset.recpara]));
+    };
+    sheet(`<p class="label">Novo recado</p><h3 class="h5">Para quem?</h3>
+      ${R.dest.length > 6 ? `<label class="field rec-busca"><span class="sr">Buscar</span><input id="recBusca" type="search" placeholder="Buscar pelo nome" autocomplete="off"></label>` : ""}
+      <div class="rec-dest" id="recDest"></div>
+      <div class="btns"><button class="btn ghost" data-close>Cancelar</button></div>`);
+    desenha("");
+    const bi = $("#recBusca"); if(bi) bi.oninput = () => desenha(bi.value);
+    return;
+  }
+  const sugestoes = para.equipe ? ["Vou me atrasar um pouco hoje.", "Não vou conseguir ir hoje.", "Tenho uma dúvida sobre a aula."]
+    : S.equipe && !S.aluno ? ["Não esquece de trazer o material.", "Sua obra está pronta para buscar.", "Parabéns pelo trabalho!"]
+    : ["Não esquece de levar ", "Pode me trazer ", "Obrigado pela ajuda!"];
+  sheet(`<p class="label">${resp ? "Responder" : "Novo recado"}</p>
+    <div class="rec-para">${para.equipe ? `<span class="rec-av prof">${ICO_RECADO}</span>` : avatarRec(para.nome, para.avatar_url)}<span>Para <b>${esc(para.nome)}</b></span>${resp ? "" : `<button class="textbtn" id="recTroca">Trocar</button>`}</div>
+    ${resp ? `<p class="rec-cita">“${esc(resp.texto)}”</p>` : ""}
+    <div class="chips rec-sug">${sugestoes.map(t => `<button type="button" data-recsug="${esc(t)}">${esc(t.trim())}</button>`).join("")}</div>
+    <label class="field rec-campo"><span class="sr">Recado</span><textarea id="recTxt" maxlength="280" placeholder="Escreva o recado"></textarea></label>
+    <p class="sub rec-conta" id="recConta">0 de 280</p>
+    <p class="err" id="recErr" hidden></p>
+    <div class="btns"><button class="btn pri" id="recEnviar" disabled>Enviar recado</button><button class="btn ghost" data-close>Cancelar</button></div>`);
+  const tx = $("#recTxt"), env = $("#recEnviar"), conta = () => { $("#recConta").textContent = `${tx.value.length} de 280`; env.disabled = !tx.value.trim(); };
+  tx.oninput = conta;
+  $$("[data-recsug]").forEach(b => b.onclick = () => { tx.value = b.dataset.recsug; conta(); tx.focus(); tx.setSelectionRange(tx.value.length, tx.value.length); });
+  const tr = $("#recTroca"); if(tr) tr.onclick = () => novoRecado(null);
+  env.onclick = async () => {
+    busy(env, true);
+    const { error } = await sb.rpc("enviar_recado", { p_para: para.equipe ? null : para.id, p_texto: tx.value });
+    if(error){ busy(env, false); const e = $("#recErr"); e.textContent = errMsg(error); e.hidden = false; return; }
+    if(resp) { await sb.rpc("arquivar_recado", { p_id: resp.id }); R.lista = R.lista.filter(r => r.id !== resp.id); }
+    closeSheet(); vibrar(); toast(para.equipe ? "Recado enviado para o professor" : `Recado enviado para ${firstName(para.nome)}`); render();
+  };
+}
+
 /* ---------- Diário de registros ---------- */
 const DTIPO = { anotacao: "Notas", obra: "Processo", aula: "Em aula", referencia: "Referência" };
 const DTIPO_PL = { todos: "Todos", anotacao: "Notas", obra: "Processo", aula: "Em aula", referencia: "Referências" };
@@ -1843,6 +1949,7 @@ $("#sheetBody").addEventListener("click", e => {
 
 function bind(){
   bindDiario();
+  bindRecados();
   $$("#view [data-alerta-pessoa]").forEach(b => b.onclick = () => abrirPessoaAlerta(b.dataset.alertaPessoa));
   bindPush();
   $$("#view [data-abreaula]").forEach(b => b.onclick = () => { const a = S.agenda.find(x => x.aula_id === b.dataset.abreaula); a && sheetAula(a); });
