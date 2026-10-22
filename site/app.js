@@ -592,9 +592,12 @@ function viewAgenda(){
     const dt = new Date(y,m,d), k = dkey(dt), list = byDay[k], isToday = +dt === +today;
     const cc = `cell${isToday ? " today" : ""}${dt < today ? " past" : ""}`;
     if(!list){ cells += `<div class="${cc}"><span class="slot"></span><span class="n tnum">${d}</span></div>`; continue; }
-    let cls = dayInfo(list);
+    let cls = dayInfo(list).replace(" sm", " cnt");
     if(S.justGrew === k) cls += " grow";
-    cells += `<button class="${cc}" data-day="${k}" aria-label="${d} de ${MES[m]}"><span class="slot"><span class="${cls}"></span></span><span class="n tnum">${d}</span></button>`;
+    /* quantos alunos vêm no dia (sem nomes), como no painel da equipe */
+    const qtd = list.filter(a => !a.cancelada).reduce((t, a) => t + (a.ocupadas || 0), 0);
+    const num = /\boff\b/.test(cls) || !list.some(a => !a.cancelada) ? "" : `<b class="tnum">${qtd}</b>`;
+    cells += `<button class="${cc}" data-day="${k}" aria-label="${d} de ${MES[m]}${num ? `, ${plural(qtd, "aluno", "alunos")}` : ""}"><span class="slot"><span class="${cls}">${num}</span></span><span class="n tnum">${d}</span></button>`;
   }
   S.justGrew = null;
   const minM = new Date(today.getFullYear(), today.getMonth()-3, 1), maxM = new Date(today.getFullYear(), today.getMonth()+4, 1);
@@ -608,12 +611,12 @@ function viewAgenda(){
   <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
   <div class="grid">${cells}</div>
   ${repoLivre() ? `<div class="credits"><span><b>Reposições sem limite</b> <span style="color:var(--muted)">· marque quantas quiser</span></span></div>
-  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>` : livre() ? `<div class="credits"><span><b>Plano livre</b> <span style="color:var(--muted)">· sem limite de aulas</span></span></div>
-  <div class="hint"><span>Toque num dia com vaga para marcar uma aula.</span><span>Toque numa aula marcada para desmarcar.</span></div>` : `<div class="credits">
+  <div class="hint"><span>O número em cada dia é quantos alunos vêm.</span><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>` : livre() ? `<div class="credits"><span><b>Plano livre</b> <span style="color:var(--muted)">· sem limite de aulas</span></span></div>
+  <div class="hint"><span>O número em cada dia é quantos alunos vêm.</span><span>Toque num dia com vaga para marcar uma aula.</span><span>Toque numa aula marcada para desmarcar.</span></div>` : `<div class="credits">
     <span class="tnum"><b>${ac} de ${MAX_CRED}</b> <span style="color:var(--muted)">reposições disponíveis</span></span>
     <div class="dots" aria-hidden="true">${Array.from({length:MAX_CRED},(_,i)=>`<span class="${i<ac?"on":""}"></span>`).join("")}</div>
   </div>
-  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>`}
+  <div class="hint"><span>O número em cada dia é quantos alunos vêm.</span><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>`}
   ${!livre() && mudancas().total ? `<button class="textbtn voltar" id="voltarFixos">Reverter para meus dias fixos</button>` : ""}`;
 }
 function mudancas(){
