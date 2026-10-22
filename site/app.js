@@ -1634,7 +1634,7 @@ async function novoRecado(para, resp){
     if(!R.dest){ const { data, error } = await sb.rpc("recado_destinatarios"); if(error) return sheet(`<h3 class="h5">Novo recado</h3><p class="sub">${esc(errMsg(error))}</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`); R.dest = data || []; }
     const desenha = q => {
       const f = R.dest.filter(d => !q || d.nome.toLowerCase().includes(q.toLowerCase()));
-      const item = d => `<button class="rec-pessoa${d.equipe ? " prof" : ""}" data-recpara="${R.dest.indexOf(d)}">${avatarRec(d.nome, d.avatar_url, d.equipe)}<span class="rec-pnome"><span>${esc(d.nome)}</span>${d.equipe ? `<small>Professor do atelier</small>` : ""}</span></button>`;
+      const item = d => `<button class="rec-pessoa${d.equipe ? " prof" : ""}" data-recpara="${R.dest.indexOf(d)}">${avatarRec(d.nome, d.avatar_url, d.equipe)}<span class="rec-pnome"><span>${esc(d.nome)}</span>${d.equipe ? `<small>Professor</small>` : ""}</span></button>`;
       const prof = f.filter(d => d.equipe), col = f.filter(d => !d.equipe);
       $("#recDest").innerHTML = f.length ? `${prof.map(item).join("")}${col.length ? `${prof.length ? `<p class="label rec-grupo">Colegas</p>` : ""}${col.map(item).join("")}` : ""}` : `<p class="sub">Ninguém com esse nome.</p>`;
       $$("#recDest [data-recpara]").forEach(b => b.onclick = () => novoRecado(R.dest[+b.dataset.recpara]));
