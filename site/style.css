@@ -583,7 +583,9 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .recado.prof{background:var(--fg);color:var(--bg)}
 .recado.prof .rec-de span{color:var(--past-ink)}
 .recado.prof .textbtn{color:var(--bg);text-decoration-color:var(--past-ink)}
-.recado.prof .rec-av{width:44px;height:44px;box-shadow:0 0 0 2.5px #FFFFFF,0 0 0 3.5px rgba(0,0,0,.12)}
+.recado.prof .rec-av{width:44px;height:44px;margin:4px;box-shadow:0 0 0 3px var(--fg),0 0 0 5px var(--accent)}
+.recado.prof .rec-top{gap:var(--s4)}
+.recado.prof .rec-de b{font-weight:600}
 .recado.prof .rec-av.prof{background:var(--accent);color:#000}
 .rec-item.prof .rec-de b{font-weight:600}
-.rec-item.prof .rec-av,.rec-pessoa.prof .rec-av,.rec-para .rec-av.eu{box-shadow:0 0 0 2.5px #FFFFFF,0 0 0 3.5px rgba(0,0,0,.12)}
+.rec-item.prof .rec-av,.rec-pessoa.prof .rec-av{margin:3px;box-shadow:0 0 0 2.5px var(--bg),0 0 0 4.5px var(--accent)}

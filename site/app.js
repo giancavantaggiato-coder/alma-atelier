@@ -1647,7 +1647,7 @@ async function novoRecado(para, resp){
   }
   const sugestoes = para.equipe ? ["Vou me atrasar um pouco hoje.", "Não vou conseguir ir hoje.", "Tenho uma dúvida sobre a aula."]
     : S.equipe && !S.aluno ? ["Não esquece de trazer o material.", "Sua obra está pronta para buscar.", "Parabéns pelo trabalho!"]
-    : ["Não esquece de levar ", "Você vai na aula de hoje?", "Adorei o seu trabalho!"];
+    : ["Não esquece de levar ", "Você vai na aula de hoje?"];
   sheet(`<p class="label">${resp ? "Responder" : "Novo recado"}</p>
     <div class="rec-para">${avatarRec(para.nome, para.avatar_url, para.equipe)}<span>Para <b>${esc(para.nome)}</b></span>${resp ? "" : `<button class="textbtn" id="recTroca">Trocar</button>`}</div>
     ${resp ? `<p class="rec-cita">“${esc(resp.texto)}”</p>` : ""}
