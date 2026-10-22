@@ -918,10 +918,10 @@ function viewEventoPag(){
   const e = S.eventos.find(x => x.id === EV.id);
   if(!e){ setTimeout(() => S.tab === "evento" && go(EV.volta || "eventos")); return ""; }
   const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
-  const preco = String(e.preco_texto || "").split(/\s+·\s+|\s*\/\s*|;\s*/).filter(Boolean).join(", ");
+  const [preco1, ...precoResto] = String(e.preco_texto || "").split(/\s+·\s+|\s*\/\s*|;\s*/).filter(Boolean);
   const voltaTxt = { hoje: "Hoje", eqhoje: "Hoje" }[EV.volta] || "Eventos";
-  const vagasTxt = vag == null ? `${plural(e.inscritos, "inscrito", "inscritos")}, sem limite de vagas` : vag === 0 ? `Esgotado, ${plural(e.inscritos, "inscrito", "inscritos")}` : `${plural(vag, "vaga livre", "vagas livres")} de ${e.vagas}`;
-  const linha = (ico, a, b) => `<li><span class="evi">${ico}</span><span><b>${a}</b>${b ? `<span>${b}</span>` : ""}</span></li>`;
+  const precoMain = preco1 ? preco1.match(/^(R\$)\s*(.+)$/) : null;
+  const cel = (rot, val, uni, nota) => `<div class="evc"><dt>${rot}</dt><dd><b class="tnum">${val}</b>${uni ? `<span class="evu">${uni}</span>` : ""}${nota ? `<span class="evn">${nota}</span>` : ""}</dd></div>`;
   const insc = S.visitante && !S.equipe ? `<p class="mnota">Inscrição só para alunos ativos.</p>`
     : !S.aluno ? "" : e.inscrito ? `<div class="evinsc"><span class="evok">Você está inscrito</span><button class="textbtn" data-unev="${e.id}">Cancelar</button></div>`
     : `<button class="btn pri evbtn" data-inev="${e.id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>${vag === 0 ? "Esgotado" : "Quero ir"}</button>`;
@@ -930,12 +930,13 @@ function viewEventoPag(){
     <article class="evpag">
       <p class="label">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</p>
       <h1 class="h4 evt">${esc(e.titulo)}</h1>
-      <ul class="evmeta">
-        ${linha(EVI.data, `${cap1(WD[e.ini.getDay()])}, ${e.ini.getDate()} de ${MES[e.ini.getMonth()]}`, `${hh(e.ini)} às ${hh(e.fim)}`)}
-        ${e.local ? linha(EVI.local, esc(e.local)) : ""}
-        ${preco ? linha(EVI.valor, esc(preco)) : ""}
-        ${linha(EVI.vagas, vagasTxt)}
-      </ul>
+      <dl class="evgrid">
+        ${cel("Data", `${e.ini.getDate()}`, `${MES[e.ini.getMonth()].slice(0, 3)}, ${WD[e.ini.getDay()].slice(0, 3)}`)}
+        ${cel("Horário", hh(e.ini), `às ${hh(e.fim)}`)}
+        ${vag == null ? cel("Inscritos", e.inscritos, "sem limite") : cel("Vagas livres", vag, `de ${e.vagas}`)}
+        ${cel("Valor", precoMain ? esc(precoMain[2]) : esc(preco1 || "A definir"), precoMain ? "reais" : "", precoResto.length ? esc(precoResto.join(", ")) : "")}
+      </dl>
+      ${e.local ? `<p class="evlocal">${EVI.local}<span>${esc(e.local)}</span></p>` : ""}
       ${e.descricao ? `<p class="evdesc">${esc(e.descricao)}</p>` : ""}
       ${(e.quem || []).length ? `<div class="evquem">${quemVaiHTML(e, 8)}</div>` : ""}
       ${insc}
