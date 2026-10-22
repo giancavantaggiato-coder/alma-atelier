@@ -712,18 +712,24 @@ function viewEventos(){
     const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
     return `<button class="ev" data-ev="${e.id}">
       <div class="date"><b class="tnum">${pad(e.ini.getDate())}</b><span>${MES[e.ini.getMonth()].slice(0,3)}</span></div>
-      <div class="info"><p class="label">${esc(e.tipo)}${e.publicado ? "" : " · rascunho"}</p><span class="title">${esc(e.titulo)}</span><span class="sub">${WD[e.ini.getDay()]}, ${hh(e.ini)} às ${hh(e.fim)}</span>${reacoesHTML(e)}</div>
+      <div class="info"><p class="label">${esc(e.tipo)}${e.publicado ? "" : " · rascunho"}</p><span class="title">${esc(e.titulo)}</span><span class="sub">${WD[e.ini.getDay()]}, ${hh(e.ini)} às ${hh(e.fim)}</span></div>
       <span class="tag ${e.inscrito ? "in" : ""}">${e.inscrito ? "Inscrito" : vag == null ? "Aberto" : vag ? `${vag} vagas` : "Esgotado"}</span>
+      ${reacoesFloat(e)}
     </button>`; }).join("") : `<p class="empty">${S.evFiltro === "meus" ? "Você ainda não se inscreveu em nenhum evento." : "Nenhum evento marcado por enquanto."}</p>`}</div>`;
 }
 /* ---------- reações nos eventos (segurar o card) ---------- */
 const EMOJIS = ["❤️","😍","👏","🎨","🔥","😂"];
 const ordenarReacoes = l => l.slice().sort((a,b) => b.total - a.total || EMOJIS.indexOf(a.emoji) - EMOJIS.indexOf(b.emoji));
 const minhaReacao = e => ((e.reacoes || []).find(r => r.minha) || {}).emoji || null;
+const podeReagir = () => !!(S.aluno || S.equipe);
 const reacoesHTML = e => (e.reacoes || []).length
   ? `<span class="reacts" aria-label="Reações">${e.reacoes.map(r => `<span class="rx${r.minha ? " mine" : ""}">${r.emoji}<b class="tnum">${r.total}</b></span>`).join("")}</span>` : "";
+/* emojis flutuando na lateral direita do card, como no iMessage */
+const reacoesFloat = e => { const l = e.reacoes || []; if(!l.length) return "";
+  const tot = l.reduce((t, r) => t + r.total, 0), minha = l.some(r => r.minha);
+  return `<span class="rxfloat${minha ? " mine" : ""}" aria-label="${plural(tot, "reação", "reações")}">${l.slice(0, 3).map(r => `<i>${r.emoji}</i>`).join("")}${tot > 1 ? `<b class="tnum">${tot}</b>` : ""}</span>`; };
 function abrirReacoes(card){
-  const e = S.eventos.find(x => x.id === card.dataset.ev); if(!e || !S.aluno) return;
+  const e = S.eventos.find(x => x.id === (card.dataset.ev || card.dataset.editev)); if(!e || !podeReagir()) return;
   fecharReacoes();
   try{ navigator.vibrate && navigator.vibrate(12); }catch(_){}
   const r = card.getBoundingClientRect(), atual = minhaReacao(e);
@@ -741,7 +747,7 @@ function abrirReacoes(card){
     if(b) reagir(e, b.dataset.rx);
   });
 }
-function fecharReacoes(){ const l = $("#rxLayer"); if(l) l.remove(); $$(".ev.lifted").forEach(c => c.classList.remove("lifted")); }
+function fecharReacoes(){ const l = $("#rxLayer"); if(l) l.remove(); $$(".lifted").forEach(c => c.classList.remove("lifted")); }
 async function reagir(e, emoji){
   const antes = e.reacoes, atual = minhaReacao(e);
   let l = (e.reacoes || []).map(r => ({ ...r }));
@@ -763,6 +769,13 @@ function bindSegurar(card, onTap){
 }
 window.addEventListener("scroll", fecharReacoes, { passive: true });
 
+async function carregarQuemReagiu(id){
+  const box = document.querySelector(`#sheetBody [data-quem="${id}"]`); if(!box) return;
+  const e = S.eventos.find(x => x.id === id); if(!e || !(e.reacoes || []).length){ box.innerHTML = ""; return; }
+  const { data } = await sb.rpc("quem_reagiu", { p_evento: id });
+  const l = data || []; if(!l.length || !document.body.contains(box)) return;
+  box.innerHTML = `<p class="label">Quem reagiu</p><div class="people">${l.map(p => `<div class="person"><div class="av">${esc(initials(p.nome))}</div><span>${esc(p.nome)}</span><span class="tag rxtag">${p.emoji}${p.sou_eu ? " · você" : p.equipe ? " · equipe" : ""}</span></div>`).join("")}</div>`;
+}
 function sheetEvento(id){
   const e = S.eventos.find(x => x.id === id); if(!e) return;
   const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
@@ -770,11 +783,13 @@ function sheetEvento(id){
   sheet(`<p class="label">${esc(e.tipo)}</p><h3 class="h5">${esc(e.titulo)}</h3>
     <p class="sub">${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)} · ${hh(e.ini)} às ${hh(e.fim)}${e.local ? ` · ${esc(e.local)}` : ""}</p>
     ${e.descricao ? `<p class="desc">${esc(e.descricao)}</p>` : ""}
-    ${S.aluno ? `<div class="rxrow" role="group" aria-label="Reagir">${EMOJIS.map(em => { const r = (e.reacoes || []).find(x => x.emoji === em);
+    ${podeReagir() ? `<div class="rxrow" role="group" aria-label="Reagir">${EMOJIS.map(em => { const r = (e.reacoes || []).find(x => x.emoji === em);
       return `<button data-rxev="${id}" data-rx="${em}" class="${r && r.minha ? "on" : ""}" aria-pressed="${!!(r && r.minha)}">${em}${r ? `<b class="tnum">${r.total}</b>` : ""}</button>`; }).join("")}</div>` : reacoesHTML(e)}
+    <div class="quem" data-quem="${id}"></div>
     <div class="facts"><div><b class="tnum">${vag == null ? "—" : vag}</b><span>vagas livres</span></div><div><b class="tnum">${e.inscritos}</b><span>inscritos</span></div><div><b style="font-size:16px;line-height:28px">${esc(p1 || "—")}</b><span>${esc(p2 || "")}</span></div></div>
     <div class="btns">${S.visitante ? `<button class="btn pri" disabled>Inscrição só para alunos ativos</button><p class="sub" style="text-align:center">Função ativa somente para alunos ativos.</p>` : !S.aluno ? "" : e.inscrito ? `<button class="btn ghost" data-unev="${id}">Cancelar inscrição</button>` : `<button class="btn pri" data-inev="${id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>Inscrever-se</button>`}
     ${S.equipe ? `<button class="btn ghost" data-editev="${id}">Editar evento</button>` : ""}<button class="btn ghost" data-close>Fechar</button></div>`);
+  carregarQuemReagiu(id);
 }
 
 /* ---------- Painel da equipe ---------- */
@@ -1033,7 +1048,8 @@ function viewEquipe(){
   } else {
     body = `<div class="daybar"><p class="sub">${plural(S.eventos.length,"evento","eventos")}</p><button class="addbtn" data-editev="novo">Novo evento</button></div>
       <div class="cards">${S.eventos.map(e => `<button class="card" data-editev="${e.id}" style="text-align:left"><div class="row"><span class="title">${esc(e.titulo)}</span><span class="pill">${e.inscritos}${e.vagas ? "/" + e.vagas : ""} inscritos</span></div>
-        <p class="sub">${esc(e.tipo)} · ${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)}, ${hh(e.ini)}${e.publicado ? "" : " · rascunho"}</p></button>`).join("")}</div>`;
+        <p class="sub">${esc(e.tipo)} · ${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)}, ${hh(e.ini)}${e.publicado ? "" : " · rascunho"}</p>${reacoesFloat(e)}</button>`).join("")}</div>
+      <p class="sub" style="margin-top:var(--s3)">Segure um evento para reagir.</p>`;
   }
   const np = (E.pedidos || []).length;
   const banner = np ? `<button class="pedidos-banner" id="verPedidos"><span class="ind"></span><span>${np === 1 ? "1 pedido de mudança de dias" : `${np} pedidos de mudança de dias`}</span><span class="end">Ver</span></button>` : "";
@@ -1224,6 +1240,7 @@ function sheetEventoEq(id){
   const base = addDays(startOfDay(new Date()), 7); base.setHours(9);
   const e = id === "novo" ? { tipo:"", titulo:"", ini: base, fim: new Date(+base + 3*36e5), publicado: true } : S.eventos.find(x => x.id === id);
   sheet(`<p class="label">${id === "novo" ? "Novo evento" : "Evento"}</p><h3 class="h5">${esc(e.titulo || "Evento")}</h3>
+    ${id !== "novo" && (e.reacoes || []).length ? `${reacoesHTML(e)}<div class="quem" data-quem="${id}"></div>` : ""}
     <form class="form" id="evForm">
       <label class="field"><span>Tipo</span><input id="e_tipo" list="tiposEv" value="${esc(e.tipo)}" placeholder="Modelo vivo" required></label>
       <datalist id="tiposEv"><option>Modelo vivo</option><option>História da Arte</option><option>Visita</option><option>Workshop</option><option>Encontro</option></datalist>
@@ -1236,6 +1253,7 @@ function sheetEventoEq(id){
       <p class="err" id="fErr" hidden></p>
       <div class="btns"><button class="btn pri" type="submit">Salvar</button>${id !== "novo" ? `<button class="btn danger" type="button" data-delev="${id}">Excluir evento</button>` : ""}<button class="btn ghost" type="button" data-close>Cancelar</button></div>
     </form>`);
+  if(id !== "novo") carregarQuemReagiu(id);
   $("#evForm").onsubmit = async ev => {
     ev.preventDefault(); const btn = $("#evForm button[type=submit]"); busy(btn, true);
     const row = { tipo: $("#e_tipo").value.trim(), titulo: $("#e_tit").value.trim(), descricao: $("#e_desc").value.trim() || null,
@@ -1254,7 +1272,7 @@ function sheetEventoEq(id){
 /* ---------- ligações ---------- */
 function bind(){
   $$("#view [data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
-  $$("#view [data-ev]").forEach(b => b.classList.contains("ev") && S.aluno ? bindSegurar(b, () => sheetEvento(b.dataset.ev)) : (b.onclick = () => sheetEvento(b.dataset.ev)));
+  $$("#view [data-ev]").forEach(b => b.classList.contains("ev") && podeReagir() ? bindSegurar(b, () => sheetEvento(b.dataset.ev)) : (b.onclick = () => sheetEvento(b.dataset.ev)));
   $$("#view [data-evf]").forEach(b => b.onclick = () => { S.evFiltro = b.dataset.evf; render(); });
   $$("#view [data-day]").forEach(b => b.onclick = () => S.visitante ? sheetDiaV(b.dataset.day) : sheetDia(b.dataset.day));
   const vf = $("#voltarFixos"); if(vf) vf.onclick = sheetVoltar;
@@ -1302,7 +1320,7 @@ function bind(){
   $$("#view [data-pfiltro]").forEach(b => b.onclick = () => { S.eq.filtro = b.dataset.pfiltro; render(); });
   const pb = $("#pBusca"); if(pb) pb.oninput = () => { S.eq.busca = pb.value; const pos = pb.selectionStart; render(); const nb = $("#pBusca"); nb.focus(); nb.setSelectionRange(pos, pos); };
   $$("#view [data-turma]").forEach(b => b.onclick = () => sheetTurmaEq(b.dataset.turma));
-  $$("#view [data-editev]").forEach(b => b.onclick = () => sheetEventoEq(b.dataset.editev));
+  $$("#view [data-editev]").forEach(b => b.classList.contains("card") ? bindSegurar(b, () => sheetEventoEq(b.dataset.editev)) : (b.onclick = () => sheetEventoEq(b.dataset.editev)));
   const gb = $("#gerarBtn"); if(gb) gb.onclick = async () => {
     busy(gb, true);
     const { data, error } = await sb.rpc("gerar_aulas", { p_ate: $("#gerarAte").value });
