@@ -72,3 +72,7 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 ## Login fantasma
 - `gianc.avantaggiato@gmail.com` entra como aluno fantasma: vê e usa todas as telas de aluno, mas não aparece em "alunos em aula", na chamada, nas vagas, nos inscritos de eventos nem na lista de Alunos (só em Alunos → Todos, marcado como "Fantasma").
 - Mensalidade aparece como "Em construção" para os alunos por enquanto.
+
+## Ver como aluno (dentro do app)
+- Em Você → "Ver o app como aluno", a equipe passa a ver e usar o app como o seu cadastro fantasma (`equipe.fantasma_id`), sem sair da conta.
+- O app manda o cabeçalho `x-alma-ver-como: aluno` e `meu_aluno_id()` devolve o fantasma. Uma faixa no topo volta para a equipe.

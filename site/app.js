@@ -1,8 +1,16 @@
 /* Alma Atelier — app do aluno (beta). Supabase + HTML puro. */
 "use strict";
 const CFG = window.ALMA_CONFIG || {};
+/* Modo aluno da equipe: com ele ligado, todo pedido ao banco leva x-alma-ver-como: aluno
+   e o banco trata a equipe como o seu cadastro fantasma. Fica lembrado neste aparelho. */
+const verAluno = v => { try{ if(v === undefined) return localStorage.getItem("alma-ver-aluno") === "1"; v ? localStorage.setItem("alma-ver-aluno","1") : localStorage.removeItem("alma-ver-aluno"); }catch(_){ } return !!v; };
 const sb = window.supabase.createClient(CFG.url, CFG.key, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: "alma-atelier-auth" }
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: "alma-atelier-auth" },
+  global: { fetch: (url, opts = {}) => {
+    if(!verAluno() || !String(url).includes("/rest/v1/")) return fetch(url, opts);
+    const h = new Headers(opts.headers || {}); h.set("x-alma-ver-como", "aluno");
+    return fetch(url, { ...opts, headers: h });
+  } }
 });
 
 const MAX_CRED = 8;
@@ -217,7 +225,23 @@ async function loadMe(){
   S.aluno = aluno && aluno.vinculo === "aluno" && aluno.acesso_app ? aluno : null;
   S.visitante = !S.aluno && aluno && ["ex_aluno","pausado"].includes(aluno.vinculo) && aluno.acesso_app ? aluno : null;
   document.body.classList.toggle("limitado", !!S.visitante);
-  S.equipe = !!eq;
+  S.equipe = !!eq; S.comoAluno = false;
+  if(S.equipe && verAluno()){
+    const { data: e } = await sb.from("equipe").select("fantasma_id").eq("auth_user_id", uid).maybeSingle();
+    const { data: f } = e && e.fantasma_id ? await sb.from("pessoas").select("*").eq("id", e.fantasma_id).maybeSingle() : { data: null };
+    if(f){ S.pessoa = f; S.aluno = f; S.visitante = null; S.equipe = false; S.comoAluno = true; }
+    else verAluno(false);
+  }
+  document.body.classList.toggle("comoaluno", S.comoAluno);
+  const bar = $("#comoAlunoBar"); if(bar) bar.hidden = !S.comoAluno;
+}
+/* liga/desliga o modo aluno sem sair da conta */
+async function trocarModoAluno(ligar){
+  closeSheet(); verAluno(ligar);
+  Object.assign(S, { tab: ligar ? "hoje" : "painel", aluno: null, agenda: [], live: [], resumo: null, creditos: [], matriculas: [], pedido: null });
+  window.scrollTo(0,0); await boot();
+  if(!ligar) loadPainel();
+  toast(ligar ? "Vendo o app como aluno" : "De volta à equipe");
 }
 async function loadAluno(){
   if(!S.aluno) return;
@@ -281,10 +305,10 @@ async function boot(){
       return;
     }
     if(precisaCompletar()){
-      if(!acabouDeEntrar()){ await sb.auth.signOut(); return; }
+      if(!acabouDeEntrar() && !S.comoAluno){ await sb.auth.signOut(); return; }
       return primeiroAcesso();
     }
-    if(await pedirSenha()) return;
+    if(!S.comoAluno && await pedirSenha()) return;
     if(!S.aluno){ if(!["eqhoje","painel"].includes(S.tab) && !isEqTab()) S.tab = "eqhoje"; if(S.tab === "eqhoje") loadHojeEq(); }
     await Promise.all([loadAluno(), loadEventos()]);
     render();
@@ -310,6 +334,7 @@ async function checarVersao(){
   }catch(_){}
 }
 checarVersao(); setInterval(checarVersao, 5 * 60 * 1000);
+document.addEventListener("click", e => { if(e.target.closest("#comoAlunoSair")) trocarModoAluno(false); });
 
 /* ---------- senha de 4 números ---------- */
 const NS = { ativo: false, passo: 1, pin: "", troca: false };
@@ -1292,8 +1317,8 @@ function bind(){
   if(n) n.onclick = () => { S.mes = new Date(S.mes.getFullYear(), S.mes.getMonth()+1, 1); render(); };
   const ci = $("#capaIn"); if(ci) ci.onchange = () => uploadFoto(ci, "capa");
   const ai = $("#avIn"); if(ai) ai.onchange = () => uploadFoto(ai, "avatar");
-  const sair = $("#sair"); if(sair) sair.onclick = () => sb.auth.signOut();
-  const ts = $("#trocarSenha"); if(ts) ts.onclick = abrirTrocaSenha;
+  const sair = $("#sair"); if(sair) sair.onclick = () => S.comoAluno ? trocarModoAluno(false) : sb.auth.signOut();
+  const ts = $("#trocarSenha"); if(ts) ts.onclick = () => S.comoAluno ? toast("No modo aluno a senha não muda") : abrirTrocaSenha();
   const pm = $("#pedMudar"); if(pm) pm.onclick = sheetMudanca;
   const pc = $("#pedCancelar"); if(pc) pc.onclick = async () => { busy(pc, true); const { error } = await sb.rpc("cancelar_pedido_mudanca"); if(error){ busy(pc, false); return toast(errMsg(error)); } await loadAluno(); render(); toast("Pedido cancelado"); };
   const vp = $("#verPedidos"); if(vp) vp.onclick = sheetPedidosEq;
@@ -1303,7 +1328,7 @@ function bind(){
   on("#pnEvento", () => sheetEventoEq("novo"));
   on("#pnHorario", () => go("eq:turmas"));
   on("#pnPerfil", sheetPerfilEq);
-  on("#pnFantasma", () => sheet(`<p class="label">Ver como aluno</p><h3 class="h5">Seu login fantasma</h3><p class="sub">Abra o app numa aba anônima (ou em outro navegador) e entre com <b>gianc.avantaggiato@gmail.com</b>. Você vê e usa tudo como um aluno, sem aparecer para ninguém e sem ocupar vaga.</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`));
+  on("#pnFantasma", () => trocarModoAluno(true));
   // equipe
   $$("#view [data-eqsec]").forEach(b => b.onclick = () => { S.eq.sec = b.dataset.eqsec; render(); eqLoad(); });
   $$("#view [data-eqday]").forEach(b => b.onclick = () => { S.eq.dia = addDays(S.eq.dia, +b.dataset.eqday); eqLoad(); });
