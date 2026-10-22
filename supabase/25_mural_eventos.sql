@@ -76,3 +76,6 @@ grant execute on function public.mural_evento(uuid) to authenticated;
 grant execute on function public.comentar_evento(uuid, text) to authenticated;
 grant execute on function public.apagar_comentario_evento(uuid) to authenticated;
 grant execute on function public.mural_contagem() to authenticated;
+
+-- 26 (22/10/2026): foto de capa do evento, mostrada no topo da página.
+alter table public.eventos add column if not exists foto_url text;
