@@ -921,6 +921,30 @@ const EVI_TOPO = {
   hora:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
   foto:'<svg viewBox="0 0 24 24"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.5" r="3.3"/></svg>'
 };
+/* reações flutuando na capa: um emoji por reação, em posições fixas para não pular a cada atualização */
+function capaReacoesHTML(){
+  const lista = []; EMOJIS.forEach(em => { const r = EV.reac.find(x => x.emoji === em); if(r) for(let k = 0; k < r.total; k++) lista.push(em); });
+  if(!lista.length) return "";
+  const novoIdx = EV.novo ? lista.lastIndexOf(EV.novo) : -1;
+  return `<div class="evfloat" aria-hidden="true">${lista.slice(0, 16).map((em, i) => {
+    const x = 18 + ((i * 47 + 13) % 60), y = 32 + ((i * 29 + 7) % 26), t = 3.6 + (i % 4) * .7, d = -((i * 1.3) % t);
+    const sz = 22 + ((i * 7) % 3) * 4, rot = ((i * 37) % 21) - 10;
+    return `<span class="${i === novoIdx ? "novo" : ""}" style="--x:${x}%;--y:${y}%;--t:${t}s;--d:${d.toFixed(2)}s;--s:${sz}px;--r:${rot}deg">${em}</span>`; }).join("")}</div>`;
+}
+/* explosão de emojis subindo a partir do botão tocado */
+function soltarEmojis(em, el){
+  if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  for(let i = 0; i < 7; i++){
+    const sp = document.createElement("span"); sp.className = "evburst"; sp.textContent = em;
+    sp.style.left = cx + "px"; sp.style.top = cy + "px";
+    sp.style.setProperty("--dx", `${Math.round((Math.random() - .5) * 120)}px`);
+    sp.style.setProperty("--dy", `${-140 - Math.round(Math.random() * 120)}px`);
+    sp.style.setProperty("--rr", `${Math.round((Math.random() - .5) * 60)}deg`);
+    sp.style.animationDelay = `${i * 60}ms`;
+    document.body.appendChild(sp); setTimeout(() => sp.remove(), 1600 + i * 60);
+  }
+}
 function viewEventoPag(){
   const e = S.eventos.find(x => x.id === EV.id);
   if(!e){ setTimeout(() => S.tab === "evento" && go(EV.volta || "eventos")); return ""; }
@@ -933,10 +957,11 @@ function viewEventoPag(){
   if(S.visitante && !S.equipe) barra = `${preco}<span class="evbar-aviso">Inscrição para alunos ativos</span>`;
   else if(S.aluno && e.inscrito) barra = `<span class="evbar-l"><span class="evbar-r">Inscrição</span><b class="evvai">Você vai</b></span><button class="btn evcta ghost-line" data-unev="${e.id}">Cancelar</button>`;
   else if(S.aluno) barra = `${preco}<button class="btn pri evcta" data-inev="${e.id}" ${vag === 0 || passou ? "disabled" : ""}>${vag === 0 ? "Esgotado" : passou ? "Encerrado" : "Quero ir"}</button>`;
-  return `<header class="evhero${e.foto_url ? " comfoto" : ""}">
+  return `<header class="evhero${e.foto_url ? " comfoto" : ""}${EV.reac.length ? " comreac" : ""}">
       ${e.foto_url ? `<img class="evfoto" src="${esc(e.foto_url)}" alt="">` : ""}
       <div class="evhero-top"><button class="evround" data-evvoltar aria-label="Voltar">${EVI_TOPO.voltar}</button>
         ${S.equipe ? `<span class="evhero-acoes"><label class="evround" aria-label="${e.foto_url ? "Trocar foto" : "Adicionar foto"}">${EVI_TOPO.foto}<input type="file" accept="image/*" id="evFotoIn" hidden></label><button class="evround" data-editev="${e.id}" aria-label="Editar evento">${EVI_TOPO.editar}</button></span>` : ""}</div>
+      ${capaReacoesHTML()}
       <div class="evdate"><b class="tnum">${e.ini.getDate()}</b><span><span>${MES[e.ini.getMonth()]}</span><span>${WD[e.ini.getDay()]}</span></span></div>
     </header>
     <article class="evbody${barra ? " combarra" : ""}">
@@ -982,7 +1007,8 @@ function bindEventoPag(){
     EV.tray = false;
     const em = b.dataset.reac, antes = EV.reac.map(r => ({ ...r })), minha = (EV.reac.find(r => r.minha) || {}).emoji;
     EV.reac = EV.reac.map(r => r.emoji === minha ? { ...r, total: r.total - 1, minha: false } : r).filter(r => r.total > 0);
-    if(minha !== em){ const r = EV.reac.find(x => x.emoji === em); if(r){ r.total++; r.minha = true; } else EV.reac.push({ evento_id: id, emoji: em, total: 1, minha: true }); vibrar(); }
+    if(minha !== em){ const r = EV.reac.find(x => x.emoji === em); if(r){ r.total++; r.minha = true; } else EV.reac.push({ evento_id: id, emoji: em, total: 1, minha: true }); vibrar();
+      soltarEmojis(em, b); EV.novo = em; clearTimeout(EV.novoT); EV.novoT = setTimeout(() => { EV.novo = null; }, 1500); }
     render();
     const { error } = await sb.rpc("reagir_evento", { p_evento: id, p_emoji: em });
     if(error){ EV.reac = antes; render(); return toast(errMsg(error)); }
