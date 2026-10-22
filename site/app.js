@@ -914,38 +914,41 @@ function muralHTML(){
         <p class="mmeta"><span>${tempoRel(c.quando)}</span>${c.sou_eu || S.equipe ? `<button class="mdel" data-mdel="${c.id}">Apagar</button>` : ""}</p></div>
     </article>`).join("") : `<p class="mvazio">Nenhum comentário ainda.</p>`}</div>`;
 }
+const EVI_TOPO = {
+  voltar:'<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+  editar:'<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
+  hora:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>'
+};
 function viewEventoPag(){
   const e = S.eventos.find(x => x.id === EV.id);
   if(!e){ setTimeout(() => S.tab === "evento" && go(EV.volta || "eventos")); return ""; }
   const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
   const [preco1, ...precoResto] = String(e.preco_texto || "").split(/\s+·\s+|\s*\/\s*|;\s*/).filter(Boolean);
-  const voltaTxt = { hoje: "Hoje", eqhoje: "Hoje" }[EV.volta] || "Eventos";
-  const precoMain = preco1 ? preco1.match(/^(R\$)\s*(.+)$/) : null;
-  const cel = (rot, val, uni, nota) => `<div class="evc"><dt>${rot}</dt><dd><b class="tnum">${val}</b>${uni ? `<span class="evu">${uni}</span>` : ""}${nota ? `<span class="evn">${nota}</span>` : ""}</dd></div>`;
-  const insc = S.visitante && !S.equipe ? `<p class="mnota">Inscrição só para alunos ativos.</p>`
-    : !S.aluno ? "" : e.inscrito ? `<div class="evinsc"><span class="evok">Você está inscrito</span><button class="textbtn" data-unev="${e.id}">Cancelar</button></div>`
-    : `<button class="btn pri evbtn" data-inev="${e.id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>${vag === 0 ? "Esgotado" : "Quero ir"}</button>`;
-  return `<div class="dtopo"><button class="dvoltar" data-evvoltar>${CHEV_L}<span>${voltaTxt}</span></button>
-      ${S.equipe ? `<button class="evedit" data-editev="${e.id}">Editar</button>` : ""}</div>
-    <article class="evpag">
-      <p class="label">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</p>
-      <h1 class="h4 evt">${esc(e.titulo)}</h1>
-      <dl class="evgrid">
-        ${cel("Data", `${e.ini.getDate()}`, `${MES[e.ini.getMonth()].slice(0, 3)}, ${WD[e.ini.getDay()].slice(0, 3)}`)}
-        ${cel("Horário", hh(e.ini), `às ${hh(e.fim)}`)}
-        ${vag == null ? cel("Inscritos", e.inscritos, "sem limite") : cel("Vagas livres", vag, `de ${e.vagas}`)}
-        ${cel("Valor", precoMain ? esc(precoMain[2]) : esc(preco1 || "A definir"), precoMain ? "reais" : "", precoResto.length ? esc(precoResto.join(", ")) : "")}
-      </dl>
-      ${e.local ? `<p class="evlocal">${EVI.local}<span>${esc(e.local)}</span></p>` : ""}
-      ${e.descricao ? `<p class="evdesc">${esc(e.descricao)}</p>` : ""}
-      ${(e.quem || []).length ? `<div class="evquem">${quemVaiHTML(e, 8)}</div>` : ""}
-      ${insc}
+  const passou = e.ini <= now();
+  const vagasTxt = vag == null ? "" : vag === 0 ? "Esgotado" : plural(vag, "vaga livre", "vagas livres");
+  const preco = `<span class="evbar-l"><span class="evbar-r">Valor</span><b>${esc(preco1 || "A definir")}</b>${precoResto.length ? `<span class="evbar-n">${esc(precoResto.join(", "))}</span>` : ""}</span>`;
+  let barra = "";
+  if(S.visitante && !S.equipe) barra = `${preco}<span class="evbar-aviso">Inscrição para alunos ativos</span>`;
+  else if(S.aluno && e.inscrito) barra = `<span class="evbar-l"><span class="evbar-r">Inscrição</span><b class="evvai">Você vai</b></span><button class="btn evcta ghost-line" data-unev="${e.id}">Cancelar</button>`;
+  else if(S.aluno) barra = `${preco}<button class="btn pri evcta" data-inev="${e.id}" ${vag === 0 || passou ? "disabled" : ""}>${vag === 0 ? "Esgotado" : passou ? "Encerrado" : "Quero ir"}</button>`;
+  return `<header class="evhero">
+      <div class="evhero-top"><button class="evround" data-evvoltar aria-label="Voltar">${EVI_TOPO.voltar}</button>
+        ${S.equipe ? `<button class="evround" data-editev="${e.id}" aria-label="Editar evento">${EVI_TOPO.editar}</button>` : ""}</div>
+      <div class="evdate"><b class="tnum">${e.ini.getDate()}</b><span><span>${MES[e.ini.getMonth()]}</span><span>${WD[e.ini.getDay()]}</span></span></div>
+    </header>
+    <article class="evbody${barra ? " combarra" : ""}">
+      <span class="evtag">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</span>
+      <h1 class="evtit">${esc(e.titulo)}</h1>
+      <p class="evline"><span>${EVI_TOPO.hora}${hh(e.ini)} às ${hh(e.fim)}</span>${e.local ? `<span>${EVI.local}${esc(e.local)}</span>` : ""}${!S.aluno && preco1 ? `<span>${EVI.valor}${esc([preco1, ...precoResto].join(", "))}</span>` : ""}</p>
+      <div class="evgente">${(e.quem || []).length ? quemVaiHTML(e, 5) : `<span class="fpt">Ninguém inscrito ainda</span>`}${vagasTxt ? `<span class="evvag">${vagasTxt}</span>` : ""}</div>
+      ${e.descricao ? `<h2 class="evsec">Sobre</h2><p class="evdesc">${esc(e.descricao)}</p>` : ""}
+      <section class="evmural">
+        <div class="mtopo"><h2 class="evsec">Mural</h2>${EV.mural && EV.mural.length ? `<span class="tnum">${EV.mural.length}</span>` : ""}</div>
+        ${reacoesHTML()}
+        ${muralHTML()}
+      </section>
     </article>
-    <section class="evmural">
-      <div class="mtopo"><h2 class="title">Mural</h2>${EV.mural && EV.mural.length ? `<span class="tnum">${EV.mural.length}</span>` : ""}</div>
-      ${reacoesHTML()}
-      ${muralHTML()}
-    </section>`;
+    ${barra ? `<div class="evbar"><div class="evbar-in">${barra}</div></div>` : ""}`;
 }
 function bindEventoPag(){
   if(S.tab !== "evento") return;
