@@ -857,7 +857,7 @@ const EV = { id: null, volta: null, mural: null, reac: [], quem: [], rascunho: "
 const muralContaHTML = e => e.nc ? `<span class="mcount">${plural(e.nc, "comentário", "comentários")}</span>` : "";
 const podeEscrever = () => !!(S.aluno || S.equipe) && !(S.visitante && !S.equipe);
 function abrirEvento(id){
-  if(EV.id !== id){ EV.mural = null; EV.reac = []; EV.quem = []; EV.rascunho = ""; }
+  if(EV.id !== id){ EV.mural = null; EV.reac = []; EV.quem = []; EV.rascunho = ""; } EV.tray = false;
   EV.id = id; if(S.tab !== "evento") EV.volta = S.tab;
   go("evento");
   loadEventoPag().then(() => { if(S.tab === "evento" && EV.id === id) render(); });
@@ -872,56 +872,77 @@ async function loadEventoPag(){
   const e = S.eventos.find(x => x.id === id); if(e) e.nc = EV.mural.length;
 }
 const avatarMural = c => `<span class="av mav">${c.avatar_url ? `<img src="${esc(c.avatar_url)}" alt="" loading="lazy">` : esc(initials(String(c.nome).replace(".", "")))}</span>`;
+const EVI = {
+  data:'<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  local:'<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',
+  valor:'<svg viewBox="0 0 24 24"><path d="M4 8.5V6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5v2a3.5 3.5 0 0 0 0 7v2a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-2a3.5 3.5 0 0 0 0-7z"/><path d="M14 5v14" stroke-dasharray="2 2.5"/></svg>',
+  vagas:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.9-3.4 3.2-5.2 6-5.2s5.1 1.8 6 5.2M15.5 5.6a3 3 0 0 1 0 5.8M17.6 14.6c1.6.7 2.7 2.4 3.2 4.9"/></svg>',
+  reagir:'<svg viewBox="0 0 24 24"><path d="M20 11.5A8.5 8.5 0 1 1 12.5 3.05"/><path d="M8.8 14.5c.8 1.1 1.9 1.7 3.2 1.7s2.4-.6 3.2-1.7"/><circle cx="9" cy="10" r=".6" fill="currentColor"/><circle cx="15" cy="10" r=".6" fill="currentColor"/><path d="M19 2.5v5M16.5 5h5"/></svg>',
+  enviar:'<svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>'
+};
 function reacoesHTML(){
   const pode = podeEscrever();
-  const conta = {}; let minha = null;
-  EV.reac.forEach(r => { conta[r.emoji] = r.total; if(r.minha) minha = r.emoji; });
+  const minha = (EV.reac.find(r => r.minha) || {}).emoji;
+  const ativas = EMOJIS.map(em => EV.reac.find(r => r.emoji === em)).filter(Boolean);
   const nomes = EV.quem.map(q => q.sou_eu ? "você" : firstName(q.nome));
-  const txt = !nomes.length ? (pode ? "Toque para reagir" : "Ninguém reagiu ainda")
-    : nomes.length <= 3 ? cap1(nomes.length === 1 ? nomes[0] : `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}`) + (nomes.length === 1 ? " reagiu" : " reagiram")
-    : `${cap1(nomes.slice(0, 2).join(", "))} e mais ${nomes.length - 2} reagiram`;
-  return `<div class="reacs" role="group" aria-label="Reações">${EMOJIS.map(em =>
-    `<button class="reac" data-reac="${em}" aria-pressed="${minha === em}" ${pode ? "" : "disabled"} aria-label="Reagir com ${em}"><span class="re">${em}</span>${conta[em] ? `<span class="rn tnum">${conta[em]}</span>` : ""}</button>`).join("")}</div>
-    <p class="sub reac-quem">${esc(txt)}</p>`;
+  const txt = !nomes.length ? "" : nomes.length <= 2 ? cap1(nomes.join(" e ")) : `${cap1(nomes.slice(0, 2).join(", "))} e mais ${nomes.length - 2}`;
+  if(!ativas.length && !pode) return "";
+  return `<div class="rbar">
+    ${ativas.map(r => `<button class="rchip" data-reac="${r.emoji}" aria-pressed="${!!r.minha}" ${pode ? "" : "disabled"}><span>${r.emoji}</span><span class="tnum">${r.total}</span></button>`).join("")}
+    ${pode ? `<button class="rchip radd" id="rAdd" aria-expanded="${!!EV.tray}" aria-label="Reagir">${EVI.reagir}${ativas.length ? "" : "<span>Reagir</span>"}</button>` : ""}
+    ${txt ? `<span class="rquem">${esc(txt)}</span>` : ""}
+  </div>
+  ${pode && EV.tray ? `<div class="rtray" role="group" aria-label="Escolha uma reação">${EMOJIS.map(em => `<button data-reac="${em}" aria-pressed="${minha === em}" aria-label="Reagir com ${em}">${em}</button>`).join("")}</div>` : ""}`;
+}
+function meuAvatarHTML(){
+  const f = (S.aluno && S.aluno.avatar_url) || (!S.aluno && S.painel && S.painel.avatar_url);
+  const n = (S.aluno && S.aluno.nome) || (S.painel && S.painel.nome) || (S.pessoa && S.pessoa.nome) || "";
+  return `<span class="av mav">${f ? `<img src="${esc(f)}" alt="">` : esc(initials(n))}</span>`;
 }
 function muralHTML(){
   const pode = podeEscrever();
-  const comp = pode ? `<form class="mcomp" id="mForm">
-      <label class="sr" for="mTxt">Escrever no mural</label>
-      <textarea id="mTxt" rows="1" maxlength="500" placeholder="Escreva no mural">${esc(EV.rascunho)}</textarea>
-      <button class="mpub" type="submit" ${EV.rascunho.trim() ? "" : "disabled"}>Publicar</button></form>`
-    : `<p class="sub mnota">O mural fica aberto para alunos ativos e equipe. Você acompanha os comentários.</p>`;
+  const comp = pode ? `<form class="mcomp" id="mForm">${meuAvatarHTML()}
+      <div class="mfield"><label class="sr" for="mTxt">Escrever no mural</label>
+      <textarea id="mTxt" rows="1" maxlength="500" placeholder="Escreva um comentário">${esc(EV.rascunho)}</textarea>
+      <button class="mpub" type="submit" aria-label="Publicar" ${EV.rascunho.trim() ? "" : "disabled"}>${EVI.enviar}</button></div></form>`
+    : `<p class="mnota">Comentar fica aberto para alunos ativos e equipe.</p>`;
   if(EV.mural === null) return `${comp}<div class="mlista sk-lista" aria-hidden="true"><span class="sk sk-card"></span><span class="sk sk-card"></span></div>`;
   return `${comp}<div class="mlista">${EV.mural.length ? EV.mural.map(c => `<article class="mc">
       ${avatarMural(c)}
-      <div class="mcb"><p class="mch"><b>${c.sou_eu ? "Você" : esc(c.nome)}</b>${c.equipe ? `<span class="meq">Equipe</span>` : ""}<span class="mct">${tempoRel(c.quando)}</span></p>
+      <div class="mcb"><p class="mch"><b>${c.sou_eu ? "Você" : esc(c.nome)}</b>${c.equipe ? `<span class="meq">Equipe</span>` : ""}</p>
         <p class="mtx">${esc(c.texto)}</p>
-        ${c.sou_eu || S.equipe ? `<button class="mdel" data-mdel="${c.id}">Apagar</button>` : ""}</div>
-    </article>`).join("") : `<p class="empty mvazio">Ninguém escreveu ainda. Comente algo sobre o evento.</p>`}</div>`;
+        <p class="mmeta"><span>${tempoRel(c.quando)}</span>${c.sou_eu || S.equipe ? `<button class="mdel" data-mdel="${c.id}">Apagar</button>` : ""}</p></div>
+    </article>`).join("") : `<p class="mvazio">Nenhum comentário ainda.</p>`}</div>`;
 }
 function viewEventoPag(){
   const e = S.eventos.find(x => x.id === EV.id);
   if(!e){ setTimeout(() => S.tab === "evento" && go(EV.volta || "eventos")); return ""; }
   const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
-  const [p1, p2] = String(e.preco_texto || "").split(/\s+·\s+|\s*\/\s*|;\s*/);
+  const preco = String(e.preco_texto || "").split(/\s+·\s+|\s*\/\s*|;\s*/).filter(Boolean).join(", ");
   const voltaTxt = { hoje: "Hoje", eqhoje: "Hoje" }[EV.volta] || "Eventos";
-  const insc = S.visitante && !S.equipe ? `<button class="btn pri" disabled>Inscrição só para alunos ativos</button>`
-    : !S.aluno ? "" : e.inscrito ? `<button class="btn ghost" data-unev="${e.id}">Cancelar inscrição</button>`
-    : `<button class="btn pri" data-inev="${e.id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>${vag === 0 ? "Esgotado" : "Inscrever-se"}</button>`;
+  const vagasTxt = vag == null ? `${plural(e.inscritos, "inscrito", "inscritos")}, sem limite de vagas` : vag === 0 ? `Esgotado, ${plural(e.inscritos, "inscrito", "inscritos")}` : `${plural(vag, "vaga livre", "vagas livres")} de ${e.vagas}`;
+  const linha = (ico, a, b) => `<li><span class="evi">${ico}</span><span><b>${a}</b>${b ? `<span>${b}</span>` : ""}</span></li>`;
+  const insc = S.visitante && !S.equipe ? `<p class="mnota">Inscrição só para alunos ativos.</p>`
+    : !S.aluno ? "" : e.inscrito ? `<div class="evinsc"><span class="evok">Você está inscrito</span><button class="textbtn" data-unev="${e.id}">Cancelar</button></div>`
+    : `<button class="btn pri evbtn" data-inev="${e.id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>${vag === 0 ? "Esgotado" : "Quero ir"}</button>`;
   return `<div class="dtopo"><button class="dvoltar" data-evvoltar>${CHEV_L}<span>${voltaTxt}</span></button>
       ${S.equipe ? `<button class="evedit" data-editev="${e.id}">Editar</button>` : ""}</div>
     <article class="evpag">
       <p class="label">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</p>
       <h1 class="h4 evt">${esc(e.titulo)}</h1>
-      <p class="sub evq">${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)}, ${hh(e.ini)} às ${hh(e.fim)}${e.local ? `. ${esc(e.local)}` : ""}</p>
+      <ul class="evmeta">
+        ${linha(EVI.data, `${cap1(WD[e.ini.getDay()])}, ${e.ini.getDate()} de ${MES[e.ini.getMonth()]}`, `${hh(e.ini)} às ${hh(e.fim)}`)}
+        ${e.local ? linha(EVI.local, esc(e.local)) : ""}
+        ${preco ? linha(EVI.valor, esc(preco)) : ""}
+        ${linha(EVI.vagas, vagasTxt)}
+      </ul>
       ${e.descricao ? `<p class="evdesc">${esc(e.descricao)}</p>` : ""}
-      <div class="facts"><div><b class="tnum">${vag == null ? "—" : vag}</b><span>vagas livres</span></div><div><b class="tnum">${e.inscritos}</b><span>inscritos</span></div><div><b style="font-size:16px;line-height:28px">${esc(p1 || "—")}</b><span>${esc(p2 || "")}</span></div></div>
       ${(e.quem || []).length ? `<div class="evquem">${quemVaiHTML(e, 8)}</div>` : ""}
-      ${insc ? `<div class="btns">${insc}</div>` : ""}
+      ${insc}
     </article>
     <section class="evmural">
+      <div class="mtopo"><h2 class="title">Mural</h2>${EV.mural && EV.mural.length ? `<span class="tnum">${EV.mural.length}</span>` : ""}</div>
       ${reacoesHTML()}
-      <div class="mtopo"><h2 class="title">Mural</h2>${EV.mural && EV.mural.length ? `<span class="sub tnum">${plural(EV.mural.length, "comentário", "comentários")}</span>` : ""}</div>
       ${muralHTML()}
     </section>`;
 }
@@ -933,7 +954,9 @@ function bindEventoPag(){
     if(error){ busy(b, false); return toast(errMsg(error)); } vibrar(); toast("Inscrição feita"); await loadEventos(); render(); });
   $$("#view [data-unev]").forEach(b => b.onclick = async () => { busy(b, true); const { error } = await sb.rpc("cancelar_inscricao", { p_evento: id });
     if(error){ busy(b, false); return toast(errMsg(error)); } toast("Inscrição cancelada"); await loadEventos(); render(); });
+  const ra = $("#rAdd"); if(ra) ra.onclick = () => { EV.tray = !EV.tray; render(); };
   $$("#view [data-reac]").forEach(b => b.onclick = async () => {
+    EV.tray = false;
     const em = b.dataset.reac, antes = EV.reac.map(r => ({ ...r })), minha = (EV.reac.find(r => r.minha) || {}).emoji;
     EV.reac = EV.reac.map(r => r.emoji === minha ? { ...r, total: r.total - 1, minha: false } : r).filter(r => r.total > 0);
     if(minha !== em){ const r = EV.reac.find(x => x.emoji === em); if(r){ r.total++; r.minha = true; } else EV.reac.push({ evento_id: id, emoji: em, total: 1, minha: true }); vibrar(); }
