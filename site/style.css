@@ -749,3 +749,7 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .evc-pe{width:calc(100% - 2 * var(--s4));box-sizing:border-box}
 .evc-corpo{width:100%;box-sizing:border-box}
 .evgente{margin-top:var(--s4)}
+.evico{width:20px}
+.evinfo li{gap:var(--s3)}
+.evinfo{gap:10px}
+.evgente{margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--line)}

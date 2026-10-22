@@ -1056,7 +1056,7 @@ function viewEventoPag(){
       <span class="evc-over">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</span>
       <h1 class="evtit">${esc(e.titulo)}</h1>
       <ul class="evinfo">
-        <li>${seloData(e.ini)}<span><b>${cap1(WD[e.ini.getDay()])}, ${e.ini.getDate()} de ${MES[e.ini.getMonth()]}</b><span>${hh(e.ini)} às ${hh(e.fim)}</span></span></li>
+        <li class="lin"><span class="evico">${EVI.data}</span><span><b>${cap1(WD[e.ini.getDay()])}, ${e.ini.getDate()} de ${MES[e.ini.getMonth()]}</b><span>, ${hh(e.ini)} às ${hh(e.fim)}</span></span></li>
         ${e.local ? `<li class="lin"><span class="evico">${EVI.local}</span><span><b>${esc(e.local)}</b>${/atelier/i.test(e.local) ? `<span>, Rua São Paulo, 864</span>` : ""}</span></li>` : ""}
         ${!S.aluno && preco1 ? `<li class="lin"><span class="evico">${EVI.valor}</span><span><b>${esc(preco1)}</b>${precoResto.length ? `<span>, ${esc(precoResto.join(", "))}</span>` : ""}</span></li>` : ""}
       </ul>
