@@ -52,7 +52,7 @@ const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const firstName = n => String(n||"").trim().split(/\s+/)[0] || "";
 const initials = n => String(n||"").trim().split(/\s+/).map(p => p[0]).slice(0,2).join("").toUpperCase();
 const saudacao = () => { const h = new Date().getHours(); return h >= 5 && h < 12 ? "Bom dia" : h >= 12 && h < 18 ? "Boa tarde" : "Boa noite"; };
-const errMsg = e => (e && (e.message || e.error_description)) || "Algo deu errado. Tente de novo.";
+const errMsg = e => { const m = (e && (e.message || e.error_description)) || ""; return /fetch|network|load failed|conex/i.test(m) || (typeof navigator !== "undefined" && navigator.onLine === false) ? "Sem conexão. Tente de novo quando a internet voltar." : m || "Algo deu errado. Tente de novo."; };
 
 /* ---------- estado ---------- */
 const S = {
@@ -233,10 +233,11 @@ function renderLogin(step){
 /* ---------- carregamento ---------- */
 async function loadMe(){
   const uid = S.session.user.id;
-  const [{ data: aluno }, { data: eq }] = await Promise.all([
+  const [{ data: aluno, error: e1 }, { data: eq, error: e2 }] = await Promise.all([
     sb.from("pessoas").select("*").eq("auth_user_id", uid).maybeSingle(),
     sb.rpc("sou_equipe")
   ]);
+  if(semRede(e1) || semRede(e2)) throw new Error("offline");
   S.pessoa = aluno || null;
   S.aluno = aluno && aluno.vinculo === "aluno" && aluno.acesso_app ? aluno : null;
   S.visitante = !S.aluno && aluno && ["ex_aluno","pausado"].includes(aluno.vinculo) && aluno.acesso_app ? aluno : null;
@@ -272,6 +273,7 @@ async function loadAluno(){
     sb.from("pedidos_mudanca").select("*").eq("aluno_id", S.aluno.id).order("criado_em", { ascending: false }).limit(1),
     sb.from("lista_espera").select("aula_id, avisado_em").eq("aluno_id", S.aluno.id)
   ]);
+  if(semRede(ag.error)) throw new Error("offline");
   S.espera = (le && le.data) || [];
   S.pedido = (pd.data && pd.data[0]) || null;
   S.agenda = (ag.data || []).map(a => ({ ...a, ini: new Date(a.inicia_em), fim: new Date(a.termina_em) }));
@@ -298,7 +300,40 @@ function quemVaiHTML(e, max = 5){
   const txt = l.length === 1 ? `${cap1(nomes[0])} vai` : l.length === 2 ? `${cap1(nomes[0])} e ${nomes[1]} vão` : (l[0].sou_eu ? `Você e mais ${l.length - 1}` : `${l.length} pessoas vão`);
   return `<span class="facepile" aria-label="${esc(txt)}"><span class="fps">${l.slice(0, max).map(avatarMini).join("")}${l.length > max ? `<span class="fp mais">+${l.length - max}</span>` : ""}</span><span class="fpt">${esc(txt)}</span></span>`;
 }
-async function refresh(){ await Promise.all([loadAluno(), loadEventos()]); render(); }
+async function refresh(){
+  try{ await Promise.all([loadAluno(), loadEventos()]); marcarOnline(); guardarCache(); }
+  catch(_){ mostrarOffline(); }
+  render();
+}
+/* ---------- sem conexão: guarda o último estado e mostra com um aviso ---------- */
+const semRede = e => !!e && (/fetch|network|load failed/i.test(e.message || "") || navigator.onLine === false);
+const chaveCache = () => S.session ? "alma-cache-v1:" + S.session.user.id : null;
+function guardarCache(){
+  const k = chaveCache(); if(!k || S.comoAluno || !S.aluno) return;
+  const tira = l => (l || []).map(({ ini, fim, ...r }) => r);
+  try{ localStorage.setItem(k, JSON.stringify({ ts: Date.now(), pessoa: S.pessoa, aluno: S.aluno, visitante: S.visitante, equipe: S.equipe,
+    agenda: tira(S.agenda), live: [], resumo: S.resumo, creditos: S.creditos, matriculas: S.matriculas, pedido: S.pedido, espera: S.espera, eventos: tira(S.eventos) })); }catch(_){}
+}
+function lerCache(){
+  const k = chaveCache(); if(!k) return false;
+  let c; try{ c = JSON.parse(localStorage.getItem(k) || "null"); }catch(_){ c = null; }
+  if(!c || !c.aluno) return false;
+  const datas = l => (l || []).map(r => ({ ...r, ini: new Date(r.inicia_em), fim: new Date(r.termina_em) }));
+  Object.assign(S, { pessoa: c.pessoa, aluno: c.aluno, visitante: c.visitante, equipe: c.equipe, agenda: datas(c.agenda), live: [], resumo: c.resumo,
+    creditos: c.creditos || [], matriculas: c.matriculas || [], pedido: c.pedido, espera: c.espera || [], eventos: datas(c.eventos), cacheTs: c.ts });
+  return true;
+}
+function mostrarOffline(){
+  S.offline = true;
+  let b = $("#offBar");
+  if(!b){ b = document.createElement("div"); b.id = "offBar"; b.className = "offbar"; b.setAttribute("role", "status"); document.body.appendChild(b); }
+  const d = S.cacheTs ? new Date(S.cacheTs) : null;
+  b.textContent = d ? `Sem conexão · atualizado em ${dm(d)}, ${hh(d)}` : "Sem conexão";
+  document.body.classList.add("offline");
+}
+function marcarOnline(){ S.offline = false; const b = $("#offBar"); if(b) b.remove(); document.body.classList.remove("offline"); }
+window.addEventListener("online", () => { if(S.offline) boot(); });
+window.addEventListener("offline", () => { if(S.session) { S.cacheTs = S.cacheTs || Date.now(); mostrarOffline(); } });
 
 /* link vindo de uma notificação: ?aula=… abre a aula, ?ir=diario abre a aba */
 function abrirLinkDireto(){
@@ -340,11 +375,15 @@ async function boot(){
     if(!S.aluno){ if(!["eqhoje","painel"].includes(S.tab) && !isEqTab()) S.tab = "eqhoje"; if(S.tab === "eqhoje") loadHojeEq(); }
     await Promise.all([loadAluno(), loadEventos()]);
     render();
+    marcarOnline(); guardarCache();
     abrirLinkDireto();
+    setTimeout(talvezTour, 400);
     estadoPush().then(() => { pushPadrao(); if(["hoje","voce","painel"].includes(S.tab) && !document.querySelector("#sheet.show")) render(); }).catch(() => {});
     if(isEqTab()) eqLoad();
   }catch(ex){
-    $("#view").innerHTML = `<div class="loading">Não foi possível carregar. Verifique a conexão.</div>`;
+    const rede = ex && (ex.message === "offline" || /fetch|network|load failed/i.test(ex.message || "") || navigator.onLine === false);
+    if(rede && lerCache()){ mostrarOffline(); if(!["hoje","agenda","eventos","voce"].includes(S.tab)) S.tab = "hoje"; render(); return; }
+    $("#view").innerHTML = `<div class="loading">${rede ? "Sem conexão. Abra o app de novo quando a internet voltar." : "Não foi possível carregar. Feche e abra o app de novo."}</div>`;
   }
 }
 sb.auth.onAuthStateChange((ev, session) => {
@@ -663,8 +702,7 @@ function viewAgenda(){
     let cls = dayInfo(list).replace(" sm", " cnt");
     if(S.justGrew === k) cls += " grow";
     /* quantos alunos vêm no dia (sem nomes), como no painel da equipe */
-    const qtd = list.filter(a => !a.cancelada).reduce((t, a) => t + (a.ocupadas || 0), 0);
-    const num = /\boff\b/.test(cls) || !list.some(a => !a.cancelada) ? "" : `<b class="tnum">${qtd}</b>`;
+    const num = ""; /* sem contagem para o aluno: só a cor diz se é seu dia, se tem vaga ou se lotou */
     cells += `<button class="${cc}" data-day="${k}" aria-label="${d} de ${MES[m]}${num ? `, ${plural(qtd, "aluno", "alunos")}` : ""}"><span class="slot"><span class="${cls}">${num}</span></span><span class="n tnum">${d}</span></button>`;
   }
   S.justGrew = null;
@@ -678,6 +716,7 @@ function viewAgenda(){
   </div>
   <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
   <div class="grid">${cells}</div>
+  <div class="legenda" aria-hidden="true"><span><i class="lg mine"></i>Seu dia</span><span><i class="lg vaga"></i>Com vaga</span><span><i class="lg cheio"></i>Lotado</span>${(S.espera || []).length ? `<span><i class="lg espera"></i>Na espera</span>` : ""}</div>
   ${repoLivre() ? `<div class="credits"><span><b>Reposições sem limite</b> <span style="color:var(--muted)">· marque quantas quiser</span></span></div>
   <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>` : livre() ? `<div class="credits"><span><b>Plano livre</b> <span style="color:var(--muted)">· sem limite de aulas</span></span></div>
   <div class="hint"><span>Toque num dia com vaga para marcar uma aula.</span><span>Toque numa aula marcada para desmarcar.</span></div>` : `<div class="credits">
@@ -1503,11 +1542,14 @@ function pushPadrao(){
   if(Notification.permission === "granted"){ assinarSilencioso().then(() => { if(["voce","painel"].includes(S.tab)) render(); }); return; }
   if(Notification.permission !== "default" || pushPadrao.armado) return;
   pushPadrao.armado = true;
-  document.addEventListener("click", () => {
+  const pedir = () => {
+    if($("#tour")) return;   /* durante as boas-vindas, o pedido vem no último passo */
+    document.removeEventListener("click", pedir, true);
     if(S.comoAluno || pushDesligado() || Notification.permission !== "default") return;
     let pedido; try{ pedido = Notification.requestPermission(); }catch(_){ return; }
     Promise.resolve(pedido).then(perm => { if(perm === "granted") assinarSilencioso().then(() => { if(["voce","painel"].includes(S.tab)) render(); }); });
-  }, { once: true, capture: true });
+  };
+  document.addEventListener("click", pedir, true);
 }
 function cartaoPush(){
   if(S.comoAluno || P.estado !== "instalar" || pushDispensado()) return "";
@@ -1960,3 +2002,54 @@ const vibrar = (() => {
     setTimeout(() => { ocupado = false; }, 300);
   });
 })();
+
+/* ---------- boas-vindas (primeira vez do aluno neste aparelho) ---------- */
+const TOUR_ICO = {
+  agenda: ICO.agenda,
+  fila: '<svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M3 19c.6-2.8 2.6-4.5 5-4.5s4.4 1.7 5 4.5M13.5 15.2c.8-.5 1.6-.7 2.5-.7 2.4 0 4.4 1.7 5 4.5"/></svg>',
+  diario: '<svg viewBox="0 0 24 24"><path d="M5 4.5h11a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2z"/><path d="M5 17.5a2 2 0 0 1 2-2h11M9 8.5h5M9 11.5h3"/></svg>',
+  sino: '<svg viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>'
+};
+const TOUR = [
+  { ico: "agenda", t: "Sua agenda no atelier", d: "Seus dias fixos já estão marcados. Se não puder ir, desmarque até 4 horas antes e ganhe uma reposição para usar em outro dia." },
+  { ico: "fila", t: "Dia lotado? Entre na fila", d: "Na lista de espera, você recebe um aviso assim que alguém desmarcar. Quem marcar primeiro fica com a vaga." },
+  { ico: "diario", t: "Seu diário de atelier", d: "Guarde processos, notas e referências. Com o tempo, ele vira o mapa do seu percurso." },
+  { ico: "sino", t: "Lembretes no celular", d: "Avisamos na véspera da aula, se ela for cancelada e quando abrir vaga na sua lista de espera." }
+];
+const tourChave = () => "alma-tour-v1" + (S.comoAluno ? "-fantasma" : "");
+function talvezTour(){
+  if(!S.aluno || precisaCompletar() || NS.ativo || $("#tour")) return;
+  try{ if(localStorage.getItem(tourChave())) return; }catch(_){ return; }
+  abrirTour();
+}
+function abrirTour(){
+  const el = document.createElement("div"); el.id = "tour"; el.className = "tour"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true");
+  document.body.appendChild(el); document.body.classList.add("editando");
+  let i = 0;
+  const fim = () => { try{ localStorage.setItem(tourChave(), "1"); }catch(_){ } el.classList.add("sai"); document.body.classList.remove("editando"); setTimeout(() => el.remove(), 260); };
+  const desenha = () => {
+    const p = TOUR[i], ultimo = i === TOUR.length - 1;
+    const pushAcao = ultimo && !S.comoAluno && ["desligado","instalar","bloqueado"].includes(P.estado);
+    el.innerHTML = `<div class="tour-in">
+      <button class="tour-pular" id="tourPular" ${ultimo ? "hidden" : ""}>Pular</button>
+      <div class="tour-arte"><span class="tour-ico">${TOUR_ICO[p.ico]}</span></div>
+      <div class="tour-txt"><p class="apasso">${i + 1} de ${TOUR.length}</p><h1>${p.t}</h1><p>${p.d}</p></div>
+      <div class="tour-pontos" aria-hidden="true">${TOUR.map((_, k) => `<span class="${k === i ? "on" : ""}"></span>`).join("")}</div>
+      <div class="tour-acoes">
+        ${ultimo ? (pushAcao ? `<button class="abtn light" id="tourPush">${P.estado === "instalar" ? "Como ativar no iPhone" : "Ativar lembretes"}</button><button class="abtn line" id="tourFim">Começar</button>`
+          : `<button class="abtn light" id="tourFim">Começar</button>`) : `<button class="abtn light" id="tourProx">Próximo</button>`}
+      </div></div>`;
+    const q = id => el.querySelector(id);
+    if(q("#tourProx")) q("#tourProx").onclick = () => { i++; desenha(); };
+    if(q("#tourPular")) q("#tourPular").onclick = fim;
+    if(q("#tourFim")) q("#tourFim").onclick = fim;
+    if(q("#tourPush")) q("#tourPush").onclick = ev => { if(P.estado === "instalar"){ fim(); setTimeout(sheetInstalarApp, 280); } else { ativarPush(ev.currentTarget).then(fim); } };
+  };
+  let x0 = null;
+  el.addEventListener("touchstart", e => { x0 = e.touches[0].clientX; }, { passive: true });
+  el.addEventListener("touchend", e => {
+    if(x0 === null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if(dx < -50 && i < TOUR.length - 1){ i++; desenha(); } else if(dx > 50 && i > 0){ i--; desenha(); }
+  });
+  desenha();
+}
