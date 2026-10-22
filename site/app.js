@@ -953,7 +953,7 @@ function viewVoce(){
     <div class="ritmo-row"><span class="ritmo-n tnum">${sem}</span><span class="ritmo-t">${sem === 1 ? "semana" : "semanas"}<br>mantendo o ritmo</span></div>
   </div>
   <div class="stats">
-    <div class="stat"><b class="tnum">${r.aulas_total ?? 0}</b><span>aulas<br>no atelier</span></div>
+    <div class="stat"><b class="tnum">${a.aulas_anteriores > 0 ? "~" : ""}${r.aulas_total ?? 0}</b><span>aulas<br>no atelier</span></div>
     <div class="stat"><b class="tnum">${r.presenca_90d == null ? "—" : r.presenca_90d + "%"}</b><span>presença<br>em 90 dias</span></div>
     ${livre() || repoLivre() ? `<div class="stat"><b>∞</b><span>${livre() ? "plano<br>livre" : "reposições<br>sem limite"}</span></div>` : `<div class="stat"><b class="tnum">${cr.length}<small> / ${MAX_CRED}</small></b><span>reposições<br>disponíveis</span></div>`}
   </div>
@@ -1491,8 +1491,8 @@ function bindPush(){
 }
 
 /* ---------- Diário de registros ---------- */
-const DTIPO = { anotacao: "Nota", obra: "Obra", aula: "Aula", referencia: "Referência" };
-const DTIPO_PL = { todos: "Todos", anotacao: "Notas", obra: "Obras", aula: "Aulas", referencia: "Referências" };
+const DTIPO = { anotacao: "Notas", obra: "Processo", aula: "Em aula", referencia: "Referência" };
+const DTIPO_PL = { todos: "Todos", anotacao: "Notas", obra: "Processo", aula: "Em aula", referencia: "Referências" };
 const MES3 = ["jan.","fev.","mar.","abr.","maio","jun.","jul.","ago.","set.","out.","nov.","dez."];
 const ICO_BUSCA = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>';
 const ICO_MAIS = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
@@ -1525,7 +1525,7 @@ function cartaoDiario(i, attr){
   return `<button class="dcard${capa ? " foto" : ""}" ${attr}="${i.id}">
     ${capa ? `<span class="dimg"><img src="${esc(capa)}" alt="" loading="lazy">${fotos.length > 1 ? `<span class="dmais tnum">+${fotos.length - 1}</span>` : ""}</span>` : ""}
     ${temCorpo ? `<span class="dbody">${i.titulo ? `<span class="dtit">${esc(i.titulo)}</span>` : ""}${trecho ? `<span class="dtxt">${esc(trecho.slice(0, 220))}</span>` : ""}</span>` : ""}
-    <span class="dfoot"><span>${dataLonga(fromKey(i.data))}</span><span class="dtag">${DTIPO[i.tipo] || "Nota"}</span></span>
+    <span class="dfoot"><span>${dataLonga(fromKey(i.data))}</span><span class="dtag">${DTIPO[i.tipo] || "Notas"}</span></span>
   </button>`;
 }
 function listaDiarioHTML(lista, attr){
@@ -1559,7 +1559,7 @@ function viewDiario(){
       <p class="label">Seu diário</p>
       <h2 class="h5">Comece pelo que você fez hoje</h2>
       <div class="dsug">
-        ${[["obra", "Uma obra", "Fotografe o trabalho em andamento ou pronto"], ["aula", "Uma aula", "O que foi feito e o que você aprendeu"], ["referencia", "Uma referência", "Um artista, uma imagem, uma exposição"], ["anotacao", "Uma nota", "Ideias soltas para a próxima aula"]]
+        ${[["anotacao", "Notas", "Ideias para composições e próximos estudos"], ["obra", "Processo", "Fotografe ou anote uma etapa de um estudo ou composição"], ["aula", "Em aula", "Algo que você viu ou aprendeu em aula"], ["referencia", "Referência", "Artistas, obras e exposições que te inspiram"]]
           .map(([t, l, d]) => `<button class="dsug-i" data-dsug="${t}"><span class="dsug-t">${l}</span><span class="dsug-d">${d}</span></button>`).join("")}
       </div></section>`
     : lista.length ? `<div class="dlista">${listaDiarioHTML(lista, "data-dreg")}</div>` : `<p class="empty">Nenhum registro encontrado.</p>`}
@@ -1576,7 +1576,7 @@ function bindDiario(){
 
 function sheetRegistro(i, meu){
   if(!i) return;
-  sheet(`<p class="label">${DTIPO[i.tipo] || "Nota"} · ${dataLonga(fromKey(i.data))}</p>
+  sheet(`<p class="label">${DTIPO[i.tipo] || "Notas"} · ${dataLonga(fromKey(i.data))}</p>
     ${i.titulo ? `<h3 class="h5">${esc(i.titulo)}</h3>` : ""}
     ${(i.fotos || []).length ? `<div class="dfotos">${i.fotos.map(p => `<img src="${esc(fotoUrl(p))}" alt="" loading="lazy">`).join("")}</div>` : ""}
     ${i.texto ? `<p class="desc dtexto">${esc(i.texto)}</p>` : ""}
