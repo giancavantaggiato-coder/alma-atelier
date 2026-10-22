@@ -69,7 +69,7 @@ const esqueleto = () => `<div class="sk-tela" aria-busy="true" aria-label="Carre
   <span class="sk sk-tile"></span>
   <span class="sk sk-row"></span><span class="sk sk-row"></span><span class="sk sk-row"></span></div>`;
 function toast(t){ const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2800); }
-function sheet(html){ $("#sheetBody").innerHTML = html; $("#scrim").classList.add("show"); $("#sheet").classList.add("show"); const f = $("#sheetBody").querySelector("input,select,button:not([disabled])"); f && f.focus({preventScroll:true}); }
+function sheet(html){ $("#sheetBody").innerHTML = html; $("#scrim").classList.add("show"); $("#sheet").classList.add("show"); if(window.matchMedia && matchMedia("(pointer: fine)").matches){ const f = $("#sheetBody").querySelector("input,select,button:not([disabled])"); f && f.focus({preventScroll:true}); } }
 function closeSheet(){ $("#scrim").classList.remove("show"); $("#sheet").classList.remove("show"); }
 function busy(btn, on){ if(!btn) return; btn.disabled = on; if(on){ btn.dataset.t = btn.textContent; btn.textContent = "Aguarde…"; } else if(btn.dataset.t){ btn.textContent = btn.dataset.t; } }
 $("#scrim").addEventListener("click", closeSheet);
@@ -527,6 +527,7 @@ function viewHoje(){
   <button class="live" id="liveBtn" ${live ? "" : "disabled"}>
     <span class="dot"></span><u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : "Ninguém no atelier agora"}</u>
   </button>
+  ${aniversarioAtelier()}
   ${nx ? `<section class="tile wide next">
     <div class="tl"><h2 class="tt">Próxima aula</h2><span class="chip">${livre() ? "Aula marcada" : nx.reserva_tipo === "reposicao" ? "Reposição" : "Seu dia fixo"}</span></div>
     <div class="tv tnum">${cap1(WD[nx.ini.getDay()])}, ${dm(nx.ini)}</div>
@@ -566,7 +567,6 @@ function viewHojeV(){
   <section class="tile wide next v-aviso"><div class="tl"><h2 class="tt">${rotuloV()}</h2><span class="chip">Acesso reduzido</span></div>
     <p class="sub">${S.visitante.vinculo === "pausado" ? "Sua matrícula está suspensa. Você acompanha a agenda do atelier e os eventos; marcar aulas, reposições e inscrições voltam quando a matrícula for reativada." : "Você acompanha a agenda do atelier e os eventos. Marcar aulas, reposições e inscrições ficam disponíveis quando você voltar às aulas."}</p></section>
   <div class="list">
-    <div class="li off"><span class="ind n"></span>Reposições<span class="end">Só para alunos ativos</span></div>
     ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
   </div>`;
 }
@@ -593,7 +593,7 @@ function viewAgendaV(){
   <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
   <div class="grid">${cells}</div>
   <div class="credits off"><span><b>Reposições</b> <span style="color:var(--muted)">· ${AVISO_V.toLowerCase()}</span></span></div>
-  <div class="hint"><span>Marcar aulas é uma função ativa somente para alunos.</span></div>`;
+`;
 }
 function sheetDiaV(k){
   const d = fromKey(k), list = (S.agendaV || []).filter(a => dkey(a.ini) === k);
@@ -612,10 +612,6 @@ function viewVoceV(){
   </header>
   <section class="tile wide v-aviso" style="margin-top:var(--s6)"><div class="tl"><h2 class="tt">Acesso reduzido</h2><span class="chip">${rotuloV()}</span></div>
     <p class="sub">Você vê a agenda do atelier (quantos alunos vêm em cada dia) e os eventos. ${S.visitante.vinculo === "pausado" ? "Marcar aulas, ter reposições e se inscrever em eventos voltam quando a sua matrícula for reativada." : "Para marcar aulas, ter reposições e se inscrever em eventos, é só voltar às aulas."}</p></section>
-  <div class="tiles off">
-    <section class="tile"><div class="tl"><h2 class="tt">Reposições</h2></div><div class="tv">—</div><p class="ts">${AVISO_V}</p></section>
-    <section class="tile"><div class="tl"><h2 class="tt">Seus dias</h2></div><div class="tv">—</div><p class="ts">${AVISO_V}</p></section>
-  </div>
   <div class="list ajustes">
     <button class="li" id="trocarSenha"><span class="ind n"></span>Trocar senha de acesso</button>
     <button class="li sairli" id="sair"><span class="ind n"></span>Sair da conta</button>
@@ -774,7 +770,7 @@ async function doBook(aulaId, btn){
   const a = S.agenda.find(x => x.aula_id === aulaId);
   closeSheet(); await loadAluno();
   if(a){ S.justGrew = dkey(a.ini); S.mes = new Date(a.ini.getFullYear(), a.ini.getMonth(), 1); }
-  render(); toast(livre() ? "Aula marcada" : "Reposição marcada");
+  render(); vibrar(); toast(livre() ? "Aula marcada" : "Reposição marcada");
 }
 
 /* ---------- Eventos ---------- */
@@ -851,7 +847,7 @@ function viewHojeEq(){
   <div class="list">
     <button class="li" id="pnPedidos"><span class="ind ${np ? "" : "n"}"></span>Pedidos de mudança<span class="end tnum">${np ? `${np} aguardando` : "nenhum"}</span></button>
     <button class="li" data-tabgo="eq:dia"><span class="ind n"></span>Próximos 7 dias<span class="end tnum">${plural(sem.length, "aula", "aulas")} · ${plural(vagasSem, "vaga", "vagas")}</span></button>
-    ${ev ? `<button class="li" data-editev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${ev.inscritos ? ` · ${ev.inscritos}` : ""}</span></button>` : `<button class="li" data-editev="novo"><span class="ind n"></span>Criar evento</button>`}
+    ${ev ? `<button class="li" data-editev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${ev.inscritos ? ` · ${plural(ev.inscritos, "inscrito", "inscritos")}` : ""}</span></button>` : `<button class="li" data-editev="novo"><span class="ind n"></span>Criar evento</button>`}
     <button class="li" id="pnEmails"><span class="ind n"></span>Adicionar alunos por e-mail</button>
   </div>
   ${blocoAlertas()}`;
@@ -933,6 +929,15 @@ function sheetPerfilEq(){
 }
 
 /* ---------- Você ---------- */
+/* no dia em que completa mais um ano de atelier, o Hoje lembra */
+function aniversarioAtelier(){
+  const a = S.aluno; if(!a || !a.aluno_desde) return "";
+  const d = fromKey(a.aluno_desde), n = now(), anos = n.getFullYear() - d.getFullYear();
+  if(anos < 1 || d.getMonth() !== n.getMonth() || d.getDate() !== n.getDate()) return "";
+  return `<section class="aniver"><p class="label">${MES[d.getMonth()]} de ${d.getFullYear()}</p>
+    <p class="title">Hoje faz ${plural(anos, "ano", "anos")} que você chegou ao Alma.</p>
+    <p class="sub">Obrigado por fazer parte do atelier.</p></section>`;
+}
 /* tempo de atelier: percurso, não quantidade */
 function tempoAtelier(a){
   if(!a.aluno_desde) return "";
@@ -1357,7 +1362,7 @@ function sheetEventoEq(id){
       <div class="row2"><label class="field"><span>Vagas (vazio = sem limite)</span><input id="e_vagas" type="number" min="1" value="${esc(e.vagas)}"></label><label class="field"><span>Valor</span><input id="e_preco" value="${esc(e.preco_texto)}" placeholder="R$ 90 · alunos R$ 70"></label></div>
       <label class="check"><input type="checkbox" id="e_pub" ${e.publicado ? "checked" : ""}>Visível para os alunos</label>
       <p class="err" id="fErr" hidden></p>
-      <div class="btns"><button class="btn pri" type="submit">Salvar</button>${id !== "novo" ? `<button class="btn danger" type="button" data-delev="${id}">Excluir evento</button>` : ""}<button class="btn ghost" type="button" data-close>Cancelar</button></div>
+      <div class="btns"><button class="btn pri" type="submit">Salvar</button>${id !== "novo" ? `<button class="btn ghost dperigo" type="button" data-delevask="${id}">Excluir evento</button>` : ""}<button class="btn ghost" type="button" data-close>Cancelar</button></div>
     </form>`);
   $("#evForm").onsubmit = async ev => {
     ev.preventDefault(); const btn = $("#evForm button[type=submit]"); busy(btn, true);
@@ -1724,7 +1729,7 @@ async function salvarRegistro(btn){
     if(e.removidas.length) sb.storage.from("diario").remove(e.removidas).catch(() => {});
     const editou = !!e.id;
     fecharEditor(); await loadDiario(); if(S.tab !== "diario") S.tab = "diario"; render(); window.scrollTo(0, 0);
-    toast(editou ? "Registro atualizado" : "Registro salvo");
+    vibrar(); toast(editou ? "Registro atualizado" : "Registro salvo");
   }catch(ex){ busy(btn, false); toast(errMsg(ex)); }
 }
 
@@ -1755,11 +1760,15 @@ async function sheetDiarioEq(pid){
 }
 $("#sheetBody").addEventListener("click", e => {
   const t = e.target.closest("button"); if(!t) return;
+  if(t.dataset.delevask){ const e = S.eventos.find(x => x.id === t.dataset.delevask);
+    return sheet(`<p class="label">Evento</p><h3 class="h5">Excluir ${esc(e ? e.titulo : "este evento")}?</h3>
+      <p class="sub">${e && e.inscritos ? `${plural(e.inscritos, "pessoa inscrita perde", "pessoas inscritas perdem")} a inscrição. ` : ""}Não dá para desfazer.</p>
+      <div class="btns"><button class="btn danger" data-delev="${t.dataset.delevask}">Excluir evento</button><button class="btn ghost" data-editev="${t.dataset.delevask}">Voltar</button></div>`); }
   if(t.dataset.espera || t.dataset.saiespera){
     const entrar = !!t.dataset.espera, id = t.dataset.espera || t.dataset.saiespera; busy(t, true);
     sb.rpc(entrar ? "entrar_lista_espera" : "sair_lista_espera", { p_aula: id }).then(async ({ error }) => {
       if(error){ busy(t, false); return toast(errMsg(error)); }
-      closeSheet(); await loadAluno(); render(); toast(entrar ? "Você entrou na lista de espera" : "Você saiu da lista de espera");
+      closeSheet(); await loadAluno(); render(); if(entrar) vibrar(); toast(entrar ? "Você entrou na lista de espera" : "Você saiu da lista de espera");
     });
     return;
   }
@@ -1854,7 +1863,7 @@ $("#sheetBody").addEventListener("click", async e => {
     if(error){ busy(t, false); return toast(errMsg(error)); }
     closeSheet(); await loadAluno(); render(); return toast("Aula remarcada"); }
   if(t.dataset.cancel) return doCancel(t.dataset.cancel, t);
-  if(t.dataset.inev){ busy(t, true); const { error } = await sb.rpc("inscrever_evento", { p_evento: t.dataset.inev }); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); toast("Inscrição feita"); await loadEventos(); return render(); }
+  if(t.dataset.inev){ busy(t, true); const { error } = await sb.rpc("inscrever_evento", { p_evento: t.dataset.inev }); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); vibrar(); toast("Inscrição feita"); await loadEventos(); return render(); }
   if(t.dataset.unev){ busy(t, true); const { error } = await sb.rpc("cancelar_inscricao", { p_evento: t.dataset.unev }); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); toast("Inscrição cancelada"); await loadEventos(); return render(); }
   if(t.dataset.editev) return sheetEventoEq(t.dataset.editev);
   if(t.dataset.delev){ busy(t, true); const { error } = await sb.from("eventos").delete().eq("id", t.dataset.delev); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); toast("Evento excluído"); await loadEventos(); return render(); }
