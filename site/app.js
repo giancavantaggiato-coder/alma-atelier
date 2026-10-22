@@ -1169,7 +1169,7 @@ function sheetPessoaEq(id){
     if(vinc === "ex_aluno") row.motivo_saida = v("#f_motivo");
     try{
       if(!row.nome && !(aluno && row.email)) throw new Error("Preencha o nome.");
-      if(!row.email && !row.whatsapp) throw new Error("Informe e-mail ou WhatsApp.");
+      if(!row.email && !row.whatsapp && !(["aluno","pausado"].includes(row.vinculo) && !row.acesso_app)) throw new Error("Informe e-mail ou WhatsApp.");
       if(row.acesso_app && !row.email) throw new Error("Para o aluno entrar no app, preencha o e-mail que ele vai usar.");
       let pid = p.id;
       if(id === "novo"){ const { data, error } = await sb.from("pessoas").insert(row).select("id").single(); if(error) throw error; pid = data.id; }
