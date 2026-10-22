@@ -849,15 +849,26 @@ function viewEventos(){
 }
 /* cartão de evento das listas (aluno e equipe): foto em cima, data com hierarquia, título e quem vai */
 const dataPonto = d => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
+/* selo de calendário (mês em cima, dia embaixo): o mesmo componente no cartão e na página do evento */
+const mesSigla = d => MES[d.getMonth()].slice(0, 3).toUpperCase();
+const seloData = (d, cls = "") => `<span class="dchip ${cls}" aria-hidden="true"><span>${mesSigla(d)}</span><b class="tnum">${d.getDate()}</b></span>`;
 function cardEventoHTML(e, eq){
   const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
-  const tag = eq ? `<span class="evc-tag">${e.inscritos}${e.vagas ? "/" + e.vagas : ""} inscritos</span>`
-    : `<span class="evc-tag${e.inscrito ? " in" : ""}">${e.inscrito ? "Inscrito" : vag == null ? "Aberto" : vag ? plural(vag, "vaga", "vagas") : "Esgotado"}</span>`;
-  return `<button class="evcard${e.foto_url ? "" : " semfoto"}" data-ev="${e.id}">
-    ${e.foto_url ? `<span class="evc-foto"><img src="${esc(e.foto_url)}" alt="" loading="lazy">${tag}</span>` : ""}
-    <span class="evc-data"><span>${cap1(WD[e.ini.getDay()])}, ${dataPonto(e.ini)}, ${hh(e.ini)} às ${hh(e.fim)}</span><span class="evc-local">${EVI.local}<span>${esc(e.local || "Atelier")}</span></span></span>
-    <span class="evc-tit">${esc(e.titulo)}${e.publicado ? "" : `<span class="evc-rasc">rascunho</span>`}</span>
-    ${(e.quem || []).length || !e.foto_url ? `<span class="evc-pe">${(e.quem || []).length ? quemVaiHTML(e, 5) : "<span></span>"}${e.foto_url ? "" : tag}</span>` : ""}
+  const status = eq ? `<span class="evc-st">${e.inscritos}${e.vagas ? `<span>/${e.vagas}</span>` : ""} inscritos</span>`
+    : e.inscrito ? `<span class="evc-st in">Inscrito</span>`
+    : `<span class="evc-st${vag === 0 ? " esg" : ""}">${vag == null ? "Aberto" : vag ? plural(vag, "vaga", "vagas") : "Esgotado"}</span>`;
+  const quem = (e.quem || []).length ? quemVaiHTML(e, 4) : `<span class="fpt">Ninguém inscrito ainda</span>`;
+  return `<button class="evcard${e.foto_url ? " comfoto" : ""}" data-ev="${e.id}" aria-label="${esc(e.titulo)}, ${WD[e.ini.getDay()]} ${e.ini.getDate()} de ${MES[e.ini.getMonth()]}">
+    ${e.foto_url ? `<span class="evc-foto"><img src="${esc(e.foto_url)}" alt="" loading="lazy">${seloData(e.ini, "sobre")}</span>` : ""}
+    <span class="evc-corpo">
+      ${e.foto_url ? "" : seloData(e.ini)}
+      <span class="evc-txt">
+        <span class="evc-over">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</span>
+        <span class="evc-tit">${esc(e.titulo)}</span>
+        <span class="evc-sub">${cap1(WD[e.ini.getDay()])}, ${hh(e.ini)} às ${hh(e.fim)}${e.local ? `, ${esc(e.local)}` : ""}</span>
+      </span>
+    </span>
+    <span class="evc-pe">${quem}${status}</span>
   </button>`;
 }
 /* ---------- Página do evento: detalhes, reações e mural ---------- */
@@ -1040,12 +1051,15 @@ function viewEventoPag(){
       <div class="evhero-top"><button class="evround" data-evvoltar aria-label="Voltar">${EVI_TOPO.voltar}</button>
         ${S.equipe ? `<span class="evhero-acoes"><label class="evround" aria-label="${e.foto_url ? "Trocar foto" : "Adicionar foto"}">${EVI_TOPO.foto}<input type="file" accept="image/*" id="evFotoIn" hidden></label><button class="evround" data-editev="${e.id}" aria-label="Editar evento">${EVI_TOPO.editar}</button></span>` : ""}</div>
       ${capaReacoesHTML()}
-      <div class="evdate"><b class="tnum">${dataPonto(e.ini)}</b><span>${cap1(WD[e.ini.getDay()])}</span></div>
     </header>
     <article class="evbody${barra ? " combarra" : ""}">
-      <span class="evtag">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</span>
+      <span class="evc-over">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</span>
       <h1 class="evtit">${esc(e.titulo)}</h1>
-      <p class="evline"><span>${EVI_TOPO.hora}${hh(e.ini)} às ${hh(e.fim)}</span>${e.local ? `<span>${EVI.local}${esc(e.local)}</span>` : ""}${!S.aluno && preco1 ? `<span>${EVI.valor}${esc([preco1, ...precoResto].join(", "))}</span>` : ""}</p>
+      <ul class="evinfo">
+        <li>${seloData(e.ini)}<span><b>${cap1(WD[e.ini.getDay()])}, ${e.ini.getDate()} de ${MES[e.ini.getMonth()]}</b><span>${hh(e.ini)} às ${hh(e.fim)}</span></span></li>
+        ${e.local ? `<li><span class="dchip ico">${EVI.local}</span><span><b>${esc(e.local)}</b>${/atelier/i.test(e.local) ? `<span>Rua São Paulo, 864, São Caetano do Sul</span>` : ""}</span></li>` : ""}
+        ${!S.aluno && preco1 ? `<li><span class="dchip ico">${EVI.valor}</span><span><b>${esc(preco1)}</b>${precoResto.length ? `<span>${esc(precoResto.join(", "))}</span>` : ""}</span></li>` : ""}
+      </ul>
       <div class="evgente">${(e.quem || []).length ? quemVaiHTML(e, 5) : `<span class="fpt">Ninguém inscrito ainda</span>`}${vagasTxt ? `<span class="evvag">${vagasTxt}</span>` : ""}</div>
       ${e.descricao ? `<h2 class="evsec">Sobre</h2><p class="evdesc">${esc(e.descricao)}</p>` : ""}
       <section class="evmural">
