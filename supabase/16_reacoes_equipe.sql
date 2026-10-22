@@ -1,3 +1,4 @@
+-- DESATIVADO em 21/10/2026: as reações foram retiradas do app. Tabelas e funções seguem no banco, sem uso.
 -- Reações passam a ser por login (tabela public.reacoes), para a equipe também reagir.
 -- A tabela antiga reacoes_evento fica sem uso (nada foi apagado). A ficha do evento mostra quem reagiu.
 create table if not exists public.reacoes (

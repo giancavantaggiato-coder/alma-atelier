@@ -1,3 +1,4 @@
+-- DESATIVADO em 21/10/2026: as reações foram retiradas do app. Tabelas e funções seguem no banco, sem uso.
 -- Reações com emoji nos eventos (segurar o evento no app abre a barra de emojis).
 -- Uma reação por pessoa em cada evento; tocar no mesmo emoji de novo tira a reação.
 create table if not exists public.reacoes_evento (
