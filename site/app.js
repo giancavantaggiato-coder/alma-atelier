@@ -640,6 +640,8 @@ function sheetAula(a){
   const nome = `${cap1(WD[a.ini.getDay()])}, ${dm(a.ini)}`, hr = `${hh(a.ini)} às ${hh(a.fim)}`, n = now();
   const close = `<div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`;
   if(a.cancelada) return sheet(`<p class="label">Aula cancelada</p><h3 class="h5">${nome}</h3><p class="sub">${hr}. Esta aula foi cancelada pelo atelier.${isMine(a) ? " Sua reposição já está disponível." : ""}</p>${close}`);
+  const emAndamento = a.ini <= n && a.fim > n;
+  const quem = emAndamento ? `<p class="label" style="margin-top:var(--s4)">${plural(S.live.length,"aluno em aula","alunos em aula")}</p>${listaEmAula()}` : "";
   const repoDesfeita = isMine(a) && a.reserva_tipo === "reposicao" && a.reserva_status === "desmarcada" && a.ini > n;
   if(isMine(a) && !repoDesfeita){
     if(a.reserva_status === "confirmada" && a.ini > n) return sheetDesmarcar(a);
@@ -651,8 +653,9 @@ function sheetAula(a){
     }
     const txt = { confirmada: a.fim <= n ? "Presença registrada." : "Você está em aula agora.", presente: "Presença registrada.", falta: "Falta registrada.",
       desmarcada: "Desmarcada com aviso.", ausencia_tardia: "Avisada com menos de 4h. Não gerou reposição.", aula_cancelada: "Aula cancelada pelo atelier." }[a.reserva_status] || "";
-    return sheet(`<p class="label">${a.reserva_tipo === "reposicao" ? "Reposição" : "Sua aula"}</p><h3 class="h5">${nome}</h3><p class="sub">${hr}. ${txt}</p>${close}`);
+    return sheet(`<p class="label">${a.reserva_tipo === "reposicao" ? "Reposição" : "Sua aula"}</p><h3 class="h5">${nome}</h3><p class="sub">${hr}. ${txt}</p>${quem}${close}`);
   }
+  if(emAndamento) return sheet(`<p class="label">Agora no atelier</p><h3 class="h5">${nome}</h3><p class="sub">${hr}. Aula acontecendo agora.</p>${quem}${close}`);
   if(a.ini <= n) return sheet(`<h3 class="h5">${nome}</h3><p class="sub">${hr}. Esta aula já aconteceu.</p>${close}`);
   if(livre()){
     const v = vagas(a);
@@ -1258,11 +1261,14 @@ function bind(){
     toast(data ? `${plural(data,"aula criada","aulas criadas")}` : "Nenhuma aula nova; já estavam criadas");
   };
 }
+const listaEmAula = () => S.live.length
+  ? `<div class="people">${S.live.map(p => `<div class="person"><div class="av">${esc(initials(p.nome))}</div><span>${esc(p.nome)}</span><span class="tag">${p.sou_eu ? "você" : p.tipo === "reposicao" ? "reposição" : ""}</span></div>`).join("")}</div>`
+  : `<p class="sub">Ninguém confirmado nesta aula.</p>`;
 function sheetPessoas(){
   const cur = S.agenda.find(a => !a.cancelada && a.ini <= now() && a.fim > now());
   sheet(`<p class="label">Agora no atelier</p><h3 class="h5">${plural(S.live.length,"aluno em aula","alunos em aula")}</h3>
     ${cur ? `<p class="sub">${cap1(WD[cur.ini.getDay()])}, ${hh(cur.ini)} às ${hh(cur.fim)} · ${plural(vagas(cur),"vaga livre","vagas livres")}</p>` : ""}
-    <div class="people">${S.live.map(p => `<div class="person"><div class="av">${esc(initials(p.nome))}</div><span>${esc(p.nome)}</span><span class="tag">${p.sou_eu ? "você" : p.tipo === "reposicao" ? "reposição" : ""}</span></div>`).join("")}</div>
+    ${listaEmAula()}
     <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
 }
 $("#sheetBody").addEventListener("click", async e => {
