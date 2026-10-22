@@ -86,7 +86,8 @@ function render(){
   renderNav();
   const v = S.visitante && !isEqTab() ? ({ hoje: viewHojeV, agenda: viewAgendaV, eventos: viewEventos, voce: viewVoceV }[S.tab] || viewHojeV)
     : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, painel: viewPainel, eqhoje: viewHojeEq }[S.tab] || (adminOnly() ? viewHojeEq : viewHoje));
-  $("#view").innerHTML = v();
+  try{ $("#view").innerHTML = v(); }
+  catch(ex){ console.error(ex); $("#view").innerHTML = `<div class="loading">Não foi possível abrir esta tela. Feche e abra o app de novo.</div>`; return; }
   bind();
 }
 
@@ -1017,7 +1018,7 @@ function viewEquipe(){
       <div class="grid">${cells}</div>
       <div class="hint"><span>Toque no dia para ver quem estará no atelier.</span></div>`;
   } else if(E.sec === "pessoas"){
-    const f = ["todos","alunos","suspensos","ex"].includes(E.filtro) ? E.filtro : "alunos"; q = (E.busca || "").toLowerCase();
+    const f = ["todos","alunos","suspensos","ex"].includes(E.filtro) ? E.filtro : "alunos", q = (E.busca || "").toLowerCase();
     const grupos = { todos: p => ["aluno","pausado","ex_aluno"].includes(p.vinculo), alunos: p => p.vinculo === "aluno" && !p.fantasma,
       suspensos: p => p.vinculo === "pausado", ex: p => p.vinculo === "ex_aluno" };
     const lista = E.alunos.filter(grupos[f]).filter(p => !q || [p.nome, p.email, p.whatsapp].some(x => String(x || "").toLowerCase().includes(q)));
@@ -1031,7 +1032,7 @@ function viewEquipe(){
         const aluno = ["aluno","pausado"].includes(p.vinculo);
         const tags = [p.fantasma ? "Fantasma" : VINC[p.vinculo || ""], p.comprador_loja ? "Loja" : ""].filter(Boolean);
         const det = aluno
-          ? [(E.mat[p.id] || []).map(id => { const t = E.turmas.find(x => x.id === id); return t ? cap1(WDS[t.dia_semana]) : ""; }).join(" · ") || (p.plano === "livre" ? "Plano livre" : "Sem dia fixo"), p.plano === "livre" ? "marca as aulas que quiser" : p.reposicao_livre ? "reposições sem limite" : `${E.cred[p.id] || 0} reposições`, !p.acesso_app ? "acesso bloqueado" : !p.auth_user_id ? "ainda não entrou no app" : p.cadastro_completo_em ? "usa o app" : "entrou, falta completar o cadastro"]
+          ? [((E.mat || {})[p.id] || []).map(id => { const t = (E.turmas || []).find(x => x.id === id); return t ? cap1(WDS[t.dia_semana]) : ""; }).join(" · ") || (p.plano === "livre" ? "Plano livre" : "Sem dia fixo"), p.plano === "livre" ? "marca as aulas que quiser" : p.reposicao_livre ? "reposições sem limite" : `${(E.cred || {})[p.id] || 0} reposições`, !p.acesso_app ? (p.email ? "acesso bloqueado" : "não usa o app") : !p.auth_user_id ? "ainda não entrou no app" : p.cadastro_completo_em ? "usa o app" : "entrou, falta completar o cadastro"]
           : [p.origem ? `via ${p.origem}` : "", p.interesses && p.interesses.length ? p.interesses.join(", ") : "", p.vinculo === "ex_aluno" && p.saida_em ? `saiu em ${dm(fromKey(p.saida_em))}/${String(fromKey(p.saida_em).getFullYear()).slice(2)}` : ""];
         return `<button class="card" data-pessoa="${p.id}" style="text-align:left">
           <div class="row"><span class="title">${esc(p.nome || p.email || p.whatsapp)}</span>${aluno ? `<span class="pill ${p.pagamento_status === "em_dia" ? "ok" : "warn"}">${PAG[p.pagamento_status]}</span>` : ""}</div>
