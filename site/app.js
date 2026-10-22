@@ -855,12 +855,9 @@ function cardEventoHTML(e, eq){
     : `<span class="evc-tag${e.inscrito ? " in" : ""}">${e.inscrito ? "Inscrito" : vag == null ? "Aberto" : vag ? plural(vag, "vaga", "vagas") : "Esgotado"}</span>`;
   return `<button class="evcard${e.foto_url ? "" : " semfoto"}" data-ev="${e.id}">
     ${e.foto_url ? `<span class="evc-foto"><img src="${esc(e.foto_url)}" alt="" loading="lazy">${tag}</span>` : ""}
-    <span class="evc-corpo">
-      <span class="evc-data"><b class="tnum">${dataPonto(e.ini)}</b><span>${WD[e.ini.getDay()]}, ${hh(e.ini)} às ${hh(e.fim)}</span>${e.foto_url ? "" : tag}</span>
-      <span class="evc-tit">${esc(e.titulo)}</span>
-      <span class="evc-tipo">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</span>
-      ${(e.quem || []).length || e.nc ? `<span class="evc-pe">${quemVaiHTML(e, 5)}${e.nc ? `<span class="evc-nc">${plural(e.nc, "comentário", "comentários")}</span>` : ""}</span>` : ""}
-    </span>
+    <span class="evc-data"><span>${cap1(WD[e.ini.getDay()])}, ${dataPonto(e.ini)}, ${hh(e.ini)} às ${hh(e.fim)}</span>${e.foto_url ? "" : tag}</span>
+    <span class="evc-tit">${esc(e.titulo)}</span>
+    <span class="evc-local">${EVI.local}<span>${esc(e.local || "Atelier")}${e.publicado ? "" : ", rascunho"}</span></span>
   </button>`;
 }
 /* ---------- Página do evento: detalhes, reações e mural ---------- */
