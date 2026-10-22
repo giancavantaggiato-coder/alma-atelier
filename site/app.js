@@ -90,7 +90,7 @@ function renderNav(){
   if(S.equipe) tabs.push(["equipe","Equipe"]);
   const lista = S.visitante && !S.equipe ? [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]] : adminOnly() ? [["eqhoje","Hoje"],["eq:dia","Calendário"],["eq:pessoas","Alunos"],["eq:eventos","Eventos"],["painel","Você"]] : tabs;
   $("#nav").innerHTML = `<div class="in" role="tablist">${lista.map(([k,l]) =>
-    `<button role="tab" data-tab="${k}" aria-selected="${S.tab===k || (k === "voce" && S.tab === "diario")}"><span class="pillbg">${NAV_ICO[k] || ICO[k]}</span>${l}</button>`).join("")}</div>`;
+    `<button role="tab" data-tab="${k}" aria-selected="${S.tab===k || (k === "voce" && S.tab === "diario") || ((k === "eventos" || k === "eq:eventos") && S.tab === "evento")}"><span class="pillbg">${NAV_ICO[k] || ICO[k]}</span>${l}</button>`).join("")}</div>`;
   $("#nav").hidden = false;
 }
 $("#nav").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if(b) go(b.dataset.tab); });
@@ -108,8 +108,8 @@ function render(){
   if(precisaCompletar()) return PA.pronto ? renderPA() : primeiroAcesso();
   if(NS.ativo) return renderNovaSenha();
   renderNav();
-  const v = S.visitante && !isEqTab() ? ({ hoje: viewHojeV, agenda: viewAgendaV, eventos: viewEventos, voce: viewVoceV }[S.tab] || viewHojeV)
-    : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, diario: viewDiario, painel: viewPainel, eqhoje: viewHojeEq }[S.tab] || (adminOnly() ? viewHojeEq : viewHoje));
+  const v = S.visitante && !isEqTab() ? ({ hoje: viewHojeV, agenda: viewAgendaV, eventos: viewEventos, evento: viewEventoPag, voce: viewVoceV }[S.tab] || viewHojeV)
+    : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, evento: viewEventoPag, voce: viewVoce, diario: viewDiario, painel: viewPainel, eqhoje: viewHojeEq }[S.tab] || (adminOnly() ? viewHojeEq : viewHoje));
   try{ $("#view").innerHTML = v(); }
   catch(ex){ console.error(ex); $("#view").innerHTML = `<div class="loading">Não foi possível abrir esta tela. Feche e abra o app de novo.</div>`; return; }
   bind();
@@ -287,9 +287,10 @@ async function loadAluno(){
   loadDiario().then(() => { if(["voce","diario"].includes(S.tab) && !precisaCompletar() && !NS.ativo) render(); }).catch(() => {});
 }
 async function loadEventos(){
-  const [{ data }, { data: qv }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("inscritos_eventos")]);
+  const [{ data }, { data: qv }, { data: mc }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("inscritos_eventos"), sb.rpc("mural_contagem")]);
   const porEv = {}; (qv || []).forEach(q => (porEv[q.evento_id] ||= []).push(q));
-  S.eventos = (data || []).map(e => ({ ...e, ini: new Date(e.inicia_em), fim: new Date(e.termina_em), quem: porEv[e.id] || [] }));
+  const nc = {}; (mc || []).forEach(m => nc[m.evento_id] = m.total);
+  S.eventos = (data || []).map(e => ({ ...e, ini: new Date(e.inicia_em), fim: new Date(e.termina_em), quem: porEv[e.id] || [], nc: nc[e.id] || 0 }));
 }
 /* fotinhas de quem vai ao evento (foto ou iniciais) */
 const avatarMini = q => q.avatar_url
@@ -846,22 +847,124 @@ function viewEventos(){
     const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
     return `<button class="ev" data-ev="${e.id}">
       <div class="date"><b class="tnum">${pad(e.ini.getDate())}</b><span>${MES[e.ini.getMonth()].slice(0,3)}</span></div>
-      <div class="info"><p class="label">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</p><span class="title">${esc(e.titulo)}</span><span class="sub">${WD[e.ini.getDay()]}, ${hh(e.ini)} às ${hh(e.fim)}</span>${quemVaiHTML(e)}</div>
+      <div class="info"><p class="label">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</p><span class="title">${esc(e.titulo)}</span><span class="sub">${WD[e.ini.getDay()]}, ${hh(e.ini)} às ${hh(e.fim)}</span>${quemVaiHTML(e)}${muralContaHTML(e)}</div>
       <span class="tag ${e.inscrito ? "in" : ""}">${e.inscrito ? "Inscrito" : vag == null ? "Aberto" : vag ? `${vag} vagas` : "Esgotado"}</span>
     </button>`; }).join("") : `<p class="empty">${S.evFiltro === "meus" ? "Você ainda não se inscreveu em nenhum evento." : "Nenhum evento marcado por enquanto."}</p>`}</div>`;
 }
-function sheetEvento(id){
-  const e = S.eventos.find(x => x.id === id); if(!e) return;
+/* ---------- Página do evento: detalhes, reações e mural ---------- */
+const EMOJIS = ["❤️","😍","👏","🎨","🔥","😂"];
+const EV = { id: null, volta: null, mural: null, reac: [], quem: [], rascunho: "", carregado: null };
+const muralContaHTML = e => e.nc ? `<span class="mcount">${plural(e.nc, "comentário", "comentários")}</span>` : "";
+const podeEscrever = () => !!(S.aluno || S.equipe) && !(S.visitante && !S.equipe);
+function abrirEvento(id){
+  if(EV.id !== id){ EV.mural = null; EV.reac = []; EV.quem = []; EV.rascunho = ""; }
+  EV.id = id; if(S.tab !== "evento") EV.volta = S.tab;
+  go("evento");
+  loadEventoPag().then(() => { if(S.tab === "evento" && EV.id === id) render(); });
+}
+async function loadEventoPag(){
+  const id = EV.id; if(!id) return;
+  const [m, r, q] = await Promise.all([sb.rpc("mural_evento", { p_evento: id }), sb.rpc("reacoes_eventos"), sb.rpc("quem_reagiu", { p_evento: id })]);
+  if(EV.id !== id) return;
+  EV.mural = (m.data || []).map(c => ({ ...c, quando: new Date(c.criado_em) })).sort((a, b) => b.quando - a.quando);
+  EV.reac = (r.data || []).filter(x => x.evento_id === id);
+  EV.quem = q.data || [];
+  const e = S.eventos.find(x => x.id === id); if(e) e.nc = EV.mural.length;
+}
+const avatarMural = c => `<span class="av mav">${c.avatar_url ? `<img src="${esc(c.avatar_url)}" alt="" loading="lazy">` : esc(initials(String(c.nome).replace(".", "")))}</span>`;
+function reacoesHTML(){
+  const pode = podeEscrever();
+  const conta = {}; let minha = null;
+  EV.reac.forEach(r => { conta[r.emoji] = r.total; if(r.minha) minha = r.emoji; });
+  const nomes = EV.quem.map(q => q.sou_eu ? "você" : firstName(q.nome));
+  const txt = !nomes.length ? (pode ? "Toque para reagir" : "Ninguém reagiu ainda")
+    : nomes.length <= 3 ? cap1(nomes.length === 1 ? nomes[0] : `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}`) + (nomes.length === 1 ? " reagiu" : " reagiram")
+    : `${cap1(nomes.slice(0, 2).join(", "))} e mais ${nomes.length - 2} reagiram`;
+  return `<div class="reacs" role="group" aria-label="Reações">${EMOJIS.map(em =>
+    `<button class="reac" data-reac="${em}" aria-pressed="${minha === em}" ${pode ? "" : "disabled"} aria-label="Reagir com ${em}"><span class="re">${em}</span>${conta[em] ? `<span class="rn tnum">${conta[em]}</span>` : ""}</button>`).join("")}</div>
+    <p class="sub reac-quem">${esc(txt)}</p>`;
+}
+function muralHTML(){
+  const pode = podeEscrever();
+  const comp = pode ? `<form class="mcomp" id="mForm">
+      <label class="sr" for="mTxt">Escrever no mural</label>
+      <textarea id="mTxt" rows="1" maxlength="500" placeholder="Escreva no mural">${esc(EV.rascunho)}</textarea>
+      <button class="mpub" type="submit" ${EV.rascunho.trim() ? "" : "disabled"}>Publicar</button></form>`
+    : `<p class="sub mnota">O mural fica aberto para alunos ativos e equipe. Você acompanha os comentários.</p>`;
+  if(EV.mural === null) return `${comp}<div class="mlista sk-lista" aria-hidden="true"><span class="sk sk-card"></span><span class="sk sk-card"></span></div>`;
+  return `${comp}<div class="mlista">${EV.mural.length ? EV.mural.map(c => `<article class="mc">
+      ${avatarMural(c)}
+      <div class="mcb"><p class="mch"><b>${c.sou_eu ? "Você" : esc(c.nome)}</b>${c.equipe ? `<span class="meq">Equipe</span>` : ""}<span class="mct">${tempoRel(c.quando)}</span></p>
+        <p class="mtx">${esc(c.texto)}</p>
+        ${c.sou_eu || S.equipe ? `<button class="mdel" data-mdel="${c.id}">Apagar</button>` : ""}</div>
+    </article>`).join("") : `<p class="empty mvazio">Ninguém escreveu ainda. Comente algo sobre o evento.</p>`}</div>`;
+}
+function viewEventoPag(){
+  const e = S.eventos.find(x => x.id === EV.id);
+  if(!e){ setTimeout(() => S.tab === "evento" && go(EV.volta || "eventos")); return ""; }
   const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
   const [p1, p2] = String(e.preco_texto || "").split(/\s+·\s+|\s*\/\s*|;\s*/);
-  sheet(`<p class="label">${esc(e.tipo)}</p><h3 class="h5">${esc(e.titulo)}</h3>
-    <p class="sub">${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)}, ${hh(e.ini)} às ${hh(e.fim)}${e.local ? `. ${esc(e.local)}` : ""}</p>
-    ${e.descricao ? `<p class="desc">${esc(e.descricao)}</p>` : ""}
-    ${(e.quem || []).length ? `<div class="people">${e.quem.map(q => `<div class="person">${q.avatar_url ? `<div class="av"><img src="${esc(q.avatar_url)}" alt=""></div>` : `<div class="av">${esc(initials(q.nome.replace(".", "")))}</div>`}<span>${esc(q.nome)}</span><span class="tag">${q.sou_eu ? "você" : ""}</span></div>`).join("")}</div>` : ""}
-    <div class="facts"><div><b class="tnum">${vag == null ? "—" : vag}</b><span>vagas livres</span></div><div><b class="tnum">${e.inscritos}</b><span>inscritos</span></div><div><b style="font-size:16px;line-height:28px">${esc(p1 || "—")}</b><span>${esc(p2 || "")}</span></div></div>
-    <div class="btns">${S.visitante ? `<button class="btn pri" disabled>Inscrição só para alunos ativos</button><p class="sub" style="text-align:center">Função ativa somente para alunos ativos.</p>` : !S.aluno ? "" : e.inscrito ? `<button class="btn ghost" data-unev="${id}">Cancelar inscrição</button>` : `<button class="btn pri" data-inev="${id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>Inscrever-se</button>`}
-    ${S.equipe ? `<button class="btn ghost" data-editev="${id}">Editar evento</button>` : ""}<button class="btn ghost" data-close>Fechar</button></div>`);
+  const voltaTxt = { hoje: "Hoje", eqhoje: "Hoje" }[EV.volta] || "Eventos";
+  const insc = S.visitante && !S.equipe ? `<button class="btn pri" disabled>Inscrição só para alunos ativos</button>`
+    : !S.aluno ? "" : e.inscrito ? `<button class="btn ghost" data-unev="${e.id}">Cancelar inscrição</button>`
+    : `<button class="btn pri" data-inev="${e.id}" ${vag === 0 || e.ini <= now() ? "disabled" : ""}>${vag === 0 ? "Esgotado" : "Inscrever-se"}</button>`;
+  return `<div class="dtopo"><button class="dvoltar" data-evvoltar>${CHEV_L}<span>${voltaTxt}</span></button>
+      ${S.equipe ? `<button class="evedit" data-editev="${e.id}">Editar</button>` : ""}</div>
+    <article class="evpag">
+      <p class="label">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</p>
+      <h1 class="h4 evt">${esc(e.titulo)}</h1>
+      <p class="sub evq">${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)}, ${hh(e.ini)} às ${hh(e.fim)}${e.local ? `. ${esc(e.local)}` : ""}</p>
+      ${e.descricao ? `<p class="evdesc">${esc(e.descricao)}</p>` : ""}
+      <div class="facts"><div><b class="tnum">${vag == null ? "—" : vag}</b><span>vagas livres</span></div><div><b class="tnum">${e.inscritos}</b><span>inscritos</span></div><div><b style="font-size:16px;line-height:28px">${esc(p1 || "—")}</b><span>${esc(p2 || "")}</span></div></div>
+      ${(e.quem || []).length ? `<div class="evquem">${quemVaiHTML(e, 8)}</div>` : ""}
+      ${insc ? `<div class="btns">${insc}</div>` : ""}
+    </article>
+    <section class="evmural">
+      ${reacoesHTML()}
+      <div class="mtopo"><h2 class="title">Mural</h2>${EV.mural && EV.mural.length ? `<span class="sub tnum">${plural(EV.mural.length, "comentário", "comentários")}</span>` : ""}</div>
+      ${muralHTML()}
+    </section>`;
 }
+function bindEventoPag(){
+  if(S.tab !== "evento") return;
+  const id = EV.id;
+  const vb = $("#view [data-evvoltar]"); if(vb) vb.onclick = () => go(EV.volta || "eventos");
+  $$("#view [data-inev]").forEach(b => b.onclick = async () => { busy(b, true); const { error } = await sb.rpc("inscrever_evento", { p_evento: id });
+    if(error){ busy(b, false); return toast(errMsg(error)); } vibrar(); toast("Inscrição feita"); await loadEventos(); render(); });
+  $$("#view [data-unev]").forEach(b => b.onclick = async () => { busy(b, true); const { error } = await sb.rpc("cancelar_inscricao", { p_evento: id });
+    if(error){ busy(b, false); return toast(errMsg(error)); } toast("Inscrição cancelada"); await loadEventos(); render(); });
+  $$("#view [data-reac]").forEach(b => b.onclick = async () => {
+    const em = b.dataset.reac, antes = EV.reac.map(r => ({ ...r })), minha = (EV.reac.find(r => r.minha) || {}).emoji;
+    EV.reac = EV.reac.map(r => r.emoji === minha ? { ...r, total: r.total - 1, minha: false } : r).filter(r => r.total > 0);
+    if(minha !== em){ const r = EV.reac.find(x => x.emoji === em); if(r){ r.total++; r.minha = true; } else EV.reac.push({ evento_id: id, emoji: em, total: 1, minha: true }); vibrar(); }
+    render();
+    const { error } = await sb.rpc("reagir_evento", { p_evento: id, p_emoji: em });
+    if(error){ EV.reac = antes; render(); return toast(errMsg(error)); }
+    await loadEventoPag(); if(S.tab === "evento") render();
+  });
+  const ta = $("#mTxt"), f = $("#mForm");
+  if(ta){
+    const ajusta = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 180) + "px"; };
+    ajusta();
+    ta.oninput = () => { EV.rascunho = ta.value; ajusta(); $("#mForm .mpub").disabled = !ta.value.trim(); };
+  }
+  if(f) f.onsubmit = async ev => {
+    ev.preventDefault(); const txt = ta.value.trim(); if(!txt) return;
+    const btn = $("#mForm .mpub"); busy(btn, true); ta.disabled = true;
+    const { error } = await sb.rpc("comentar_evento", { p_evento: id, p_texto: txt });
+    if(error){ busy(btn, false); ta.disabled = false; return toast(errMsg(error)); }
+    EV.rascunho = ""; vibrar(); await loadEventoPag(); if(S.tab === "evento") render();
+  };
+  $$("#view [data-mdel]").forEach(b => b.onclick = () => sheet(`<p class="label">Mural</p><h3 class="h5">Apagar este comentário?</h3>
+    <p class="sub">Ele sai do mural para todo mundo.</p>
+    <div class="btns"><button class="btn danger" data-mdelok="${b.dataset.mdel}">Apagar</button><button class="btn ghost" data-close>Cancelar</button></div>`));
+}
+$("#sheetBody").addEventListener("click", async e => {
+  const t = e.target.closest("[data-mdelok]"); if(!t) return;
+  busy(t, true); const { error } = await sb.rpc("apagar_comentario_evento", { p_id: t.dataset.mdelok });
+  if(error){ busy(t, false); return toast(errMsg(error)); }
+  closeSheet(); toast("Comentário apagado"); await loadEventoPag(); if(S.tab === "evento") render();
+});
 
 /* ---------- Hoje da equipe (tela inicial do admin) ---------- */
 async function loadHojeEq(){
@@ -909,7 +1012,7 @@ function viewHojeEq(){
   <div class="list">
     <button class="li" id="pnPedidos"><span class="ind ${np ? "" : "n"}"></span>Pedidos de mudança<span class="end tnum">${np ? `${np} aguardando` : "nenhum"}</span></button>
     <button class="li" data-tabgo="eq:dia"><span class="ind n"></span>Próximos 7 dias<span class="end tnum">${plural(sem.length, "aula", "aulas")}, ${plural(vagasSem, "vaga", "vagas")}</span></button>
-    ${ev ? `<button class="li" data-editev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${ev.inscritos ? `, ${plural(ev.inscritos, "inscrito", "inscritos")}` : ""}</span></button>` : `<button class="li" data-editev="novo"><span class="ind n"></span>Criar evento</button>`}
+    ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${ev.inscritos ? `, ${plural(ev.inscritos, "inscrito", "inscritos")}` : ""}</span></button>` : `<button class="li" data-editev="novo"><span class="ind n"></span>Criar evento</button>`}
     <button class="li" id="pnEmails"><span class="ind n"></span>Adicionar alunos por e-mail</button>
   </div>
   ${blocoAlertas()}
@@ -1208,8 +1311,8 @@ function viewEquipe(){
         <p class="sub">${t.capacidade} vagas</p></button>`).join("")}</div>`;
   } else {
     body = `<div class="daybar"><p class="sub">${plural(S.eventos.length,"evento","eventos")}</p><button class="addbtn" data-editev="novo">Novo evento</button></div>
-      <div class="cards">${S.eventos.map(e => `<button class="card" data-editev="${e.id}" style="text-align:left"><div class="row"><span class="title">${esc(e.titulo)}</span><span class="pill">${e.inscritos}${e.vagas ? "/" + e.vagas : ""} inscritos</span></div>
-        <p class="sub">${esc(e.tipo)}, ${WD[e.ini.getDay()]} ${dm(e.ini)}, ${hh(e.ini)}${e.publicado ? "" : " (rascunho)"}</p>${quemVaiHTML(e, 8)}</button>`).join("")}</div>`;
+      <div class="cards">${S.eventos.map(e => `<button class="card" data-ev="${e.id}" style="text-align:left"><div class="row"><span class="title">${esc(e.titulo)}</span><span class="pill">${e.inscritos}${e.vagas ? "/" + e.vagas : ""} inscritos</span></div>
+        <p class="sub">${esc(e.tipo)}, ${WD[e.ini.getDay()]} ${dm(e.ini)}, ${hh(e.ini)}${e.publicado ? "" : " (rascunho)"}</p>${quemVaiHTML(e, 8)}${muralContaHTML(e)}</button>`).join("")}</div>`;
   }
   const np = (E.pedidos || []).length;
   const banner = np ? `<button class="pedidos-banner" id="verPedidos"><span class="ind"></span><span>${np === 1 ? "1 pedido de mudança de dias" : `${np} pedidos de mudança de dias`}</span><span class="end">Ver</span></button>` : "";
@@ -1956,7 +2059,8 @@ function bind(){
   bindPush();
   $$("#view [data-abreaula]").forEach(b => b.onclick = () => { const a = S.agenda.find(x => x.aula_id === b.dataset.abreaula); a && sheetAula(a); });
   $$("#view [data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
-  $$("#view [data-ev]").forEach(b => b.onclick = () => sheetEvento(b.dataset.ev));
+  $$("#view [data-ev]").forEach(b => b.onclick = () => abrirEvento(b.dataset.ev));
+  bindEventoPag();
   $$("#view [data-evf]").forEach(b => b.onclick = () => { S.evFiltro = b.dataset.evf; render(); });
   $$("#view [data-day]").forEach(b => b.onclick = () => S.visitante ? sheetDiaV(b.dataset.day) : sheetDia(b.dataset.day));
   const vf = $("#voltarFixos"); if(vf) vf.onclick = sheetVoltar;
@@ -2036,7 +2140,7 @@ $("#sheetBody").addEventListener("click", async e => {
   if(t.dataset.inev){ busy(t, true); const { error } = await sb.rpc("inscrever_evento", { p_evento: t.dataset.inev }); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); vibrar(); toast("Inscrição feita"); await loadEventos(); return render(); }
   if(t.dataset.unev){ busy(t, true); const { error } = await sb.rpc("cancelar_inscricao", { p_evento: t.dataset.unev }); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); toast("Inscrição cancelada"); await loadEventos(); return render(); }
   if(t.dataset.editev) return sheetEventoEq(t.dataset.editev);
-  if(t.dataset.delev){ busy(t, true); const { error } = await sb.from("eventos").delete().eq("id", t.dataset.delev); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); toast("Evento excluído"); await loadEventos(); return render(); }
+  if(t.dataset.delev){ busy(t, true); const { error } = await sb.from("eventos").delete().eq("id", t.dataset.delev); if(error){ busy(t,false); return toast(errMsg(error)); } closeSheet(); toast("Evento excluído"); await loadEventos(); if(S.tab === "evento") return go(EV.volta || "eventos"); return render(); }
   if(t.dataset.excluir) return sheetExcluirEq(t.dataset.excluir);
   if(t.dataset.aprovar){ busy(t, true); const { error } = await sb.rpc("aprovar_mudanca", { p_pedido: t.dataset.aprovar }); busy(t, false);
     if(error) return toast(errMsg(error));
@@ -2078,7 +2182,7 @@ const vibrar = (() => {
   document.body.appendChild(el);
   let y0 = null, d = 0, ocupado = false, vibrou = false;
   const pode = () => S.session && !NS.ativo && !precisaCompletar() && !document.querySelector("#sheet.show") && !document.querySelector("#dEditor")
-    && (["hoje","agenda","eventos","eqhoje","painel"].includes(S.tab) || isEqTab());
+    && (["hoje","agenda","eventos","evento","eqhoje","painel"].includes(S.tab) || isEqTab());
   const pos = v => {
     el.style.transform = `translate(-50%, ${v}px)`; el.style.opacity = Math.min(1, v / 40); el.classList.toggle("pronto", v >= LIM);
     const vw = $("#view"); vw.style.transform = v ? `translateY(${v}px)` : "";
@@ -2100,7 +2204,8 @@ const vibrar = (() => {
     if(d < LIM){ volta(); pos(0); return; }
     ocupado = true; el.classList.add("girando"); pos(56);
     try{
-      if(S.visitante && !S.equipe) await loadVisitante();
+      if(S.tab === "evento") await Promise.all([loadEventos(), loadEventoPag()]);
+      else if(S.visitante && !S.equipe) await loadVisitante();
       else if(S.tab === "eqhoje") await loadHojeEq();
       else if(S.tab === "painel") await loadPainel();
       else if(isEqTab()) await eqLoad();
