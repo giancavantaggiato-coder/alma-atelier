@@ -325,3 +325,13 @@ body.limitado .live .dot{background:var(--past-ink)}
 .c.cnt.gone b,.c.done b,.c.miss b{color:var(--past-ink)}
 .c.mine b{color:#000}
 .c.repo::after{position:absolute;top:-2px;right:-2px;width:8px;height:8px;background:var(--fg);box-shadow:0 0 0 2px var(--bg)}
+
+/* o app é só na vertical: no celular deitado, cobre a tela pedindo para girar
+   (o iPhone não deixa travar a rotação de um site; no Android o manifest já trava) */
+.girar{display:none}
+@media (orientation:landscape) and (max-height:500px) and (pointer:coarse){
+  .girar{display:flex;position:fixed;inset:0;z-index:999;background:var(--bg);color:var(--fg);flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:24px}
+  .girar svg{width:44px;height:44px}
+  .girar p{margin:0;font-size:var(--t-body);color:var(--muted)}
+  html,body{overflow:hidden}
+}
