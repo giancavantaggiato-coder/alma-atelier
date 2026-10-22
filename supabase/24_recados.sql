@@ -120,3 +120,19 @@ language sql stable security definer set search_path = public as $$
    order by e.criado_em limit 1
 $$;
 -- (recado_destinatarios, enviar_recado e meus_recados foram refeitas com nome_equipe; ver migração 24b no projeto)
+
+-- Só o primeiro nome; a inicial do sobrenome entra apenas quando outro aluno tem o mesmo primeiro nome.
+create or replace function public.nome_curto(p public.pessoas) returns text
+language sql stable security definer set search_path = public as $$
+  with pn as (select nullif(split_part(trim(coalesce(p.nome,'')),' ',1), '') as primeiro,
+                     nullif(left(coalesce(nullif(p.sobrenome,''), split_part(trim(coalesce(p.nome,'')),' ',2)),1), '') as ini)
+  select case
+    when pn.primeiro is null then 'Aluno'
+    when pn.ini is not null and exists (
+      select 1 from public.pessoas o
+       where o.id <> p.id and not o.fantasma and o.vinculo in ('aluno','pausado')
+         and lower(split_part(trim(coalesce(o.nome,'')),' ',1)) = lower(pn.primeiro))
+      then pn.primeiro || ' ' || pn.ini || '.'
+    else pn.primeiro end
+  from pn
+$$;
