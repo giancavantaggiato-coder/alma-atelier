@@ -76,3 +76,19 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 ## Ver como aluno (dentro do app)
 - Em Você → "Ver o app como aluno", a equipe passa a ver e usar o app como o seu cadastro fantasma (`equipe.fantasma_id`), sem sair da conta.
 - O app manda o cabeçalho `x-alma-ver-como: aluno` e `meu_aluno_id()` devolve o fantasma. Uma faixa no topo volta para a equipe.
+
+## Diário do aluno
+- Aba Você → Diário: registros com tipo (anotação, obra, aula, referência), título, texto e até 10 fotos, em lista por mês.
+- Tabela `diario` e bucket privado `diario` (fotos na pasta do login). A equipe vê o diário pelo cadastro do aluno (Ver diário).
+
+## Lista de espera
+- Em aula lotada o aluno entra na fila (`entrar_lista_espera`). Quando abre vaga, quem está na fila recebe aviso; quem marca primeiro fica com a vaga.
+
+## Lembretes no celular
+- `site/sw.js` recebe os avisos. Inscrições em `push_inscricoes`; avisos em `notificacoes`, enviados pela função `enviar-push`.
+- Chaves no Vault: `vapid_publica`, `vapid_privada`, `push_segredo`. A pública também está em `config.js`.
+- Avisos: véspera da aula (19h, pg_cron), aula cancelada, vaga aberta na lista de espera, pedido de mudança (equipe e aluno).
+- No iPhone só funciona com o app instalado na tela de início (iOS 16.4+).
+
+## Alertas da equipe
+- `equipe_alertas()`: 2+ aulas seguidas sem vir, 6+ reposições acumuladas, aulas com lista de espera. Aparecem no Hoje da equipe.

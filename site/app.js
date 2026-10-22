@@ -75,7 +75,7 @@ function renderNav(){
   if(S.equipe) tabs.push(["equipe","Equipe"]);
   const lista = S.visitante && !S.equipe ? [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]] : adminOnly() ? [["eqhoje","Hoje"],["eq:dia","Calendário"],["eq:pessoas","Alunos"],["eq:eventos","Eventos"],["painel","Você"]] : tabs;
   $("#nav").innerHTML = `<div class="in" role="tablist">${lista.map(([k,l]) =>
-    `<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}"><span class="pillbg">${NAV_ICO[k] || ICO[k]}</span>${l}</button>`).join("")}</div>`;
+    `<button role="tab" data-tab="${k}" aria-selected="${S.tab===k || (k === "voce" && S.tab === "diario")}"><span class="pillbg">${NAV_ICO[k] || ICO[k]}</span>${l}</button>`).join("")}</div>`;
   $("#nav").hidden = false;
 }
 $("#nav").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if(b) go(b.dataset.tab); });
@@ -84,6 +84,7 @@ function go(t){
   window.scrollTo(0,0); render();
   if(isEqTab()) eqLoad();
   if(t === "painel") loadPainel();
+  if(t === "diario" && S.aluno) loadDiario().then(() => { if(S.tab === "diario") render(); });
   if(t === "eqhoje") loadHojeEq();
 }
 
@@ -93,7 +94,7 @@ function render(){
   if(NS.ativo) return renderNovaSenha();
   renderNav();
   const v = S.visitante && !isEqTab() ? ({ hoje: viewHojeV, agenda: viewAgendaV, eventos: viewEventos, voce: viewVoceV }[S.tab] || viewHojeV)
-    : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, painel: viewPainel, eqhoje: viewHojeEq }[S.tab] || (adminOnly() ? viewHojeEq : viewHoje));
+    : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, voce: viewVoce, diario: viewDiario, painel: viewPainel, eqhoje: viewHojeEq }[S.tab] || (adminOnly() ? viewHojeEq : viewHoje));
   try{ $("#view").innerHTML = v(); }
   catch(ex){ console.error(ex); $("#view").innerHTML = `<div class="loading">Não foi possível abrir esta tela. Feche e abra o app de novo.</div>`; return; }
   bind();
@@ -238,6 +239,7 @@ async function loadMe(){
 /* liga/desliga o modo aluno sem sair da conta */
 async function trocarModoAluno(ligar){
   closeSheet(); verAluno(ligar);
+  D.itens = null; D.filtro = "todos"; D.busca = "";
   Object.assign(S, { tab: ligar ? "hoje" : "painel", aluno: null, agenda: [], live: [], resumo: null, creditos: [], matriculas: [], pedido: null });
   window.scrollTo(0,0); await boot();
   if(!ligar) loadPainel();
@@ -246,14 +248,16 @@ async function trocarModoAluno(ligar){
 async function loadAluno(){
   if(!S.aluno) return;
   const de = addDays(new Date(), -120), ate = addDays(new Date(), 150);
-  const [ag, live, res, cr, mt, pd] = await Promise.all([
+  const [ag, live, res, cr, mt, pd, le] = await Promise.all([
     sb.rpc("agenda", { p_de: dkey(de), p_ate: dkey(ate) }),
     sb.rpc("em_aula_agora"),
     sb.rpc("meu_resumo"),
     sb.from("creditos").select("*").eq("aluno_id", S.aluno.id).is("usado_em_reserva_id", null).gte("expira_em", dkey(new Date())).order("data_falta"),
     sb.from("matriculas").select("turma_id, turmas(nome,dia_semana,inicio,fim)").eq("aluno_id", S.aluno.id).is("ate", null),
-    sb.from("pedidos_mudanca").select("*").eq("aluno_id", S.aluno.id).order("criado_em", { ascending: false }).limit(1)
+    sb.from("pedidos_mudanca").select("*").eq("aluno_id", S.aluno.id).order("criado_em", { ascending: false }).limit(1),
+    sb.from("lista_espera").select("aula_id, avisado_em").eq("aluno_id", S.aluno.id)
   ]);
+  S.espera = (le && le.data) || [];
   S.pedido = (pd.data && pd.data[0]) || null;
   S.agenda = (ag.data || []).map(a => ({ ...a, ini: new Date(a.inicia_em), fim: new Date(a.termina_em) }));
   S.live = live.data || [];
@@ -262,6 +266,7 @@ async function loadAluno(){
   S.matriculas = mt.data || [];
   const { data: al } = await sb.from("pessoas").select("*").eq("id", S.aluno.id).maybeSingle();
   if(al) S.aluno = al;
+  loadDiario().then(() => { if(["voce","diario"].includes(S.tab) && !precisaCompletar() && !NS.ativo) render(); }).catch(() => {});
 }
 async function loadEventos(){
   const [{ data }, { data: qv }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("inscritos_eventos")]);
@@ -280,6 +285,14 @@ function quemVaiHTML(e, max = 5){
 }
 async function refresh(){ await Promise.all([loadAluno(), loadEventos()]); render(); }
 
+/* link vindo de uma notificação: ?aula=… abre a aula, ?ir=diario abre a aba */
+function abrirLinkDireto(){
+  const q = new URLSearchParams(location.search), aula = q.get("aula"), ir = q.get("ir");
+  if(!aula && !ir) return;
+  try{ history.replaceState(null, "", location.pathname); }catch(_){}
+  if(ir && ["hoje","agenda","eventos","voce","diario","painel"].includes(ir)) go(ir);
+  if(aula && S.aluno){ const a = S.agenda.find(x => x.aula_id === aula); if(a) sheetAula(a); }
+}
 async function boot(){
   $("#view").innerHTML = `<div class="loading">Carregando…</div>`;
   const { data } = await sb.auth.getSession();
@@ -312,6 +325,8 @@ async function boot(){
     if(!S.aluno){ if(!["eqhoje","painel"].includes(S.tab) && !isEqTab()) S.tab = "eqhoje"; if(S.tab === "eqhoje") loadHojeEq(); }
     await Promise.all([loadAluno(), loadEventos()]);
     render();
+    abrirLinkDireto();
+    estadoPush().then(() => { if(["hoje","voce","painel"].includes(S.tab) && !document.querySelector("#sheet.show")) render(); }).catch(() => {});
     if(isEqTab()) eqLoad();
   }catch(ex){
     $("#view").innerHTML = `<div class="loading">Não foi possível carregar. Verifique a conexão.</div>`;
@@ -319,7 +334,7 @@ async function boot(){
 }
 sb.auth.onAuthStateChange((ev, session) => {
   if(ev === "SIGNED_IN" && !S.session){ S.session = session; boot(); }
-  if(ev === "SIGNED_OUT"){ Object.assign(S, { session:null, aluno:null, equipe:false, tab:"hoje" }); NS.ativo = false; loginEmail = emailLembrado() || loginEmail; renderLogin(loginEmail && emailLembrado() ? "email" : "inicio"); }
+  if(ev === "SIGNED_OUT"){ D.itens = null; if(D.ed) fecharEditor(); Object.assign(S, { session:null, aluno:null, equipe:false, tab:"hoje" }); NS.ativo = false; loginEmail = emailLembrado() || loginEmail; renderLogin(loginEmail && emailLembrado() ? "email" : "inicio"); }
   if(ev === "TOKEN_REFRESHED") S.session = session;
 });
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao(); if(NS.ativo) return; if(adminOnly() && S.tab === "eqhoje") loadHojeEq(); if(S.aluno && !precisaCompletar()) refresh(); else if(S.visitante) loadVisitante().then(render); } });
@@ -330,7 +345,7 @@ async function checarVersao(){
     const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" }); if(!r.ok) return;
     const { v } = await r.json(); if(!v) return;
     if(VERSAO === null){ VERSAO = v; return; }
-    if(v !== VERSAO && !document.querySelector("#sheet.show") && !document.querySelector("#paForm") && !document.querySelector("#nsForm")) location.reload();
+    if(v !== VERSAO && !document.querySelector("#sheet.show") && !document.querySelector("#paForm") && !document.querySelector("#nsForm") && !document.querySelector("#dEditor")) location.reload();
   }catch(_){}
 }
 checarVersao(); setInterval(checarVersao, 5 * 60 * 1000);
@@ -480,6 +495,14 @@ function todayClasses(){ const k = dkey(now()); return S.agenda.filter(a => acti
 const vagas = a => Math.max(0, a.capacidade - a.ocupadas);
 const nCred = () => S.creditos.length;
 const horarioNome = t => `${cap1(WD[t.dia_semana])} · ${hm(t.inicio)}–${hm(t.fim)}`;
+const naEspera = id => (S.espera || []).some(e => e.aula_id === id);
+/* lotado: entrar ou sair da lista de espera */
+function blocoEspera(a, podeRepor){
+  if(naEspera(a.aula_id)) return `<p class="sub espera-msg">Você está na lista de espera. Avisamos assim que abrir uma vaga.</p>
+    <div class="btns"><button class="btn pri" data-saiespera="${a.aula_id}">Sair da lista de espera</button><button class="btn ghost" data-close>Fechar</button></div>`;
+  return `<div class="btns"><button class="btn pri" data-espera="${a.aula_id}" ${podeRepor ? "" : "disabled"}>Entrar na lista de espera</button><button class="btn ghost" data-close>Agora não</button></div>
+    ${podeRepor ? `<p class="sub espera-msg">Se alguém desmarcar, você recebe um aviso para marcar.</p>` : ""}`;
+}
 const PAG = { em_dia: "Em dia", pendente: "Pendente", atrasado: "Em atraso" };
 
 /* ---------- Hoje ---------- */
@@ -488,6 +511,8 @@ function viewHoje(){
   const estado = cur ? "" : hoje.length ? `Sua aula hoje é às ${hh(hoje[0].ini)}.` : "Hoje você não tem aula.";
   const nx = nextClass(), ac = nCred(), live = S.live.length;
   const ev = S.eventos.find(e => e.ini > n && e.publicado);
+  const esp = S.agenda.filter(a => naEspera(a.aula_id) && a.ini > n && !a.cancelada && !activeMine(a));
+  const espAberta = esp.filter(a => vagas(a) > 0), espFila = esp.filter(a => vagas(a) <= 0);
   return `
   <header class="hello">
     <p class="label">${cap1(WD[n.getDay()])}, ${dm(n)}</p>
@@ -503,11 +528,16 @@ function viewHoje(){
     <p class="ts">${hh(nx.ini)} às ${hh(nx.fim)}</p>
     <button class="textbtn" id="desmBtn" data-aula="${nx.aula_id}">Não vou poder ir</button>
   </section>` : `<section class="tile wide next"><div class="tl"><h2 class="tt">Próxima aula</h2></div><p class="sub">Nenhuma aula marcada. Veja os dias com vaga na agenda.</p></section>`}
+  ${espAberta.map(a => `<button class="vagaaberta" data-abreaula="${a.aula_id}"><span class="label">Abriu vaga</span>
+    <span class="title">${cap1(WD[a.ini.getDay()])}, ${dm(a.ini)} · ${hh(a.ini)} às ${hh(a.fim)}</span>
+    <span class="sub">Você estava na lista de espera. Toque para marcar antes que alguém pegue.</span></button>`).join("")}
   <div class="list">
+    ${espFila.map(a => `<button class="li" data-abreaula="${a.aula_id}"><span class="ind n"></span>Na lista de espera<span class="end tnum">${WDS[a.ini.getDay()]} ${dm(a.ini)} · ${hh(a.ini)}</span></button>`).join("")}
     <button class="li" data-go="agenda"><span class="ind"></span><span class="tnum">${livre() ? "Plano livre · marque as aulas que quiser" : repoLivre() ? "Reposições sem limite" : ac === 1 ? "1 reposição disponível" : `${ac} reposições disponíveis`}</span></button>
     <div class="li"><span class="ind n"></span>Mensalidade<span class="end">Em construção</span></div>
     ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
-  </div>`;
+  </div>
+  ${cartaoPush()}`;
 }
 
 /* ---------- Aluno suspenso / ex-aluno (acesso reduzido) ---------- */
@@ -606,6 +636,8 @@ function dayInfo(list){
   }
   const abertas = list.filter(a => !a.cancelada);
   if(!abertas.length) return "c sm";
+  const esp = abertas.find(a => a.fim > n && naEspera(a.aula_id));
+  if(esp) return vagas(esp) > 0 ? "c sm vaga espera aberta" : "c sm espera";
   if(abertas.every(a => a.fim <= n)) return "c sm gone";
   return abertas.some(a => a.fim > n && vagas(a) > 0) ? "c sm vaga" : "c sm";
 }
@@ -700,15 +732,16 @@ function sheetAula(a){
   if(a.ini <= n) return sheet(`<h3 class="h5">${nome}</h3><p class="sub">${hr}. Esta aula já aconteceu.</p>${close}`);
   if(livre()){
     const v = vagas(a);
-    return sheet(`<p class="label">Atelier aberto</p><h3 class="h5">Marcar ${WD[a.ini.getDay()]}, ${dm(a.ini)}?</h3><p class="sub">${hr}. ${v <= 0 ? "Atelier lotado neste horário." : "Plano livre: marque quantas aulas quiser."}</p>
+    return sheet(`<p class="label">${v <= 0 ? "Atelier lotado" : naEspera(a.aula_id) ? "Abriu vaga" : "Atelier aberto"}</p><h3 class="h5">Marcar ${WD[a.ini.getDay()]}, ${dm(a.ini)}?</h3><p class="sub">${hr}. ${v <= 0 ? "Atelier lotado neste horário." : naEspera(a.aula_id) ? "Abriu vaga nesta aula que você estava esperando." : "Plano livre: marque quantas aulas quiser."}</p>
       <div class="facts"><div><b class="tnum">${v}</b><span>vagas livres</span></div><div><b class="tnum">${a.ocupadas}</b><span>confirmados</span></div><div><b>∞</b><span>seu plano</span></div></div>
-      <div class="btns"><button class="btn pri" data-book="${a.aula_id}" ${v > 0 ? "" : "disabled"}>Marcar aula</button><button class="btn ghost" data-close>Agora não</button></div>`);
+      ${v <= 0 ? blocoEspera(a, S.aluno.vinculo === "aluno") : `<div class="btns"><button class="btn pri" data-book="${a.aula_id}">Marcar aula</button><button class="btn ghost" data-close>Agora não</button></div>`}`);
   }
   const v = vagas(a), ac = nCred(), pode = v > 0 && (ac > 0 || repoLivre()) && S.aluno.vinculo === "aluno";
-  const motivo = v <= 0 ? "Atelier lotado neste horário." : repoLivre() ? "Suas reposições são sem limite." : ac === 0 ? "Você não tem reposições disponíveis." : S.aluno.vinculo !== "aluno" ? "Sua matrícula está pausada." : `Usa 1 das suas ${plural(ac, "reposição", "reposições")}.`;
-  sheet(`<p class="label">Atelier aberto</p><h3 class="h5">Repor ${WD[a.ini.getDay()]}, ${dm(a.ini)}?</h3><p class="sub">${hr}. ${motivo}</p>
+  const esperando = naEspera(a.aula_id);
+  const motivo = v <= 0 ? (ac > 0 || repoLivre() ? "Atelier lotado neste horário." : "Atelier lotado neste horário. Para entrar na lista de espera, você precisa ter uma reposição disponível.") : esperando && (ac > 0 || repoLivre()) ? `Abriu vaga nesta aula que você estava esperando. ${repoLivre() ? "Suas reposições são sem limite." : `Usa 1 das suas ${plural(ac, "reposição", "reposições")}.`}` : repoLivre() ? "Suas reposições são sem limite." : ac === 0 ? "Você não tem reposições disponíveis." : S.aluno.vinculo !== "aluno" ? "Sua matrícula está pausada." : `Usa 1 das suas ${plural(ac, "reposição", "reposições")}.`;
+  sheet(`<p class="label">${v <= 0 ? "Atelier lotado" : esperando ? "Abriu vaga" : "Atelier aberto"}</p><h3 class="h5">Repor ${WD[a.ini.getDay()]}, ${dm(a.ini)}?</h3><p class="sub">${hr}. ${motivo}</p>
     <div class="facts"><div><b class="tnum">${v}</b><span>vagas livres</span></div><div><b class="tnum">${a.ocupadas}</b><span>confirmados</span></div><div><b class="tnum">${repoLivre() ? "∞" : ac}</b><span>suas reposições</span></div></div>
-    <div class="btns"><button class="btn pri" data-book="${a.aula_id}" ${pode ? "" : "disabled"}>Marcar reposição</button><button class="btn ghost" data-close>Agora não</button></div>`);
+    ${v <= 0 ? blocoEspera(a, (ac > 0 || repoLivre()) && S.aluno.vinculo === "aluno") : `<div class="btns"><button class="btn pri" data-book="${a.aula_id}" ${pode ? "" : "disabled"}>Marcar reposição</button><button class="btn ghost" data-close>Agora não</button></div>`}`);
 }
 function sheetDesmarcar(a){
   const horas = (a.ini - now()) / 36e5, ok = horas >= 4, ac = nCred();
@@ -772,10 +805,13 @@ function sheetEvento(id){
 /* ---------- Hoje da equipe (tela inicial do admin) ---------- */
 async function loadHojeEq(){
   const de = startOfDay(new Date()), ate = addDays(de, 21);
-  const [ms, live, pd, pn] = await Promise.all([
+  const [ms, live, pd, pn, , al] = await Promise.all([
     sb.rpc("equipe_mes", { p_de: dkey(de), p_ate: dkey(ate) }), sb.rpc("em_aula_agora"),
-    sb.rpc("equipe_pedidos"), S.painel ? Promise.resolve({ data: S.painel }) : sb.rpc("meu_painel_equipe"), loadEventos()
+    sb.rpc("equipe_pedidos"), S.painel ? Promise.resolve({ data: S.painel }) : sb.rpc("meu_painel_equipe"), loadEventos(),
+    sb.rpc("equipe_alertas")
   ]);
+  const ordem = { faltas: 0, reposicoes: 1, espera: 2 };
+  S.eq.alertas = (al.data || []).sort((a, b) => (ordem[a.tipo] ?? 9) - (ordem[b.tipo] ?? 9) || b.valor - a.valor);
   S.eq.prox = (ms.data || []).map(a => ({ ...a, ini: new Date(a.inicia_em), fim: new Date(a.termina_em) })).sort((a,b) => a.ini - b.ini);
   S.live = live.data || []; S.eq.pedidos = pd.data || []; S.painel = pn.data || S.painel || {};
   S.eq.hojePronto = true;
@@ -813,7 +849,27 @@ function viewHojeEq(){
     <button class="li" data-tabgo="eq:dia"><span class="ind n"></span>Próximos 7 dias<span class="end tnum">${plural(sem.length, "aula", "aulas")} · ${plural(vagasSem, "vaga", "vagas")}</span></button>
     ${ev ? `<button class="li" data-editev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${ev.inscritos ? ` · ${ev.inscritos}` : ""}</span></button>` : `<button class="li" data-editev="novo"><span class="ind n"></span>Criar evento</button>`}
     <button class="li" id="pnEmails"><span class="ind n"></span>Adicionar alunos por e-mail</button>
-  </div>`;
+  </div>
+  ${blocoAlertas()}`;
+}
+/* alertas: faltas seguidas, reposições perto do limite e lista de espera */
+const ALERTA_T = { faltas: "Sem vir há algumas aulas", reposicoes: "Perto do limite de reposições", espera: "Lista de espera" };
+function blocoAlertas(){
+  const al = S.eq.alertas || [];
+  if(!al.length) return `<section class="alertas"><p class="label">Atenção</p><p class="sub alertas-ok">Nenhum alerta. Todo mundo em dia com as aulas e as reposições.</p></section>`;
+  const grupos = {}; al.forEach(a => (grupos[a.tipo] ||= []).push(a));
+  return `<section class="alertas"><p class="label">Atenção</p>${Object.entries(grupos).map(([t, l]) => `
+    <p class="alertas-g">${ALERTA_T[t] || t}</p>
+    <div class="list alertas-l">${l.map(a => {
+      const det = String(a.detalhe || "");
+      return `<button class="li al" ${a.aluno_id ? `data-alerta-pessoa="${a.aluno_id}"` : `data-eqdia="${esc(a.dia)}"`}>
+        <span class="ind ${t === "espera" ? "" : "warn"}"></span><span class="al-t"><span>${esc(t === "espera" ? cap1(a.nome) : a.nome)}</span><span class="sub">${esc(det)}</span></span></button>`;
+    }).join("")}</div>`).join("")}</section>`;
+}
+async function abrirPessoaAlerta(id){
+  S.eq.sec = "pessoas"; S.tab = "eq:pessoas"; window.scrollTo(0,0); render();
+  await eqLoad();
+  if(S.eq.alunos.find(x => x.id === id)) sheetPessoaEq(id);
 }
 
 /* ---------- Painel da equipe ---------- */
@@ -851,6 +907,7 @@ function viewPainel(){
     <button class="li" id="pnEvento"><span class="ind n"></span>Criar evento</button>
     <button class="li" id="pnHorario"><span class="ind n"></span>Horários do atelier</button>
     <button class="li" id="pnPerfil"><span class="ind n"></span>Editar nome e cargo</button>
+    ${linhaPush()}
     <button class="li" id="pnFantasma"><span class="ind n"></span>Ver o app como aluno</button>
   </div>
   <button class="signout" id="trocarSenha">Trocar senha de acesso</button>
@@ -900,6 +957,7 @@ function viewVoce(){
     <div class="stat"><b class="tnum">${r.presenca_90d == null ? "—" : r.presenca_90d + "%"}</b><span>presença<br>em 90 dias</span></div>
     ${livre() || repoLivre() ? `<div class="stat"><b>∞</b><span>${livre() ? "plano<br>livre" : "reposições<br>sem limite"}</span></div>` : `<div class="stat"><b class="tnum">${cr.length}<small> / ${MAX_CRED}</small></b><span>reposições<br>disponíveis</span></div>`}
   </div>
+  ${blocoDiario()}
   <div class="tiles">
     <section class="tile wide">
       <div class="tl"><h2 class="tt">Mensalidade</h2><span class="chip">Em breve</span></div>
@@ -916,6 +974,7 @@ function viewVoce(){
     </section>
   </div>
   ${blocoPedido()}
+  ${linhaPush() ? `<div class="list">${linhaPush()}</div>` : ""}
   <button class="signout" id="trocarSenha">Trocar senha de acesso</button>
   <button class="signout" id="sair">Sair da conta</button>
   <p class="foot">Alma Atelier · versão beta</p>`;
@@ -1102,6 +1161,9 @@ async function sheetDiaEq(k){
   sheet(`<p class="label">Atelier</p><h3 class="h5">${cap1(WD[d.getDay()])}, ${dm(d)}</h3><p class="sub">Carregando…</p>`);
   const { data, error } = await sb.rpc("equipe_dia", { p_dia: k });
   if(error) return sheet(`<h3 class="h5">${cap1(WD[d.getDay()])}, ${dm(d)}</h3><p class="sub">${esc(errMsg(error))}</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
+  const ids = [...new Set((data || []).map(r => r.aula_id))];
+  const { data: esp } = ids.length ? await sb.from("lista_espera").select("aula_id, criado_em, pessoas(nome, fantasma)").in("aula_id", ids).order("criado_em") : { data: [] };
+  const fila = {}; (esp || []).filter(e => e.pessoas && !e.pessoas.fantasma).forEach(e => (fila[e.aula_id] ||= []).push(e.pessoas.nome || "Aluno"));
   const aulas = {}; (data || []).forEach(r => { (aulas[r.aula_id] ||= { ...r, ini: new Date(r.inicia_em), fim: new Date(r.termina_em), pessoas: [] }); if(r.reserva_id) aulas[r.aula_id].pessoas.push(r); });
   const lista = Object.values(aulas);
   const motivo = { desmarcada: "desmarcou", ausencia_tardia: "avisou em cima da hora", aula_cancelada: "aula cancelada", falta: "faltou" };
@@ -1111,7 +1173,8 @@ async function sheetDiaEq(k){
       const fora = a.pessoas.filter(p => !["confirmada","presente"].includes(p.status));
       return `<div class="eqaula"><div class="row"><p class="title">${hh(a.ini)} às ${hh(a.fim)}</p><span class="sub tnum">${a.cancelada ? "cancelada" : `${vem.length} de ${a.capacidade} vagas`}</span></div>
         ${vem.length ? vem.map(p => `<div class="prow"><span class="nm">${esc(p.aluno_nome)}</span>${p.tipo === "reposicao" ? `<span class="meta">reposição</span>` : ""}</div>`).join("") : `<p class="sub">Ninguém marcado.</p>`}
-        ${fora.length ? `<p class="sub" style="margin-top:var(--s2)">Não vêm: ${fora.map(p => `${esc(firstName(p.aluno_nome))} (${motivo[p.status] || p.status})`).join(", ")}</p>` : ""}</div>`; }).join("") : `<p class="sub">Atelier fechado neste dia.</p>`}
+        ${fora.length ? `<p class="sub" style="margin-top:var(--s2)">Não vêm: ${fora.map(p => `${esc(firstName(p.aluno_nome))} (${motivo[p.status] || p.status})`).join(", ")}</p>` : ""}
+        ${(fila[a.aula_id] || []).length ? `<p class="sub" style="margin-top:var(--s2)">Lista de espera: ${fila[a.aula_id].map(n => esc(firstName(n))).join(", ")}</p>` : ""}</div>`; }).join("") : `<p class="sub">Atelier fechado neste dia.</p>`}
     <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
 }
 function sheetPedidosEq(){
@@ -1191,6 +1254,7 @@ function sheetPessoaEq(id){
 
       <p class="err" id="fErr" hidden></p>
       <div class="btns"><button class="btn pri" type="submit">Salvar</button>
+        ${id !== "novo" && ehAluno(p.vinculo) ? `<button class="btn ghost" type="button" data-diarioeq="${p.id}">Ver diário</button>` : ""}
         ${id !== "novo" && ehAluno(p.vinculo) ? `<button class="btn ghost" type="button" data-dar="${p.id}">Dar 1 reposição (${E.cred[p.id] || 0}/8)</button>` : ""}
         <button class="btn ghost" type="button" data-close>Cancelar</button></div>
       ${id !== "novo" ? `<button class="textbtn perigo" type="button" data-excluir="${p.id}">Excluir cadastro</button>` : ""}
@@ -1304,7 +1368,349 @@ function sheetEventoEq(id){
 }
 
 /* ---------- ligações ---------- */
+/* ---------- Lembretes no celular (Web Push) ---------- */
+const P = { estado: "?", salvo: false };
+const pushSuportado = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const ehIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const instalado = () => (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+const pushDispensado = v => { try{ if(v === undefined) return localStorage.getItem("alma-push-depois") === "1"; localStorage.setItem("alma-push-depois", "1"); }catch(_){ } return !!v; };
+let swReg = null;
+async function registrarSW(){
+  if(!("serviceWorker" in navigator)) return null;
+  if(swReg) return swReg;
+  try{ swReg = await navigator.serviceWorker.register("sw.js"); }catch(_){ swReg = null; }
+  return swReg;
+}
+function b64u(s){
+  const pad = "=".repeat((4 - s.length % 4) % 4), b = atob((s + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(b, c => c.charCodeAt(0));
+}
+async function salvarSub(sub){
+  const j = sub.toJSON();
+  const { error } = await sb.rpc("salvar_push", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_aparelho: navigator.userAgent });
+  if(error) throw error;
+  P.salvo = true;
+}
+async function estadoPush(){
+  if(!pushSuportado() || !CFG.vapid){ P.estado = ehIOS() && !instalado() ? "instalar" : "indisponivel"; return P.estado; }
+  if(Notification.permission === "denied"){ P.estado = "bloqueado"; return P.estado; }
+  const reg = await registrarSW();
+  if(!reg){ P.estado = "indisponivel"; return P.estado; }
+  const sub = await reg.pushManager.getSubscription().catch(() => null);
+  if(sub && Notification.permission === "granted"){
+    P.estado = "ativo";
+    if(!P.salvo && !S.comoAluno) salvarSub(sub).catch(() => {});   // mantém o aparelho ligado a quem está logado
+  } else P.estado = "desligado";
+  return P.estado;
+}
+async function ativarPush(btn){
+  if(S.comoAluno) return toast("Saia do modo aluno para ativar os lembretes neste aparelho");
+  if(P.estado === "instalar") return sheetInstalarApp();
+  if(P.estado === "bloqueado") return sheet(`<p class="label">Lembretes no celular</p><h3 class="h5">Notificações bloqueadas</h3>
+    <p class="sub">As notificações do Alma estão desligadas neste aparelho. Ative nos ajustes do celular (Ajustes → Notificações → Alma) e volte aqui.</p>
+    <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
+  if(P.estado === "indisponivel") return toast("Este navegador não recebe lembretes. Tente pelo app instalado na tela de início.");
+  busy(btn, true);
+  let perm;
+  try{ perm = await Notification.requestPermission(); }catch(_){ perm = Notification.permission; }
+  try{
+    if(perm !== "granted"){ busy(btn, false); await estadoPush(); render(); return toast("Sem permissão, os lembretes ficam desligados"); }
+    const reg = await registrarSW(); await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(CFG.vapid) });
+    await salvarSub(sub);
+    P.estado = "ativo"; closeSheet(); render(); toast("Lembretes ativados");
+  }catch(ex){ busy(btn, false); console.error(ex); toast("Não foi possível ativar os lembretes neste aparelho."); }
+}
+async function desativarPush(btn){
+  busy(btn, true);
+  try{
+    const reg = await registrarSW(), sub = reg && await reg.pushManager.getSubscription();
+    if(sub){ await sb.rpc("remover_push", { p_endpoint: sub.endpoint }); await sub.unsubscribe(); }
+  }catch(_){}
+  P.estado = "desligado"; P.salvo = false; closeSheet(); render(); toast("Lembretes desligados neste aparelho");
+}
+const PUSH_O_QUE = () => S.equipe && !S.aluno
+  ? ["Quando chega um pedido de mudança de frequência ou dias"]
+  : ["Na véspera de cada aula, às 19h", "Se o atelier cancelar uma aula sua", "Quando abrir vaga numa aula da sua lista de espera", "Quando seu pedido de mudança for respondido"];
+function sheetPush(){
+  if(P.estado !== "ativo") return ativarPush($("#pushBtn"));
+  sheet(`<p class="label">Lembretes no celular</p><h3 class="h5">Lembretes ativados</h3>
+    <p class="sub">Neste aparelho você recebe um aviso:</p>
+    <ul class="pushlista">${PUSH_O_QUE().map(t => `<li>${esc(t)}</li>`).join("")}</ul>
+    <div class="btns"><button class="btn ghost" data-close>Fechar</button><button class="btn ghost dperigo" id="pushOff">Desligar lembretes</button></div>`);
+  $("#pushOff").onclick = ev => desativarPush(ev.currentTarget);
+}
+function sheetInstalarApp(){
+  sheet(`<p class="label">Lembretes no celular</p><h3 class="h5">Instale o app primeiro</h3>
+    <p class="sub">No iPhone, os lembretes só chegam pelo app instalado na tela de início. Leva meio minuto:</p>
+    <ol class="pushlista passos"><li>No Safari, toque em <b>Compartilhar</b> (o quadrado com a seta para cima).</li>
+      <li>Escolha <b>Adicionar à Tela de Início</b> e confirme.</li>
+      <li>Abra o Alma pelo ícone novo e toque em <b>Ativar lembretes</b>.</li></ol>
+    <div class="btns"><button class="btn ghost" data-close>Entendi</button></div>`);
+}
+function linhaPush(){
+  if(S.comoAluno || ["?","indisponivel"].includes(P.estado)) return "";
+  const end = { ativo: "Ativados", desligado: "Ativar", instalar: "Como ativar", bloqueado: "Bloqueados" }[P.estado] || "";
+  return `<button class="li" id="pushBtn"><span class="ind ${P.estado === "ativo" ? "" : "n"}"></span>Lembretes no celular<span class="end">${end}</span></button>`;
+}
+function cartaoPush(){
+  if(S.comoAluno || !["desligado","instalar"].includes(P.estado) || pushDispensado()) return "";
+  return `<section class="pushcard"><p class="title">Receba lembretes das aulas</p>
+    <p class="sub">Um aviso na véspera, se a aula for cancelada e quando abrir vaga na sua lista de espera.</p>
+    <div class="pushcard-acoes"><button class="btn pri" id="pushAtivar">${P.estado === "instalar" ? "Como ativar" : "Ativar lembretes"}</button><button class="textbtn" id="pushDepois">Agora não</button></div></section>`;
+}
+function bindPush(){
+  const pb = $("#pushBtn"); if(pb) pb.onclick = () => sheetPush();
+  const pa = $("#pushAtivar"); if(pa) pa.onclick = ev => ativarPush(ev.currentTarget);
+  const pd = $("#pushDepois"); if(pd) pd.onclick = () => { pushDispensado(true); render(); };
+}
+
+/* ---------- Diário de registros ---------- */
+const DTIPO = { anotacao: "Anotação", obra: "Obra", aula: "Aula", referencia: "Referência" };
+const DTIPO_PL = { todos: "Todos", anotacao: "Anotações", obra: "Obras", aula: "Aulas", referencia: "Referências" };
+const MES3 = ["jan.","fev.","mar.","abr.","maio","jun.","jul.","ago.","set.","out.","nov.","dez."];
+const ICO_BUSCA = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>';
+const ICO_MAIS = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+const D = { itens: null, urls: {}, filtro: "todos", busca: "", buscando: false, ed: null, eq: null };
+const dataLonga = (d, sempreAno) => `${cap1(WD[d.getDay()])}${d.getDay() > 0 && d.getDay() < 6 ? "-feira" : ""}, ${d.getDate()} de ${MES3[d.getMonth()]}${sempreAno || d.getFullYear() !== now().getFullYear() ? ` de ${d.getFullYear()}` : ""}`;
+const contaPalavras = t => (String(t || "").trim().match(/\S+/g) || []).length;
+const novoId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+async function assinarFotos(paths){
+  const falta = [...new Set(paths)].filter(p => p && (!D.urls[p] || D.urls[p].ate < Date.now() + 6e4));
+  if(!falta.length) return;
+  const { data } = await sb.storage.from("diario").createSignedUrls(falta, 3600);
+  (data || []).forEach(x => { const u = x.signedUrl || x.signedURL; if(u && x.path) D.urls[x.path] = { url: u, ate: Date.now() + 3500e3 }; });
+}
+const fotoUrl = p => (D.urls[p] || {}).url || "";
+async function loadDiario(){
+  if(!S.aluno) return;
+  const { data, error } = await sb.from("diario").select("*").eq("aluno_id", S.aluno.id)
+    .order("data", { ascending: false }).order("criado_em", { ascending: false });
+  if(error){ if(D.itens === null) D.itens = []; return; }
+  D.itens = data || [];
+  await assinarFotos(D.itens.flatMap(i => i.fotos || []));
+}
+
+/* cartão do diário (mesma peça para o aluno e para a equipe) */
+function cartaoDiario(i, attr){
+  const fotos = i.fotos || [], capa = fotos[0] && fotoUrl(fotos[0]);
+  const trecho = String(i.texto || "").replace(/\s+/g, " ").trim();
+  const temCorpo = i.titulo || (trecho && !capa) || (trecho && capa);
+  return `<button class="dcard${capa ? " foto" : ""}" ${attr}="${i.id}">
+    ${capa ? `<span class="dimg"><img src="${esc(capa)}" alt="" loading="lazy">${fotos.length > 1 ? `<span class="dmais tnum">+${fotos.length - 1}</span>` : ""}</span>` : ""}
+    ${temCorpo ? `<span class="dbody">${i.titulo ? `<span class="dtit">${esc(i.titulo)}</span>` : ""}${trecho ? `<span class="dtxt">${esc(trecho.slice(0, 220))}</span>` : ""}</span>` : ""}
+    <span class="dfoot"><span>${dataLonga(fromKey(i.data))}</span><span class="dtag">${DTIPO[i.tipo] || "Anotação"}</span></span>
+  </button>`;
+}
+function listaDiarioHTML(lista, attr){
+  let html = "", mesAtual = "";
+  const ano = now().getFullYear();
+  lista.forEach(i => {
+    const d = fromKey(i.data), k = `${d.getFullYear()}-${d.getMonth()}`;
+    if(k !== mesAtual){ mesAtual = k; html += `<h2 class="dmes">${MES[d.getMonth()]}${d.getFullYear() !== ano ? ` de ${d.getFullYear()}` : ""}</h2>`; }
+    html += cartaoDiario(i, attr);
+  });
+  return html;
+}
+
+function viewDiario(){
+  const topo = `<div class="dtopo"><button class="dvoltar" data-go="voce">${CHEV_L}<span>Você</span></button>
+    <button class="iconbtn" id="dBusca" aria-label="Buscar no diário" aria-pressed="${D.buscando}">${ICO_BUSCA}</button></div>
+    <h1 class="h4">Diário</h1>`;
+  if(D.itens === null) return `${topo}<div class="loading">Carregando…</div>`;
+  const all = D.itens, ano = now().getFullYear();
+  const doAno = all.filter(i => fromKey(i.data).getFullYear() === ano).length;
+  const palavras = all.reduce((t, i) => t + contaPalavras(i.titulo) + contaPalavras(i.texto), 0);
+  const dias = new Set(all.map(i => i.data)).size;
+  const q = D.busca.trim().toLowerCase();
+  const lista = all.filter(i => (D.filtro === "todos" || i.tipo === D.filtro) && (!q || `${i.titulo || ""} ${i.texto || ""}`.toLowerCase().includes(q)));
+  const tipos = ["todos", ...Object.keys(DTIPO).filter(t => all.some(i => i.tipo === t))];
+  return `${topo}
+  <div class="stats dstats">
+    <div class="stat"><b class="tnum">${doAno}</b><span>${doAno === 1 ? "registro" : "registros"}<br>em ${ano}</span></div>
+    <div class="stat"><b class="tnum">${palavras.toLocaleString("pt-BR")}</b><span>palavras<br>escritas</span></div>
+    <div class="stat"><b class="tnum">${dias}</b><span>${dias === 1 ? "dia" : "dias"}<br>registrados</span></div>
+  </div>
+  ${D.buscando ? `<label class="field dbusca"><span class="sr">Buscar</span><input id="dBuscaIn" type="search" placeholder="Buscar nos registros" value="${esc(D.busca)}" autocomplete="off"></label>` : ""}
+  ${all.length && tipos.length > 2 ? `<div class="chips">${tipos.map(t => `<button type="button" data-dfiltro="${t}" aria-pressed="${D.filtro === t}">${DTIPO_PL[t]}</button>`).join("")}</div>` : ""}
+  ${!all.length ? `<section class="dvazio"><p class="title">Seu diário começa aqui</p>
+      <p class="sub">Registre o que fez na aula, fotografe seus trabalhos e guarde as referências que te inspiram. Com o tempo, ele vira o mapa do seu percurso no atelier.</p>
+      <button class="btn pri" id="dPrimeiro">Escrever o primeiro registro</button></section>`
+    : lista.length ? `<div class="dlista">${listaDiarioHTML(lista, "data-dreg")}</div>` : `<p class="empty">Nenhum registro encontrado.</p>`}
+  <p class="foot dnota">Seu diário é visto por você e pelos professores do atelier.</p>
+  <button class="fab" id="dNovo" aria-label="Novo registro">${ICO_MAIS}</button>`;
+}
+function bindDiario(){
+  const nb = $("#dNovo"); if(nb) nb.onclick = () => abrirEditor(null);
+  const pb = $("#dPrimeiro"); if(pb) pb.onclick = () => abrirEditor(null);
+  const bb = $("#dBusca"); if(bb) bb.onclick = () => { D.buscando = !D.buscando; if(!D.buscando) D.busca = ""; render(); const i = $("#dBuscaIn"); if(i) i.focus(); };
+  const bi = $("#dBuscaIn"); if(bi) bi.oninput = () => { D.busca = bi.value; const pos = bi.selectionStart; render(); const n = $("#dBuscaIn"); if(n){ n.focus(); n.setSelectionRange(pos, pos); } };
+  $$("#view [data-dfiltro]").forEach(b => b.onclick = () => { D.filtro = b.dataset.dfiltro; render(); });
+  $$("#view [data-dreg]").forEach(b => b.onclick = () => sheetRegistro(D.itens.find(x => x.id === b.dataset.dreg), true));
+}
+
+function sheetRegistro(i, meu){
+  if(!i) return;
+  sheet(`<p class="label">${DTIPO[i.tipo] || "Anotação"} · ${dataLonga(fromKey(i.data))}</p>
+    ${i.titulo ? `<h3 class="h5">${esc(i.titulo)}</h3>` : ""}
+    ${(i.fotos || []).length ? `<div class="dfotos">${i.fotos.map(p => `<img src="${esc(fotoUrl(p))}" alt="" loading="lazy">`).join("")}</div>` : ""}
+    ${i.texto ? `<p class="desc dtexto">${esc(i.texto)}</p>` : ""}
+    <div class="btns">${meu ? `<button class="btn pri" data-deditar="${i.id}">Editar</button>` : ""}<button class="btn ghost" data-close>Fechar</button>
+      ${meu ? `<button class="btn ghost dperigo" data-dapagar="${i.id}">Excluir registro</button>` : ""}</div>`);
+}
+function sheetApagarRegistro(id){
+  const i = D.itens.find(x => x.id === id); if(!i) return;
+  sheet(`<p class="label">Diário</p><h3 class="h5">Excluir este registro?</h3>
+    <p class="sub">${(i.fotos || []).length ? "O texto e as fotos são apagados e não dá para desfazer." : "Não dá para desfazer."}</p>
+    <div class="btns"><button class="btn danger" data-dapagarok="${id}">Excluir</button><button class="btn ghost" data-close>Manter</button></div>`);
+}
+async function apagarRegistro(id, btn){
+  const i = D.itens.find(x => x.id === id); if(!i) return;
+  busy(btn, true);
+  const { error } = await sb.from("diario").delete().eq("id", id);
+  if(error){ busy(btn, false); return toast(errMsg(error)); }
+  if((i.fotos || []).length) sb.storage.from("diario").remove(i.fotos).catch(() => {});
+  D.itens = D.itens.filter(x => x.id !== id);
+  closeSheet(); render(); toast("Registro excluído");
+}
+
+/* ----- editor (tela cheia) ----- */
+async function comprimir(file, max){
+  let img;
+  try{ img = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+  catch(_){ img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); }); }
+  const sc = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return await new Promise(r => c.toBlob(r, "image/jpeg", .85));
+}
+function abrirEditor(id){
+  closeSheet();
+  const i = id ? D.itens.find(x => x.id === id) : null;
+  D.ed = { id: i ? i.id : null, data: i ? i.data : dkey(now()), titulo: i ? (i.titulo || "") : "", texto: i ? (i.texto || "") : "",
+    tipo: i ? i.tipo : "anotacao", fotos: (i ? i.fotos || [] : []).map(p => ({ path: p })), removidas: [], mudou: false };
+  let el = $("#dEditor");
+  if(!el){ el = document.createElement("div"); el.id = "dEditor"; el.className = "deditor"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); document.body.appendChild(el); }
+  document.body.classList.add("editando");
+  renderEditor();
+  setTimeout(() => { const t = $(D.ed.id ? "#edTexto" : "#edTitulo"); if(t && !D.ed.id) t.focus({ preventScroll: true }); }, 50);
+}
+function guardarEditor(){
+  const e = D.ed; if(!e) return;
+  const t = $("#edTitulo"), x = $("#edTexto"), d = $("#edData");
+  if(t) e.titulo = t.value; if(x) e.texto = x.value; if(d && d.value) e.data = d.value;
+}
+function renderEditor(){
+  const e = D.ed, el = $("#dEditor"); if(!e || !el) return;
+  el.innerHTML = `<div class="ded-in">
+    <header class="ded-top"><button type="button" id="edCancel">Cancelar</button><span class="label">${e.id ? "Editar registro" : "Novo registro"}</span><button type="button" id="edSalvar" class="ded-salvar">Salvar</button></header>
+    <div class="chips wrap ded-tipos" role="radiogroup" aria-label="Tipo de registro">${Object.entries(DTIPO).map(([k, l]) => `<button type="button" role="radio" data-edtipo="${k}" aria-pressed="${e.tipo === k}" aria-checked="${e.tipo === k}">${l}</button>`).join("")}</div>
+    <input id="edTitulo" class="ded-titulo" placeholder="Título" maxlength="140" value="${esc(e.titulo)}" autocomplete="off">
+    <label class="ded-data"><span>${dataLonga(fromKey(e.data), true)}</span><input type="date" id="edData" value="${esc(e.data)}" max="${dkey(now())}" aria-label="Data do registro"></label>
+    <div class="ded-fotos">${e.fotos.map((f, k) => `<div class="ded-foto"><img src="${esc(f.url || fotoUrl(f.path))}" alt=""><button type="button" data-edrm="${k}" aria-label="Remover foto">×</button></div>`).join("")}
+      ${e.fotos.length < 10 ? `<label class="ded-add" for="edFile">${CAM}<span>${e.fotos.length ? "Mais fotos" : "Adicionar fotos"}</span></label>` : ""}</div>
+    <input type="file" id="edFile" accept="image/*" multiple hidden>
+    <textarea id="edTexto" class="ded-texto" placeholder="O que você fez hoje? O que aprendeu, o que quer experimentar na próxima aula…">${esc(e.texto)}</textarea>
+  </div>`;
+  const tx = $("#edTexto"), cresce = () => { tx.style.height = "auto"; tx.style.height = Math.max(200, tx.scrollHeight) + "px"; };
+  tx.oninput = () => { e.mudou = true; cresce(); }; cresce();
+  $("#edTitulo").oninput = () => { e.mudou = true; };
+  $("#edData").onchange = () => { guardarEditor(); e.mudou = true; renderEditor(); };
+  $$("#dEditor [data-edtipo]").forEach(b => b.onclick = () => { guardarEditor(); e.tipo = b.dataset.edtipo; e.mudou = true; renderEditor(); });
+  $$("#dEditor [data-edrm]").forEach(b => b.onclick = () => {
+    guardarEditor(); const f = e.fotos.splice(+b.dataset.edrm, 1)[0];
+    if(f){ if(f.url) URL.revokeObjectURL(f.url); else if(f.path) e.removidas.push(f.path); }
+    e.mudou = true; renderEditor();
+  });
+  $("#edFile").onchange = async ev => {
+    guardarEditor();
+    const files = [...(ev.target.files || [])].slice(0, 10 - e.fotos.length);
+    if(!files.length) return;
+    toast(files.length > 1 ? "Preparando fotos…" : "Preparando foto…");
+    for(const f of files){ try{ const blob = await comprimir(f, 1600); if(blob) e.fotos.push({ blob, url: URL.createObjectURL(blob) }); }catch(_){ toast("Não foi possível abrir uma das fotos."); } }
+    e.mudou = true; renderEditor();
+  };
+  $("#edCancel").onclick = () => { guardarEditor(); if(e.mudou && !window.confirm(e.id ? "Descartar as alterações?" : "Descartar este registro?")) return; fecharEditor(); };
+  $("#edSalvar").onclick = ev => salvarRegistro(ev.currentTarget);
+}
+function fecharEditor(){
+  if(D.ed) D.ed.fotos.forEach(f => f.url && URL.revokeObjectURL(f.url));
+  D.ed = null; const el = $("#dEditor"); if(el) el.remove();
+  document.body.classList.remove("editando");
+}
+async function salvarRegistro(btn){
+  guardarEditor(); const e = D.ed; if(!e) return;
+  if(!e.titulo.trim() && !e.texto.trim() && !e.fotos.length) return toast("Escreva algo ou adicione uma foto");
+  busy(btn, true);
+  try{
+    const uid = S.session.user.id, paths = [];
+    for(const f of e.fotos){
+      if(f.path){ paths.push(f.path); continue; }
+      const path = `${uid}/${novoId()}.jpg`;
+      const { error } = await sb.storage.from("diario").upload(path, f.blob, { contentType: "image/jpeg" });
+      if(error) throw error;
+      f.path = path; paths.push(path);
+    }
+    const row = { data: e.data, titulo: e.titulo.trim() || null, texto: e.texto.trim() || null, tipo: e.tipo, fotos: paths };
+    const r = e.id ? await sb.from("diario").update(row).eq("id", e.id) : await sb.from("diario").insert({ ...row, aluno_id: S.aluno.id });
+    if(r.error) throw r.error;
+    if(e.removidas.length) sb.storage.from("diario").remove(e.removidas).catch(() => {});
+    const editou = !!e.id;
+    fecharEditor(); await loadDiario(); if(S.tab !== "diario") S.tab = "diario"; render(); window.scrollTo(0, 0);
+    toast(editou ? "Registro atualizado" : "Registro salvo");
+  }catch(ex){ busy(btn, false); toast(errMsg(ex)); }
+}
+
+/* resumo do diário na aba Você */
+function blocoDiario(){
+  const it = D.itens || [], ult = it[0], capa = it.find(i => (i.fotos || []).length);
+  const url = capa && fotoUrl(capa.fotos[0]);
+  return `<button class="dteaser" data-go="diario">
+    <span class="dteaser-t"><span class="label">Diário</span>
+      <span class="title">${it.length ? plural(it.length, "registro", "registros") : "Comece seu diário"}</span>
+      <span class="sub">${ult ? `Último em ${dataLonga(fromKey(ult.data)).replace(/^./, c => c.toLowerCase())}` : "Anotações e fotos do seu percurso no atelier"}</span></span>
+    ${url ? `<span class="dteaser-img"><img src="${esc(url)}" alt="" loading="lazy"></span>` : `<span class="dteaser-mais">${ICO_MAIS}</span>`}
+  </button>`;
+}
+
+/* equipe: diário de um aluno (só leitura) */
+async function sheetDiarioEq(pid){
+  const p = (S.eq.alunos || []).find(x => x.id === pid) || {};
+  sheet(`<p class="label">Diário</p><h3 class="h5">${esc(p.nome || "Aluno")}</h3><p class="sub">Carregando…</p>`);
+  const { data, error } = await sb.from("diario").select("*").eq("aluno_id", pid).order("data", { ascending: false }).order("criado_em", { ascending: false });
+  if(error) return sheet(`<p class="label">Diário</p><h3 class="h5">${esc(p.nome || "Aluno")}</h3><p class="sub">${esc(errMsg(error))}</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
+  D.eq = data || [];
+  await assinarFotos(D.eq.flatMap(i => i.fotos || []));
+  sheet(`<p class="label">Diário</p><h3 class="h5">${esc(p.nome || "Aluno")}</h3>
+    <p class="sub">${D.eq.length ? plural(D.eq.length, "registro", "registros") : "Ainda não escreveu no diário."}</p>
+    ${D.eq.length ? `<div class="dlista dlista-eq">${listaDiarioHTML(D.eq, "data-dregeq")}</div>` : ""}
+    <div class="btns"><button class="btn ghost" data-dvoltarpessoa="${pid}">Voltar ao cadastro</button></div>`);
+}
+$("#sheetBody").addEventListener("click", e => {
+  const t = e.target.closest("button"); if(!t) return;
+  if(t.dataset.espera || t.dataset.saiespera){
+    const entrar = !!t.dataset.espera, id = t.dataset.espera || t.dataset.saiespera; busy(t, true);
+    sb.rpc(entrar ? "entrar_lista_espera" : "sair_lista_espera", { p_aula: id }).then(async ({ error }) => {
+      if(error){ busy(t, false); return toast(errMsg(error)); }
+      closeSheet(); await loadAluno(); render(); toast(entrar ? "Você entrou na lista de espera" : "Você saiu da lista de espera");
+    });
+    return;
+  }
+  if(t.dataset.deditar) return abrirEditor(t.dataset.deditar);
+  if(t.dataset.dapagar) return sheetApagarRegistro(t.dataset.dapagar);
+  if(t.dataset.dapagarok) return apagarRegistro(t.dataset.dapagarok, t);
+  if(t.dataset.dregeq){ const i = (D.eq || []).find(x => x.id === t.dataset.dregeq); return sheetRegistro(i, false); }
+  if(t.dataset.diarioeq) return sheetDiarioEq(t.dataset.diarioeq);
+  if(t.dataset.dvoltarpessoa) return sheetPessoaEq(t.dataset.dvoltarpessoa);
+});
+
 function bind(){
+  bindDiario();
+  $$("#view [data-alerta-pessoa]").forEach(b => b.onclick = () => abrirPessoaAlerta(b.dataset.alertaPessoa));
+  bindPush();
+  $$("#view [data-abreaula]").forEach(b => b.onclick = () => { const a = S.agenda.find(x => x.aula_id === b.dataset.abreaula); a && sheetAula(a); });
   $$("#view [data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
   $$("#view [data-ev]").forEach(b => b.onclick = () => sheetEvento(b.dataset.ev));
   $$("#view [data-evf]").forEach(b => b.onclick = () => { S.evFiltro = b.dataset.evf; render(); });
