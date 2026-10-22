@@ -894,7 +894,7 @@ function viewPainel(){
     </label>
     <input type="file" id="avIn" accept="image/*" hidden>
     <h1 class="h4">${esc(nome)}</h1>
-    <p class="sub">${esc(p.cargo || "Equipe")} · Alma Centro de Estudos Visuais</p>
+    <p class="sub">${esc(p.cargo || "Professor")}</p>
   </header>
   <div class="stats">
     <div class="stat"><b class="tnum">${p.alunos ?? "—"}</b><span>alunos<br>ativos</span></div>
@@ -1522,16 +1522,12 @@ function viewDiario(){
   if(D.itens === null) return `${topo}<div class="loading">Carregando…</div>`;
   const all = D.itens, ano = now().getFullYear();
   const doAno = all.filter(i => fromKey(i.data).getFullYear() === ano).length;
-  const palavras = all.reduce((t, i) => t + contaPalavras(i.titulo) + contaPalavras(i.texto), 0);
-  const dias = new Set(all.map(i => i.data)).size;
   const q = D.busca.trim().toLowerCase();
   const lista = all.filter(i => (D.filtro === "todos" || i.tipo === D.filtro) && (!q || `${i.titulo || ""} ${i.texto || ""}`.toLowerCase().includes(q)));
   const tipos = ["todos", ...Object.keys(DTIPO).filter(t => all.some(i => i.tipo === t))];
   return `${topo}
   <div class="stats dstats">
     <div class="stat"><b class="tnum">${doAno}</b><span>${doAno === 1 ? "registro" : "registros"}<br>em ${ano}</span></div>
-    <div class="stat"><b class="tnum">${palavras.toLocaleString("pt-BR")}</b><span>palavras<br>escritas</span></div>
-    <div class="stat"><b class="tnum">${dias}</b><span>${dias === 1 ? "dia" : "dias"}<br>registrados</span></div>
   </div>
   ${D.buscando ? `<label class="field dbusca"><span class="sr">Buscar</span><input id="dBuscaIn" type="search" placeholder="Buscar nos registros" value="${esc(D.busca)}" autocomplete="off"></label>` : ""}
   ${all.length && tipos.length > 2 ? `<div class="chips">${tipos.map(t => `<button type="button" data-dfiltro="${t}" aria-pressed="${D.filtro === t}">${DTIPO_PL[t]}</button>`).join("")}</div>` : ""}
@@ -1539,7 +1535,6 @@ function viewDiario(){
       <p class="sub">Registre o que fez na aula, fotografe seus trabalhos e guarde as referências que te inspiram. Com o tempo, ele vira o mapa do seu percurso no atelier.</p>
       <button class="btn pri" id="dPrimeiro">Escrever o primeiro registro</button></section>`
     : lista.length ? `<div class="dlista">${listaDiarioHTML(lista, "data-dreg")}</div>` : `<p class="empty">Nenhum registro encontrado.</p>`}
-  <p class="foot dnota">Seu diário é visto por você e pelos professores do atelier.</p>
   <button class="fab" id="dNovo" aria-label="Novo registro">${ICO_MAIS}</button>`;
 }
 function bindDiario(){
@@ -1599,41 +1594,76 @@ function abrirEditor(id){
 }
 function guardarEditor(){
   const e = D.ed; if(!e) return;
-  const t = $("#edTitulo"), x = $("#edTexto"), d = $("#edData");
-  if(t) e.titulo = t.value; if(x) e.texto = x.value; if(d && d.value) e.data = d.value;
+  const t = $("#edTitulo"), x = $("#edTexto");
+  if(t) e.titulo = t.value; if(x) e.texto = x.value;
 }
+const ICO_GAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3.5" width="14" height="13" rx="2"/><path d="M3.5 7.5v11a2 2 0 0 0 2 2h11"/><circle cx="11" cy="8" r="1.4"/><path d="M20.5 13l-4-4-6.5 7.5"/></svg>';
+const ICO_CAM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+const ICO_TAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12.5V4.5a1 1 0 0 1 1-1h8l8 8-9 9z"/><circle cx="8.5" cy="8.5" r="1.4"/></svg>';
+const ICO_CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
 function renderEditor(){
   const e = D.ed, el = $("#dEditor"); if(!e || !el) return;
   el.innerHTML = `<div class="ded-in">
-    <header class="ded-top"><button type="button" id="edCancel">Cancelar</button><span class="label">${e.id ? "Editar registro" : "Novo registro"}</span><button type="button" id="edSalvar" class="ded-salvar">Salvar</button></header>
-    <div class="chips wrap ded-tipos" role="radiogroup" aria-label="Tipo de registro">${Object.entries(DTIPO).map(([k, l]) => `<button type="button" role="radio" data-edtipo="${k}" aria-pressed="${e.tipo === k}" aria-checked="${e.tipo === k}">${l}</button>`).join("")}</div>
-    <input id="edTitulo" class="ded-titulo" placeholder="Título" maxlength="140" value="${esc(e.titulo)}" autocomplete="off">
-    <label class="ded-data"><span>${dataLonga(fromKey(e.data), true)}</span><input type="date" id="edData" value="${esc(e.data)}" max="${dkey(now())}" aria-label="Data do registro"></label>
-    <div class="ded-fotos">${e.fotos.map((f, k) => `<div class="ded-foto"><img src="${esc(f.url || fotoUrl(f.path))}" alt=""><button type="button" data-edrm="${k}" aria-label="Remover foto">×</button></div>`).join("")}
-      ${e.fotos.length < 10 ? `<label class="ded-add" for="edFile">${CAM}<span>${e.fotos.length ? "Mais fotos" : "Adicionar fotos"}</span></label>` : ""}</div>
-    <input type="file" id="edFile" accept="image/*" multiple hidden>
-    <textarea id="edTexto" class="ded-texto" placeholder="O que você fez hoje? O que aprendeu, o que quer experimentar na próxima aula…">${esc(e.texto)}</textarea>
-  </div>`;
-  const tx = $("#edTexto"), cresce = () => { tx.style.height = "auto"; tx.style.height = Math.max(200, tx.scrollHeight) + "px"; };
+    <header class="ded-top">
+      <button type="button" id="edCancel" class="ded-x">Cancelar</button>
+      <span class="ded-dia" id="edDiaTxt">${dataLonga(fromKey(e.data))}</span>
+      <button type="button" id="edSalvar" class="ded-ok">OK</button>
+    </header>
+    <div class="ded-fotos" id="edFotos"></div>
+    <input id="edTitulo" class="ded-titulo" placeholder="Título" maxlength="140" value="${esc(e.titulo)}" autocomplete="off" enterkeyhint="next">
+    <textarea id="edTexto" class="ded-texto" placeholder="Comece a escrever…">${esc(e.texto)}</textarea>
+  </div>
+  <div class="ded-barra" id="edBarra">
+    <div class="ded-tipos" id="edTipos" hidden>${Object.entries(DTIPO).map(([k, l]) => `<button type="button" data-edtipo="${k}" aria-pressed="${e.tipo === k}">${l}</button>`).join("")}</div>
+    <div class="ded-ferr">
+      <button type="button" id="edTipoBtn" class="ded-tipo" aria-label="Tipo do registro">${ICO_TAG}<span id="edTipoTxt">${DTIPO[e.tipo]}</span></button>
+      <label class="ded-ico" for="edGaleria" aria-label="Escolher fotos">${ICO_GAL}</label>
+      <label class="ded-ico" for="edCamera" aria-label="Tirar foto">${ICO_CAM}</label>
+      <label class="ded-ico" aria-label="Mudar a data">${ICO_CAL}<input type="date" id="edData" value="${esc(e.data)}" max="${dkey(now())}"></label>
+    </div>
+  </div>
+  <input type="file" id="edGaleria" accept="image/*" multiple hidden>
+  <input type="file" id="edCamera" accept="image/*" capture="environment" hidden>`;
+  desenharFotosEd();
+  const tx = $("#edTexto"), cresce = () => { tx.style.height = "auto"; tx.style.height = Math.max(240, tx.scrollHeight) + "px"; };
   tx.oninput = () => { e.mudou = true; cresce(); }; cresce();
-  $("#edTitulo").oninput = () => { e.mudou = true; };
-  $("#edData").onchange = () => { guardarEditor(); e.mudou = true; renderEditor(); };
-  $$("#dEditor [data-edtipo]").forEach(b => b.onclick = () => { guardarEditor(); e.tipo = b.dataset.edtipo; e.mudou = true; renderEditor(); });
-  $$("#dEditor [data-edrm]").forEach(b => b.onclick = () => {
-    guardarEditor(); const f = e.fotos.splice(+b.dataset.edrm, 1)[0];
-    if(f){ if(f.url) URL.revokeObjectURL(f.url); else if(f.path) e.removidas.push(f.path); }
-    e.mudou = true; renderEditor();
+  const ti = $("#edTitulo");
+  ti.oninput = () => { e.mudou = true; };
+  ti.onkeydown = ev => { if(ev.key === "Enter"){ ev.preventDefault(); tx.focus(); } };
+  $("#edData").onchange = ev => { if(!ev.target.value) return; e.data = ev.target.value; e.mudou = true; $("#edDiaTxt").textContent = dataLonga(fromKey(e.data)); };
+  $("#edTipoBtn").onclick = () => { const t = $("#edTipos"); t.hidden = !t.hidden; };
+  $$("#dEditor [data-edtipo]").forEach(b => b.onclick = () => {
+    e.tipo = b.dataset.edtipo; e.mudou = true;
+    $$("#dEditor [data-edtipo]").forEach(x => x.setAttribute("aria-pressed", x === b));
+    $("#edTipoTxt").textContent = DTIPO[e.tipo]; $("#edTipos").hidden = true;
   });
-  $("#edFile").onchange = async ev => {
-    guardarEditor();
-    const files = [...(ev.target.files || [])].slice(0, 10 - e.fotos.length);
-    if(!files.length) return;
-    toast(files.length > 1 ? "Preparando fotos…" : "Preparando foto…");
+  const addFotos = async ev => {
+    const files = [...(ev.target.files || [])].slice(0, 10 - e.fotos.length); ev.target.value = "";
+    if(!files.length) return toast(e.fotos.length >= 10 ? "Até 10 fotos por registro" : "");
     for(const f of files){ try{ const blob = await comprimir(f, 1600); if(blob) e.fotos.push({ blob, url: URL.createObjectURL(blob) }); }catch(_){ toast("Não foi possível abrir uma das fotos."); } }
-    e.mudou = true; renderEditor();
+    e.mudou = true; desenharFotosEd();
   };
+  $("#edGaleria").onchange = addFotos; $("#edCamera").onchange = addFotos;
   $("#edCancel").onclick = () => { guardarEditor(); if(e.mudou && !window.confirm(e.id ? "Descartar as alterações?" : "Descartar este registro?")) return; fecharEditor(); };
   $("#edSalvar").onclick = ev => salvarRegistro(ev.currentTarget);
+  ajustarTeclado();
+}
+function desenharFotosEd(){
+  const e = D.ed, box = $("#edFotos"); if(!e || !box) return;
+  box.hidden = !e.fotos.length;
+  box.innerHTML = e.fotos.map((f, k) => `<div class="ded-foto"><img src="${esc(f.url || fotoUrl(f.path))}" alt=""><button type="button" data-edrm="${k}" aria-label="Remover foto">×</button></div>`).join("");
+  $$("#edFotos [data-edrm]").forEach(b => b.onclick = () => {
+    const f = e.fotos.splice(+b.dataset.edrm, 1)[0];
+    if(f){ if(f.url) URL.revokeObjectURL(f.url); else if(f.path) e.removidas.push(f.path); }
+    e.mudou = true; desenharFotosEd();
+  });
+}
+/* a barra de ferramentas acompanha o teclado (como no Diário do iPhone) */
+function ajustarTeclado(){
+  const vv = window.visualViewport; if(!vv) return;
+  const f = () => { const b = $("#edBarra"); if(!b) return; const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop); b.style.bottom = kb + "px"; b.classList.toggle("teclado", kb > 80); };
+  if(!ajustarTeclado.ok){ vv.addEventListener("resize", f); vv.addEventListener("scroll", f); ajustarTeclado.ok = true; }
+  f();
 }
 function fecharEditor(){
   if(D.ed) D.ed.fotos.forEach(f => f.url && URL.revokeObjectURL(f.url));
