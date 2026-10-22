@@ -589,3 +589,10 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .recado.prof .rec-av.prof{background:var(--accent);color:#000}
 .rec-item.prof .rec-de b{font-weight:600}
 .rec-item.prof .rec-av,.rec-pessoa.prof .rec-av{margin:3px;box-shadow:0 0 0 2.5px var(--bg),0 0 0 4.5px var(--accent)}
+/* Giancarlo em destaque na escolha de quem recebe */
+.rec-pessoa.prof{background:var(--fg);color:var(--bg);border-top:0;border-radius:var(--s4);padding:var(--s3) var(--s4);min-height:72px;gap:var(--s4)}
+.rec-pessoa.prof .rec-av{width:44px;height:44px;box-shadow:0 0 0 3px var(--fg),0 0 0 5px var(--accent)}
+.rec-pnome{display:flex;flex-direction:column;gap:2px}
+.rec-pessoa.prof .rec-pnome > span{font-weight:600}
+.rec-pnome small{font-size:var(--t-label);color:var(--past-ink);font-weight:400}
+.rec-grupo{margin:var(--s5) 0 var(--s2)}
