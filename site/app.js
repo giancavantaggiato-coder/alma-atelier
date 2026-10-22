@@ -1870,16 +1870,36 @@ $("#sheetBody").addEventListener("click", async e => {
 if(!CFG.url || CFG.url.includes("__")) { $("#view").innerHTML = `<div class="loading">App ainda não configurado.</div>`; }
 else boot();
 
+/* vibração curta: Android usa vibrate; no iPhone (iOS 18+) o toque num interruptor nativo escondido gera o "toc" */
+const vibrar = (() => {
+  let lbl = null;
+  return () => {
+    try{
+      if(navigator.vibrate){ navigator.vibrate(12); return; }
+      if(!lbl){
+        lbl = document.createElement("label"); lbl.setAttribute("aria-hidden", "true");
+        lbl.style.cssText = "position:fixed;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;left:-9px;top:-9px";
+        const cb = document.createElement("input"); cb.type = "checkbox"; cb.setAttribute("switch", ""); cb.tabIndex = -1;
+        lbl.appendChild(cb); document.body.appendChild(lbl);
+      }
+      lbl.click();
+    }catch(_){}
+  };
+})();
 /* ---------- puxar para atualizar (Hoje, Agenda, Eventos e telas da equipe) ---------- */
 (function(){
   const LIM = 64, el = document.createElement("div");
   el.id = "ptr"; el.className = "ptr"; el.setAttribute("aria-hidden", "true");
   el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v11M7 11l5 5 5-5"/></svg>';
   document.body.appendChild(el);
-  let y0 = null, d = 0, ocupado = false;
+  let y0 = null, d = 0, ocupado = false, vibrou = false;
   const pode = () => S.session && !NS.ativo && !precisaCompletar() && !document.querySelector("#sheet.show") && !document.querySelector("#dEditor")
     && (["hoje","agenda","eventos","eqhoje","painel"].includes(S.tab) || isEqTab());
-  const pos = v => { el.style.transform = `translate(-50%, ${v}px)`; el.style.opacity = Math.min(1, v / 40); el.classList.toggle("pronto", v >= LIM); };
+  const pos = v => {
+    el.style.transform = `translate(-50%, ${v}px)`; el.style.opacity = Math.min(1, v / 40); el.classList.toggle("pronto", v >= LIM);
+    if(v >= LIM && !vibrou && y0 !== null){ vibrou = true; vibrar(); }
+    if(v < LIM - 8) vibrou = false;
+  };
   document.addEventListener("touchstart", e => { if(ocupado || window.scrollY > 0 || !pode() || e.touches.length !== 1) { y0 = null; return; } y0 = e.touches[0].clientY; d = 0; }, { passive: true });
   document.addEventListener("touchmove", e => {
     if(y0 === null) return;
