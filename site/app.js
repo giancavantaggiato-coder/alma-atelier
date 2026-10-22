@@ -932,6 +932,17 @@ function sheetPerfilEq(){
 }
 
 /* ---------- Você ---------- */
+/* tempo de atelier: percurso, não quantidade */
+function statTempo(a){
+  if(!a.aluno_desde) return `<div class="stat"><b>—</b><span>tempo de<br>atelier</span></div>`;
+  const d = fromKey(a.aluno_desde), n = now();
+  let m = (n.getFullYear() - d.getFullYear()) * 12 + n.getMonth() - d.getMonth();
+  if(n.getDate() < d.getDate()) m--;
+  if(m < 1) return `<div class="stat"><b>Início</b><span>primeiras semanas<br>de atelier</span></div>`;
+  const anos = Math.floor(m / 12), meses = m % 12;
+  if(!anos) return `<div class="stat"><b class="tnum">${meses}<small> ${meses === 1 ? "mês" : "meses"}</small></b><span>de atelier</span></div>`;
+  return `<div class="stat"><b class="tnum">${anos}<small> ${anos === 1 ? "ano" : "anos"}</small></b><span>${meses ? `e ${plural(meses, "mês", "meses")}<br>de atelier` : "de atelier"}</span></div>`;
+}
 function viewVoce(){
   const a = S.aluno, r = S.resumo || {}, sem = r.semanas_ritmo || 0, cr = S.creditos, prox = cr[0];
   const desde = a.aluno_desde ? fromKey(a.aluno_desde) : null;
@@ -956,7 +967,7 @@ function viewVoce(){
     <div class="ritmo-row"><span class="ritmo-n tnum">${sem}</span><span class="ritmo-t">${sem === 1 ? "semana" : "semanas"}<br>mantendo o ritmo</span></div>
   </div>
   <div class="stats">
-    <div class="stat"><b class="tnum">${a.aulas_anteriores > 0 ? "~" : ""}${r.aulas_total ?? 0}</b><span>aulas<br>no atelier</span></div>
+    ${statTempo(a)}
     <div class="stat"><b class="tnum">${r.presenca_90d == null ? "—" : r.presenca_90d + "%"}</b><span>presença<br>em 90 dias</span></div>
     ${livre() || repoLivre() ? `<div class="stat"><b>∞</b><span>${livre() ? "plano<br>livre" : "reposições<br>sem limite"}</span></div>` : `<div class="stat"><b class="tnum">${cr.length}<small> / ${MAX_CRED}</small></b><span>reposições<br>disponíveis</span></div>`}
   </div>
