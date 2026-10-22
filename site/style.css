@@ -603,7 +603,7 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
   padding:calc(env(safe-area-inset-top,0px) + var(--s3)) max(var(--s4),env(safe-area-inset-left,0px)) calc(var(--s5) + 28px);background:var(--tile)}
 .evhero.comfoto{min-height:calc(300px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;justify-content:space-between;color:#FEFCE6;background:#1E1E1E}
 .evfoto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.evhero.comfoto::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 50%,rgba(0,0,0,.55) 100%)}
+.evhero.comfoto::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,0) 28%,rgba(0,0,0,0) 42%,rgba(0,0,0,.35) 62%,rgba(0,0,0,.78) 100%)}
 .evhero-top,.evdate{position:relative;z-index:1}
 .evhero-top{display:flex;justify-content:space-between;align-items:center}
 .evhero-acoes{display:flex;gap:var(--s2)}
@@ -612,9 +612,10 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .evround svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .evdate{display:flex;align-items:baseline;gap:var(--s2);margin-top:var(--s6)}
 .evdate b{font-size:40px;line-height:1;font-weight:600;letter-spacing:-.03em}
-.evdate > span{display:flex;gap:6px;font-size:var(--t-body);font-weight:500}
+.evdate > span{display:flex;gap:10px;font-size:var(--t-body);font-weight:500}
 .evdate > span span:last-child{color:var(--muted);font-weight:400}
-.evhero.comfoto .evdate > span span:last-child{color:rgba(254,252,230,.75)}
+.evhero.comfoto .evdate > span span:last-child{color:rgba(254,252,230,.88)}
+.evhero.comfoto .evdate{text-shadow:0 1px 12px rgba(0,0,0,.45)}
 /* corpo: folha que sobe sobre o topo */
 .evbody{position:relative;margin:-28px calc(-1 * max(var(--s4),env(safe-area-inset-left,0px))) 0;padding:var(--s5) max(var(--s4),env(safe-area-inset-left,0px)) 0;background:var(--bg);border-radius:28px 28px 0 0}
 .evbody.combarra{padding-bottom:88px}
