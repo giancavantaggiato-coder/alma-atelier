@@ -610,9 +610,9 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .evround{width:40px;height:40px;border-radius:50%;background:var(--bg);color:var(--fg);display:grid;place-items:center;cursor:pointer}
 .evhero.comfoto .evround{background:rgba(0,0,0,.4);color:#FEFCE6;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
 .evround svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.evdate{display:flex;align-items:baseline;gap:var(--s2);margin-top:var(--s6)}
+.evdate{display:flex;align-items:center;gap:10px;margin-top:var(--s6)}
 .evdate b{font-size:40px;line-height:1;font-weight:600;letter-spacing:-.03em}
-.evdate > span{display:flex;gap:10px;font-size:var(--t-body);font-weight:500}
+.evdate > span{display:flex;flex-direction:column;gap:2px;padding-left:10px;border-left:1.5px solid var(--muted);font-size:var(--t-body-s);line-height:17px;font-weight:600}
 .evdate > span span:last-child{color:var(--muted);font-weight:400}
 .evhero.comfoto .evdate > span span:last-child{color:rgba(254,252,230,.88)}
 .evhero.comfoto .evdate{text-shadow:0 1px 12px rgba(0,0,0,.45)}
@@ -695,3 +695,5 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 @keyframes evsobe{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}
   100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.9) rotate(var(--rr))}}
 @media (prefers-reduced-motion:reduce){.evfloat span{animation:none}}
+.evhero.comfoto .evdate > span{border-left-color:rgba(254,252,230,.6)}
+.evdate{z-index:2}
