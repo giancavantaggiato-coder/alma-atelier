@@ -567,7 +567,6 @@ function viewHojeV(){
     <p class="sub">${S.visitante.vinculo === "pausado" ? "Sua matrícula está suspensa. Você acompanha a agenda do atelier e os eventos; marcar aulas, reposições e inscrições voltam quando a matrícula for reativada." : "Você acompanha a agenda do atelier e os eventos. Marcar aulas, reposições e inscrições ficam disponíveis quando você voltar às aulas."}</p></section>
   <div class="list">
     <div class="li off"><span class="ind n"></span>Reposições<span class="end">Só para alunos ativos</span></div>
-    <div class="li off"><span class="ind n"></span>Mensalidade<span class="end">Só para alunos ativos</span></div>
     ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
   </div>`;
 }
@@ -609,7 +608,7 @@ function viewVoceV(){
     <div class="cover"></div>
     <div class="avatar" aria-hidden="true"><span class="ini">${esc(initials(v.nome))}</span></div>
     <h1 class="h4">${esc(v.nome || "")}</h1>
-    <p class="sub"><span class="tag-ex">${rotuloV()}</span>${desde ? ` · aluna desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>
+    <p class="sub"><span class="tag-ex">${rotuloV()}</span>${desde ? ` · no atelier desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>
   </header>
   <section class="tile wide v-aviso" style="margin-top:var(--s6)"><div class="tl"><h2 class="tt">Acesso reduzido</h2><span class="chip">${rotuloV()}</span></div>
     <p class="sub">Você vê a agenda do atelier (quantos alunos vêm em cada dia) e os eventos. ${S.visitante.vinculo === "pausado" ? "Marcar aulas, ter reposições e se inscrever em eventos voltam quando a sua matrícula for reativada." : "Para marcar aulas, ter reposições e se inscrever em eventos, é só voltar às aulas."}</p></section>
@@ -617,8 +616,10 @@ function viewVoceV(){
     <section class="tile"><div class="tl"><h2 class="tt">Reposições</h2></div><div class="tv">—</div><p class="ts">${AVISO_V}</p></section>
     <section class="tile"><div class="tl"><h2 class="tt">Seus dias</h2></div><div class="tv">—</div><p class="ts">${AVISO_V}</p></section>
   </div>
-  <button class="signout" id="trocarSenha">Trocar senha de acesso</button>
-  <button class="signout" id="sair">Sair da conta</button>`;
+  <div class="list ajustes">
+    <button class="li" id="trocarSenha"><span class="ind n"></span>Trocar senha de acesso</button>
+    <button class="li sairli" id="sair"><span class="ind n"></span>Sair da conta</button>
+  </div>`;
 }
 
 /* ---------- Agenda ---------- */
@@ -960,7 +961,7 @@ function viewVoce(){
     </label>
     <input type="file" id="avIn" accept="image/*" hidden>
     <h1 class="h4">${esc(a.nome)}</h1>
-    ${desde ? `<p class="tempo">${tempoAtelier(a)}</p><p class="sub desde">desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}</p>` : ""}
+    ${desde ? `<p class="tempo">${tempoAtelier(a)}</p>` : ""}
   </header>
   <div class="ritmo">
     <p class="label">Frequência</p>
@@ -1901,9 +1902,12 @@ const vibrar = (() => {
     && (["hoje","agenda","eventos","eqhoje","painel"].includes(S.tab) || isEqTab());
   const pos = v => {
     el.style.transform = `translate(-50%, ${v}px)`; el.style.opacity = Math.min(1, v / 40); el.classList.toggle("pronto", v >= LIM);
+    const vw = $("#view"); vw.style.transform = v ? `translateY(${v}px)` : "";
     if(v >= LIM && !vibrou && y0 !== null){ vibrou = true; vibrar(); }
     if(v < LIM - 8) vibrou = false;
   };
+  const volta = () => { const vw = $("#view"); el.classList.add("volta"); vw.classList.add("volta");
+    setTimeout(() => { el.classList.remove("volta"); vw.classList.remove("volta"); }, 300); };
   document.addEventListener("touchstart", e => { if(ocupado || window.scrollY > 0 || !pode() || e.touches.length !== 1) { y0 = null; return; } y0 = e.touches[0].clientY; d = 0; }, { passive: true });
   document.addEventListener("touchmove", e => {
     if(y0 === null) return;
@@ -1914,7 +1918,7 @@ const vibrar = (() => {
   }, { passive: false });
   document.addEventListener("touchend", async () => {
     if(y0 === null) return; y0 = null;
-    if(d < LIM){ el.classList.add("volta"); pos(0); setTimeout(() => el.classList.remove("volta"), 250); return; }
+    if(d < LIM){ volta(); pos(0); return; }
     ocupado = true; el.classList.add("girando"); pos(56);
     try{
       if(S.visitante && !S.equipe) await loadVisitante();
@@ -1924,7 +1928,7 @@ const vibrar = (() => {
       else await Promise.all([loadAluno(), loadEventos()]);
       render();
     }catch(_){ toast("Não foi possível atualizar. Verifique a conexão."); }
-    el.classList.remove("girando"); el.classList.add("volta"); pos(0);
-    setTimeout(() => { el.classList.remove("volta"); ocupado = false; }, 250);
+    el.classList.remove("girando"); volta(); pos(0);
+    setTimeout(() => { ocupado = false; }, 300);
   });
 })();
