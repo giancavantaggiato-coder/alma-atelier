@@ -1559,7 +1559,7 @@ function viewDiario(){
       <p class="label">Seu diário</p>
       <h2 class="h5">Comece pelo que você fez hoje</h2>
       <div class="dsug">
-        ${[["anotacao", "Notas", "Ideias para composições e próximos estudos"], ["obra", "Processo", "Fotografe ou anote uma etapa de um estudo ou composição"], ["aula", "Em aula", "Algo que você viu ou aprendeu em aula"], ["referencia", "Referência", "Artistas e obras que dialogam com seu trabalho"]]
+        ${[["anotacao", "Notas", "Ideias para<br>composições e<br>próximos estudos"], ["obra", "Processo", "Etapas de um<br>estudo, em foto<br>ou anotação"], ["aula", "Em aula", "O que você viu,<br>ouviu ou aprendeu<br>durante a aula"], ["referencia", "Referência", "Artistas e obras<br>que dialogam com<br>seu trabalho"]]
           .map(([t, l, d]) => `<button class="dsug-i" data-dsug="${t}"><span class="dsug-t">${l}</span><span class="dsug-d">${d}</span></button>`).join("")}
       </div></section>`
     : lista.length ? `<div class="dlista">${listaDiarioHTML(lista, "data-dreg")}</div>` : `<p class="empty">Nenhum registro encontrado.</p>`}
