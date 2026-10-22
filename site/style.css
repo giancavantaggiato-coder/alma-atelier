@@ -541,3 +541,4 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .tour-pontos span.on{width:20px;background:#FAE08F}
 .tour-acoes{display:flex;flex-direction:column;gap:var(--s2)}
 @media (prefers-reduced-motion:reduce){.tour,.tour-ico{animation:none}}
+.sheet .sub.dsheet-data{margin-top:2px}

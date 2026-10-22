@@ -328,7 +328,7 @@ function mostrarOffline(){
   let b = $("#offBar");
   if(!b){ b = document.createElement("div"); b.id = "offBar"; b.className = "offbar"; b.setAttribute("role", "status"); document.body.appendChild(b); }
   const d = S.cacheTs ? new Date(S.cacheTs) : null;
-  b.textContent = d ? `Sem conexão · atualizado em ${dm(d)}, ${hh(d)}` : "Sem conexão";
+  b.textContent = d ? `Sem conexão. Atualizado em ${dm(d)}, ${hh(d)}` : "Sem conexão";
   document.body.classList.add("offline");
 }
 function marcarOnline(){ S.offline = false; const b = $("#offBar"); if(b) b.remove(); document.body.classList.remove("offline"); }
@@ -500,7 +500,7 @@ function renderPA(){
       const lotado = !PA.fixos && h.ocupados >= h.capacidade, on = PA.dias.includes(h.id);
       const cheio = !on && PA.dias.length >= PA.freq;
       return `<button type="button" class="aopt${on ? " on" : ""}" data-dia="${h.id}" aria-pressed="${on}" ${PA.fixos || lotado || cheio ? "disabled" : ""}>
-        <span>${cap1(WD[h.dia_semana])}</span><small>${hm(h.inicio)} às ${hm(h.fim)}${lotado ? " · completo" : ""}</small></button>`; }).join("") : "";
+        <span>${cap1(WD[h.dia_semana])}</span><small>${hm(h.inicio)} às ${hm(h.fim)}${lotado ? ", completo" : ""}</small></button>`; }).join("") : "";
     const falta = PA.freq - PA.dias.length;
     panel = `<form id="paForm" novalidate style="display:contents">${passo}
       <div class="auth-head"><h1>Quantas vezes por semana você vem ao atelier?</h1></div>
@@ -548,7 +548,7 @@ function currentClass(){ const n = now(); return S.agenda.find(a => activeMine(a
 function todayClasses(){ const k = dkey(now()); return S.agenda.filter(a => activeMine(a) && dkey(a.ini) === k); }
 const vagas = a => Math.max(0, a.capacidade - a.ocupadas);
 const nCred = () => S.creditos.length;
-const horarioNome = t => `${cap1(WD[t.dia_semana])} · ${hm(t.inicio)}–${hm(t.fim)}`;
+const horarioNome = t => `${cap1(WD[t.dia_semana])}, ${hm(t.inicio)}–${hm(t.fim)}`;
 const naEspera = id => (S.espera || []).some(e => e.aula_id === id);
 /* lotado: entrar ou sair da lista de espera */
 function blocoEspera(a, podeRepor){
@@ -584,11 +584,11 @@ function viewHoje(){
     <button class="textbtn" id="desmBtn" data-aula="${nx.aula_id}">Não vou poder ir</button>
   </section>` : `<section class="tile wide next"><div class="tl"><h2 class="tt">Próxima aula</h2></div><p class="sub">Nenhuma aula marcada. Veja os dias com vaga na agenda.</p></section>`}
   ${espAberta.map(a => `<button class="vagaaberta" data-abreaula="${a.aula_id}"><span class="label">Abriu vaga</span>
-    <span class="title">${cap1(WD[a.ini.getDay()])}, ${dm(a.ini)} · ${hh(a.ini)} às ${hh(a.fim)}</span>
+    <span class="title">${cap1(WD[a.ini.getDay()])}, ${dm(a.ini)}, ${hh(a.ini)} às ${hh(a.fim)}</span>
     <span class="sub">Você estava na lista de espera. Toque para marcar antes que alguém pegue.</span></button>`).join("")}
   <div class="list">
-    ${espFila.map(a => `<button class="li" data-abreaula="${a.aula_id}"><span class="ind n"></span>Na lista de espera<span class="end tnum">${WDS[a.ini.getDay()]} ${dm(a.ini)} · ${hh(a.ini)}</span></button>`).join("")}
-    <button class="li" data-go="agenda"><span class="ind"></span><span class="tnum">${livre() ? "Plano livre · marque as aulas que quiser" : repoLivre() ? "Reposições sem limite" : ac === 1 ? "1 reposição disponível" : `${ac} reposições disponíveis`}</span></button>
+    ${espFila.map(a => `<button class="li" data-abreaula="${a.aula_id}"><span class="ind n"></span>Na lista de espera<span class="end tnum">${WDS[a.ini.getDay()]} ${dm(a.ini)}, ${hh(a.ini)}</span></button>`).join("")}
+    <button class="li" data-go="agenda"><span class="ind"></span><span class="tnum">${livre() ? "Plano livre: marque as aulas que quiser" : repoLivre() ? "Reposições sem limite" : ac === 1 ? "1 reposição disponível" : `${ac} reposições disponíveis`}</span></button>
     ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
   </div>
   ${cartaoPush()}`;
@@ -641,13 +641,13 @@ function viewAgendaV(){
   </div>
   <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
   <div class="grid">${cells}</div>
-  <div class="credits off"><span><b>Reposições</b> <span style="color:var(--muted)">· ${AVISO_V.toLowerCase()}</span></span></div>
+  <div class="credits off"><span><b>Reposições</b> <span style="color:var(--muted)">${AVISO_V.toLowerCase()}</span></span></div>
 `;
 }
 function sheetDiaV(k){
   const d = fromKey(k), list = (S.agendaV || []).filter(a => dkey(a.ini) === k);
   sheet(`<p class="label">${AVISO_V}</p><h3 class="h5">${cap1(WD[d.getDay()])}, ${dm(d)}</h3>
-    ${list.map(a => `<div class="eqaula"><div class="row"><p class="title">${hh(a.ini)} às ${hh(a.fim)}</p><span class="sub tnum">${a.cancelada ? "cancelada" : `${plural(a.ocupadas,"aluno","alunos")} · ${plural(Math.max(0, a.capacidade - a.ocupadas),"vaga","vagas")}`}</span></div></div>`).join("")}
+    ${list.map(a => `<div class="eqaula"><div class="row"><p class="title">${hh(a.ini)} às ${hh(a.fim)}</p><span class="sub tnum">${a.cancelada ? "cancelada" : `${plural(a.ocupadas,"aluno","alunos")}, ${plural(Math.max(0, a.capacidade - a.ocupadas),"vaga","vagas")}`}</span></div></div>`).join("")}
     <p class="sub" style="margin-top:var(--s4)">${S.visitante && S.visitante.vinculo === "pausado" ? "Marcar aula e reposição volta quando a sua matrícula for reativada. Fale com o atelier." : "Marcar aula e reposição fica disponível quando você voltar às aulas. Para voltar, fale com o atelier."}</p>
     <div class="btns"><button class="btn pri" disabled>Marcar aula</button><button class="btn ghost" data-close>Fechar</button></div>`);
 }
@@ -657,7 +657,7 @@ function viewVoceV(){
     <div class="cover"></div>
     <div class="avatar" aria-hidden="true"><span class="ini">${esc(initials(v.nome))}</span></div>
     <h1 class="h4">${esc(v.nome || "")}</h1>
-    <p class="sub"><span class="tag-ex">${rotuloV()}</span>${desde ? ` · no atelier desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>
+    <p class="sub"><span class="tag-ex">${rotuloV()}</span>${desde ? ` no atelier desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>
   </header>
   <section class="tile wide v-aviso" style="margin-top:var(--s6)"><div class="tl"><h2 class="tt">Acesso reduzido</h2><span class="chip">${rotuloV()}</span></div>
     <p class="sub">Você vê a agenda do atelier (quantos alunos vêm em cada dia) e os eventos. ${S.visitante.vinculo === "pausado" ? "Marcar aulas, ter reposições e se inscrever em eventos voltam quando a sua matrícula for reativada." : "Para marcar aulas, ter reposições e se inscrever em eventos, é só voltar às aulas."}</p></section>
@@ -717,8 +717,8 @@ function viewAgenda(){
   <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
   <div class="grid">${cells}</div>
   <div class="legenda" aria-hidden="true"><span><i class="lg mine"></i>Seu dia</span><span><i class="lg vaga"></i>Com vaga</span><span><i class="lg cheio"></i>Lotado</span>${(S.espera || []).length ? `<span><i class="lg espera"></i>Na espera</span>` : ""}</div>
-  ${repoLivre() ? `<div class="credits"><span><b>Reposições sem limite</b> <span style="color:var(--muted)">· marque quantas quiser</span></span></div>
-  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>` : livre() ? `<div class="credits"><span><b>Plano livre</b> <span style="color:var(--muted)">· sem limite de aulas</span></span></div>
+  ${repoLivre() ? `<div class="credits"><span><b>Reposições sem limite</b> <span style="color:var(--muted)">marque quantas quiser</span></span></div>
+  <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>` : livre() ? `<div class="credits"><span><b>Plano livre</b> <span style="color:var(--muted)">sem limite de aulas</span></span></div>
   <div class="hint"><span>Toque num dia com vaga para marcar uma aula.</span><span>Toque numa aula marcada para desmarcar.</span></div>` : `<div class="credits">
     <span class="tnum"><b>${ac} de ${MAX_CRED}</b> <span style="color:var(--muted)">reposições disponíveis</span></span>
     <div class="dots" aria-hidden="true">${Array.from({length:MAX_CRED},(_,i)=>`<span class="${i<ac?"on":""}"></span>`).join("")}</div>
@@ -843,16 +843,16 @@ function viewEventos(){
     const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
     return `<button class="ev" data-ev="${e.id}">
       <div class="date"><b class="tnum">${pad(e.ini.getDate())}</b><span>${MES[e.ini.getMonth()].slice(0,3)}</span></div>
-      <div class="info"><p class="label">${esc(e.tipo)}${e.publicado ? "" : " · rascunho"}</p><span class="title">${esc(e.titulo)}</span><span class="sub">${WD[e.ini.getDay()]}, ${hh(e.ini)} às ${hh(e.fim)}</span>${quemVaiHTML(e)}</div>
+      <div class="info"><p class="label">${esc(e.tipo)}${e.publicado ? "" : ", rascunho"}</p><span class="title">${esc(e.titulo)}</span><span class="sub">${WD[e.ini.getDay()]}, ${hh(e.ini)} às ${hh(e.fim)}</span>${quemVaiHTML(e)}</div>
       <span class="tag ${e.inscrito ? "in" : ""}">${e.inscrito ? "Inscrito" : vag == null ? "Aberto" : vag ? `${vag} vagas` : "Esgotado"}</span>
     </button>`; }).join("") : `<p class="empty">${S.evFiltro === "meus" ? "Você ainda não se inscreveu em nenhum evento." : "Nenhum evento marcado por enquanto."}</p>`}</div>`;
 }
 function sheetEvento(id){
   const e = S.eventos.find(x => x.id === id); if(!e) return;
   const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
-  const [p1, p2] = String(e.preco_texto || "").split(" · ");
+  const [p1, p2] = String(e.preco_texto || "").split(/\s+·\s+|\s*\/\s*|;\s*/);
   sheet(`<p class="label">${esc(e.tipo)}</p><h3 class="h5">${esc(e.titulo)}</h3>
-    <p class="sub">${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)} · ${hh(e.ini)} às ${hh(e.fim)}${e.local ? ` · ${esc(e.local)}` : ""}</p>
+    <p class="sub">${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)}, ${hh(e.ini)} às ${hh(e.fim)}${e.local ? `. ${esc(e.local)}` : ""}</p>
     ${e.descricao ? `<p class="desc">${esc(e.descricao)}</p>` : ""}
     ${(e.quem || []).length ? `<div class="people">${e.quem.map(q => `<div class="person">${q.avatar_url ? `<div class="av"><img src="${esc(q.avatar_url)}" alt=""></div>` : `<div class="av">${esc(initials(q.nome.replace(".", "")))}</div>`}<span>${esc(q.nome)}</span><span class="tag">${q.sou_eu ? "você" : ""}</span></div>`).join("")}</div>` : ""}
     <div class="facts"><div><b class="tnum">${vag == null ? "—" : vag}</b><span>vagas livres</span></div><div><b class="tnum">${e.inscritos}</b><span>inscritos</span></div><div><b style="font-size:16px;line-height:28px">${esc(p1 || "—")}</b><span>${esc(p2 || "")}</span></div></div>
@@ -897,15 +897,15 @@ function viewHojeEq(){
     <span class="dot"></span><u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : "Ninguém no atelier agora"}</u>
   </button>
   ${nx ? `<section class="tile wide next">
-    <div class="tl"><h2 class="tt">Próxima aula</h2><span class="chip tnum">${plural(nx.ocupadas, "aluno", "alunos")} · ${nx.capacidade} vagas</span></div>
+    <div class="tl"><h2 class="tt">Próxima aula</h2><span class="chip tnum">${plural(nx.ocupadas, "aluno", "alunos")} de ${nx.capacidade}</span></div>
     <div class="tv tnum">${dkey(nx.ini) === dkey(n) ? "Hoje" : dkey(nx.ini) === dkey(addDays(n,1)) ? "Amanhã" : cap1(WD[nx.ini.getDay()])}, ${dm(nx.ini)}</div>
     <p class="ts">${hh(nx.ini)} às ${hh(nx.fim)}</p>
     <button class="textbtn" data-eqdia="${dkey(nx.ini)}">Ver quem vem</button>
   </section>` : `<section class="tile wide next"><div class="tl"><h2 class="tt">Próxima aula</h2></div><p class="sub">Nenhuma aula nas próximas semanas. Confira os horários do atelier.</p></section>`}
   <div class="list">
     <button class="li" id="pnPedidos"><span class="ind ${np ? "" : "n"}"></span>Pedidos de mudança<span class="end tnum">${np ? `${np} aguardando` : "nenhum"}</span></button>
-    <button class="li" data-tabgo="eq:dia"><span class="ind n"></span>Próximos 7 dias<span class="end tnum">${plural(sem.length, "aula", "aulas")} · ${plural(vagasSem, "vaga", "vagas")}</span></button>
-    ${ev ? `<button class="li" data-editev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${ev.inscritos ? ` · ${plural(ev.inscritos, "inscrito", "inscritos")}` : ""}</span></button>` : `<button class="li" data-editev="novo"><span class="ind n"></span>Criar evento</button>`}
+    <button class="li" data-tabgo="eq:dia"><span class="ind n"></span>Próximos 7 dias<span class="end tnum">${plural(sem.length, "aula", "aulas")}, ${plural(vagasSem, "vaga", "vagas")}</span></button>
+    ${ev ? `<button class="li" data-editev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${ev.inscritos ? `, ${plural(ev.inscritos, "inscrito", "inscritos")}` : ""}</span></button>` : `<button class="li" data-editev="novo"><span class="ind n"></span>Criar evento</button>`}
     <button class="li" id="pnEmails"><span class="ind n"></span>Adicionar alunos por e-mail</button>
   </div>
   ${blocoAlertas()}`;
@@ -970,7 +970,7 @@ function viewPainel(){
   </div>
   <button class="signout" id="trocarSenha">Trocar senha de acesso</button>
   <button class="signout" id="sair">Sair da conta</button>
-  <p class="foot">${esc(p.email || "")}${desde ? ` · na equipe desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>`;
+  <p class="foot">${esc(p.email || "")}${desde ? `, na equipe desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>`;
 }
 function sheetPerfilEq(){
   const p = S.painel || {};
@@ -1038,7 +1038,7 @@ function viewVoce(){
     </button>`}
     <section class="tile">
       <div class="tl"><h2 class="tt">Seus dias</h2>${turmas[0] && turmas.every(t => t.inicio === turmas[0].inicio && t.fim === turmas[0].fim) ? `<span class="chip">${hm(turmas[0].inicio)}–${hm(turmas[0].fim)}</span>` : ""}</div>
-      <div class="tv${turmas.length > 2 ? " tv-s" : ""}">${livre() && !turmas.length ? "Avulsos" : turmas.length ? turmas.slice().sort((x,y) => ((x.dia_semana+6)%7) - ((y.dia_semana+6)%7) || String(x.inicio).localeCompare(String(y.inicio))).map(t => cap1(WDS[t.dia_semana])).join(turmas.length > 2 ? "&nbsp;· " : " · ") : "—"}</div>
+      <div class="tv${turmas.length > 2 ? " tv-s" : ""}">${livre() && !turmas.length ? "Avulsos" : turmas.length ? turmas.slice().sort((x,y) => ((x.dia_semana+6)%7) - ((y.dia_semana+6)%7) || String(x.inicio).localeCompare(String(y.inicio))).map(t => cap1(WDS[t.dia_semana])).join(", ") : "—"}</div>
     </section>
   </div>
   ${blocoPedido()}
@@ -1054,7 +1054,7 @@ function blocoPedido(){
   const p = S.pedido, n = now();
   const recente = p && p.decidido_em && (n - new Date(p.decidido_em)) < 14 * 864e5;
   if(p && p.status === "pendente") return `<section class="pedido"><p class="label">Pedido de mudança</p>
-    <p class="title">${p.frequencia_nova}x por semana · aguardando aprovação do atelier</p>
+    <p class="title">${p.frequencia_nova}x por semana, aguardando aprovação do atelier</p>
     <p class="sub">Enviado em ${dm(new Date(p.criado_em))}. Seus dias atuais continuam valendo até a aprovação.</p>
     <div class="pedido-acoes"><button class="textbtn" id="pedMudar">Alterar pedido</button><button class="textbtn" id="pedCancelar">Cancelar pedido</button></div></section>`;
   const aviso = recente && p.status === "aprovado" ? `<p class="sub pedido-aviso">Sua mudança para ${p.frequencia_nova}x por semana foi aprovada.</p>`
@@ -1076,9 +1076,9 @@ async function sheetMudanca(){
       <p class="sub">O pedido vai para o atelier. Depois de aprovado, os novos dias passam a valer na sua agenda.</p>
       <p class="label" style="margin-top:var(--s5)">Vezes por semana</p>
       <div class="chips">${Array.from({ length: max }, (_, i) => i + 1).map(n => `<button type="button" data-mfreq="${n}" aria-pressed="${M.freq === n}">${n}x</button>`).join("")}</div>
-      <p class="label" style="margin-top:var(--s5)">${M.freq === 1 ? "Qual dia" : "Quais dias"}${falta > 0 ? ` · escolha mais ${falta}` : ""}</p>
+      <p class="label" style="margin-top:var(--s5)">${M.freq === 1 ? "Qual dia" : "Quais dias"}${falta > 0 ? `, escolha mais ${falta}` : ""}</p>
       <div class="opts">${hs.map(h => { const on = M.dias.includes(h.id), lot = !h.meu && h.ocupados >= h.capacidade, cheio = !on && M.dias.length >= M.freq;
-        return `<button type="button" class="opt" data-mdia="${h.id}" aria-pressed="${on}" ${lot || cheio ? "disabled" : ""}><span>${cap1(WD[h.dia_semana])}</span><span class="sub">${hm(h.inicio)} às ${hm(h.fim)}${h.meu ? " · seu dia hoje" : lot ? " · lotado" : ""}</span></button>`; }).join("")}</div>
+        return `<button type="button" class="opt" data-mdia="${h.id}" aria-pressed="${on}" ${lot || cheio ? "disabled" : ""}><span>${cap1(WD[h.dia_semana])}</span><span class="sub">${hm(h.inicio)} às ${hm(h.fim)}${h.meu ? ", seu dia hoje" : lot ? ", lotado" : ""}</span></button>`; }).join("")}</div>
       <label class="field" style="margin-top:var(--s4)"><span>Comentário para o atelier (opcional)</span><textarea id="mObs" placeholder="Ex.: mudei de horário no trabalho">${esc(M.obs)}</textarea></label>
       <p class="err" id="mErr" hidden></p>
       <div class="btns"><button class="btn pri" id="mEnviar" ${M.dias.length === M.freq ? "" : "disabled"}>${pend ? "Atualizar pedido" : "Enviar pedido"}</button><button class="btn ghost" data-close>Agora não</button></div>`);
@@ -1183,17 +1183,17 @@ function viewEquipe(){
         <button class="addbtn" data-pessoa="novo">Novo aluno</button></div>
       ${(() => { const c = {}; lista.forEach(p => { const t = (statusApp(p).match(/>([^<]+)</) || [])[1]; if(t) c[t] = (c[t] || 0) + 1; });
         const ord = ["Usa o app","Falta cadastro","Não entrou","Sem app","Sem acesso"].filter(k => c[k]);
-        return ord.length ? `<p class="sub" style="margin-top:var(--s3)">${ord.map(k => `${c[k]} ${k.toLowerCase()}`).join(" · ")}</p>` : ""; })()}
+        return ord.length ? `<p class="sub" style="margin-top:var(--s3)">${ord.map(k => `${c[k]} ${k.toLowerCase()}`).join(", ")}</p>` : ""; })()}
       ${f === "alunos" ? `<button class="textbtn" id="addEmails">Adicionar alunos por e-mail</button>` : ""}
       <div class="cards">${lista.length ? lista.map(p => {
         const aluno = ["aluno","pausado"].includes(p.vinculo);
         const tags = [p.fantasma ? "Fantasma" : VINC[p.vinculo || ""], p.comprador_loja ? "Loja" : ""].filter(Boolean);
         const det = aluno
-          ? [((E.mat || {})[p.id] || []).map(id => { const t = (E.turmas || []).find(x => x.id === id); return t ? cap1(WDS[t.dia_semana]) : ""; }).join(" · ") || (p.plano === "livre" ? "Plano livre" : "Sem dia fixo"), p.plano === "livre" ? "marca as aulas que quiser" : p.reposicao_livre ? "reposições sem limite" : `${(E.cred || {})[p.id] || 0} reposições`]
+          ? [((E.mat || {})[p.id] || []).map(id => { const t = (E.turmas || []).find(x => x.id === id); return t ? cap1(WDS[t.dia_semana]) : ""; }).join(", ") || (p.plano === "livre" ? "Plano livre" : "Sem dia fixo"), p.plano === "livre" ? "marca as aulas que quiser" : p.reposicao_livre ? "reposições sem limite" : `${(E.cred || {})[p.id] || 0} reposições`]
           : [p.origem ? `via ${p.origem}` : "", p.interesses && p.interesses.length ? p.interesses.join(", ") : "", p.vinculo === "ex_aluno" && p.saida_em ? `saiu em ${dm(fromKey(p.saida_em))}/${String(fromKey(p.saida_em).getFullYear()).slice(2)}` : ""];
         return `<button class="card" data-pessoa="${p.id}" style="text-align:left">
           <div class="row"><span class="title">${esc(p.nome || p.email || p.whatsapp)}</span>${statusApp(p)}</div>
-          <p class="sub">${esc([tags.join(" · "), ...det].filter(Boolean).join(" · "))}</p></button>`; }).join("") : `<p class="empty">Ninguém nesta lista${q ? " com essa busca" : ""}.</p>`}</div>`;
+          <p class="sub">${esc([tags.join(", "), ...det].filter(Boolean).join(", "))}</p></button>`; }).join("") : `<p class="empty">Ninguém nesta lista${q ? " com essa busca" : ""}.</p>`}</div>`;
   } else if(E.sec === "turmas"){
     const ate = dkey(addDays(new Date(), 56));
     body = `<div class="card" style="margin-top:var(--s5)"><p class="title">Gerar aulas</p><p class="sub">Cria as aulas dos horários ativos até a data e coloca cada aluno nos seus dias fixos. Pode repetir sem duplicar.</p>
@@ -1204,7 +1204,7 @@ function viewEquipe(){
   } else {
     body = `<div class="daybar"><p class="sub">${plural(S.eventos.length,"evento","eventos")}</p><button class="addbtn" data-editev="novo">Novo evento</button></div>
       <div class="cards">${S.eventos.map(e => `<button class="card" data-editev="${e.id}" style="text-align:left"><div class="row"><span class="title">${esc(e.titulo)}</span><span class="pill">${e.inscritos}${e.vagas ? "/" + e.vagas : ""} inscritos</span></div>
-        <p class="sub">${esc(e.tipo)} · ${cap1(WD[e.ini.getDay()])}, ${dm(e.ini)}, ${hh(e.ini)}${e.publicado ? "" : " · rascunho"}</p>${quemVaiHTML(e, 8)}</button>`).join("")}</div>`;
+        <p class="sub">${esc(e.tipo)}, ${WD[e.ini.getDay()]} ${dm(e.ini)}, ${hh(e.ini)}${e.publicado ? "" : " (rascunho)"}</p>${quemVaiHTML(e, 8)}</button>`).join("")}</div>`;
   }
   const np = (E.pedidos || []).length;
   const banner = np ? `<button class="pedidos-banner" id="verPedidos"><span class="ind"></span><span>${np === 1 ? "1 pedido de mudança de dias" : `${np} pedidos de mudança de dias`}</span><span class="end">Ver</span></button>` : "";
@@ -1253,8 +1253,8 @@ function sheetPedidosEq(){
   sheet(`<p class="label">Pedidos de mudança</p><h3 class="h5">${L.length === 1 ? "1 pedido aguardando" : `${L.length} pedidos aguardando`}</h3>
     ${L.map(p => `<div class="eqaula">
       <p class="title">${esc(p.aluno_nome)}</p>
-      <p class="sub">Hoje: ${p.frequencia_atual ? `${p.frequencia_atual}x · ` : ""}${esc(p.dias_atuais || "sem dia fixo")}</p>
-      <p class="sub" style="color:var(--fg)">Quer: ${p.frequencia_nova}x · ${esc(p.dias_novos || "")}</p>
+      <p class="sub">Hoje: ${p.frequencia_atual ? `${p.frequencia_atual}x por semana, ` : ""}${esc(p.dias_atuais || "sem dia fixo")}</p>
+      <p class="sub" style="color:var(--fg)">Quer: ${p.frequencia_nova}x por semana, ${esc(p.dias_novos || "")}</p>
       ${p.observacao_aluno ? `<p class="sub">“${esc(p.observacao_aluno)}”</p>` : ""}
       <p class="sub">Pedido em ${dm(new Date(p.criado_em))}</p>
       <div class="pedido-acoes"><button class="btn pri" data-aprovar="${p.id}" style="width:auto;padding:0 var(--s5)">Aprovar</button><button class="textbtn" data-recusar="${p.id}">Recusar</button></div>
@@ -1305,7 +1305,7 @@ function sheetPessoaEq(id){
           <label class="field"><span>Próximo vencimento</span><input id="f_venc" type="date" value="${esc(p.pagamento_proximo_vencimento)}"></label></div>
         <label class="check"><input type="checkbox" id="f_repolivre" ${p.reposicao_livre ? "checked" : ""}>Reposições sem limite (mantém os dias fixos)</label>
         <label class="check"><input type="checkbox" id="f_livre" ${p.plano === "livre" ? "checked" : ""}>Plano livre (sem dias fixos, marca as aulas que quiser)</label>
-        <p class="label" style="margin-top:var(--s2)">Dias fixos no atelier${p.frequencia_semanal ? ` · ${p.frequencia_semanal}x por semana` : ""}</p>
+        <p class="label" style="margin-top:var(--s2)">Dias fixos no atelier${p.frequencia_semanal ? `, ${p.frequencia_semanal}x por semana` : ""}</p>
         ${E.turmas.map(t => `<label class="check"><input type="checkbox" data-mat="${t.id}" ${minhas.includes(t.id) ? "checked" : ""}>${esc(horarioNome(t))}</label>`).join("") || `<p class="sub">Cadastre os horários do atelier primeiro (Equipe → Horários).</p>`}
       </div>
 
@@ -1379,7 +1379,7 @@ function sheetEmailsEq(){
     busy(btn, true);
     try{
       if(novos.length){ const { error } = await sb.from("pessoas").insert(novos.map(email => ({ email, vinculo: "aluno", acesso_app: true }))); if(error) throw error; }
-      closeSheet(); toast(novos.length ? `${plural(novos.length, "aluno adicionado", "alunos adicionados")}${lista.length > novos.length ? ` · ${lista.length - novos.length} já estava${lista.length - novos.length > 1 ? "m" : ""} cadastrado${lista.length - novos.length > 1 ? "s" : ""}` : ""}` : "Esses e-mails já estavam cadastrados"); eqLoad();
+      closeSheet(); toast(novos.length ? `${plural(novos.length, "aluno adicionado", "alunos adicionados")}${lista.length > novos.length ? `. ${lista.length - novos.length} já estava${lista.length - novos.length > 1 ? "m" : ""} cadastrado${lista.length - novos.length > 1 ? "s" : ""}` : ""}` : "Esses e-mails já estavam cadastrados"); eqLoad();
     }catch(ex){ err.textContent = errMsg(ex); err.hidden = false; busy(btn, false); }
   };
 }
@@ -1417,7 +1417,7 @@ function sheetEventoEq(id){
       <label class="field"><span>Descrição</span><textarea id="e_desc">${esc(e.descricao)}</textarea></label>
       <div class="row2"><label class="field"><span>Começa</span><input id="e_ini" type="datetime-local" value="${toLocalInput(e.ini)}"></label><label class="field"><span>Termina</span><input id="e_fim" type="datetime-local" value="${toLocalInput(e.fim)}"></label></div>
       <label class="field"><span>Local</span><input id="e_local" value="${esc(e.local || "Atelier Alma")}"></label>
-      <div class="row2"><label class="field"><span>Vagas (vazio = sem limite)</span><input id="e_vagas" type="number" min="1" value="${esc(e.vagas)}"></label><label class="field"><span>Valor</span><input id="e_preco" value="${esc(e.preco_texto)}" placeholder="R$ 90 · alunos R$ 70"></label></div>
+      <div class="row2"><label class="field"><span>Vagas (vazio = sem limite)</span><input id="e_vagas" type="number" min="1" value="${esc(e.vagas)}"></label><label class="field"><span>Valor</span><input id="e_preco" value="${esc(e.preco_texto)}" placeholder="R$ 90 / alunos R$ 70"></label></div>
       <label class="check"><input type="checkbox" id="e_pub" ${e.publicado ? "checked" : ""}>Visível para os alunos</label>
       <p class="err" id="fErr" hidden></p>
       <div class="btns"><button class="btn pri" type="submit">Salvar</button>${id !== "novo" ? `<button class="btn ghost dperigo" type="button" data-delevask="${id}">Excluir evento</button>` : ""}<button class="btn ghost" type="button" data-close>Cancelar</button></div>
@@ -1649,7 +1649,7 @@ function bindDiario(){
 
 function sheetRegistro(i, meu){
   if(!i) return;
-  sheet(`<p class="label">${DTIPO[i.tipo] || "Notas"} · ${dataLonga(fromKey(i.data))}</p>
+  sheet(`<p class="label">${DTIPO[i.tipo] || "Notas"}</p><p class="sub dsheet-data">${dataLonga(fromKey(i.data))}</p>
     ${i.titulo ? `<h3 class="h5">${esc(i.titulo)}</h3>` : ""}
     ${(i.fotos || []).length ? `<div class="dfotos">${i.fotos.map(p => `<img src="${esc(fotoUrl(p))}" alt="" loading="lazy">`).join("")}</div>` : ""}
     ${i.texto ? `<p class="desc dtexto">${esc(i.texto)}</p>` : ""}
@@ -1889,7 +1889,7 @@ function bind(){
       ev.preventDefault(); const btn = $("#cancForm button[type=submit]"); busy(btn, true);
       const { data, error } = await sb.rpc("cancelar_aula", { p_aula: b.dataset.cancelaula, p_motivo: $("#c_mot").value.trim() || null });
       if(error){ busy(btn, false); return toast(errMsg(error)); }
-      closeSheet(); toast(`Aula cancelada · ${plural(data,"aluno avisado","alunos com reposição")}`); eqLoad();
+      closeSheet(); toast(`Aula cancelada. ${cap1(plural(data,"aluno avisado","alunos com reposição"))}`); eqLoad();
     }));
   $$("#view [data-pessoa]").forEach(b => b.onclick = () => sheetPessoaEq(b.dataset.pessoa));
   const ae = $("#addEmails"); if(ae) ae.onclick = sheetEmailsEq;
@@ -1911,7 +1911,7 @@ const listaEmAula = () => S.live.length
 function sheetPessoas(){
   const cur = S.agenda.find(a => !a.cancelada && a.ini <= now() && a.fim > now());
   sheet(`<p class="label">Agora no atelier</p><h3 class="h5">${plural(S.live.length,"aluno em aula","alunos em aula")}</h3>
-    ${cur ? `<p class="sub">${cap1(WD[cur.ini.getDay()])}, ${hh(cur.ini)} às ${hh(cur.fim)} · ${plural(vagas(cur),"vaga livre","vagas livres")}</p>` : ""}
+    ${cur ? `<p class="sub">${cap1(WD[cur.ini.getDay()])}, ${hh(cur.ini)} às ${hh(cur.fim)}, ${plural(vagas(cur),"vaga livre","vagas livres")}</p>` : ""}
     ${listaEmAula()}
     <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
 }

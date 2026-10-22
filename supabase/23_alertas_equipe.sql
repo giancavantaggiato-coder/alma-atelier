@@ -36,13 +36,13 @@ begin
      group by le.aula_id, a.inicia_em
   )
   select 'faltas'::text, s.aluno_id, n.nome, s.seguidas,
-         s.seguidas || ' aulas seguidas sem vir' || coalesce(' · veio pela última vez em ' || to_char(s.ultima at time zone 'America/Sao_Paulo', 'DD/MM'), ''),
+         s.seguidas || ' aulas seguidas sem vir' || coalesce('. Veio pela última vez em ' || to_char(s.ultima at time zone 'America/Sao_Paulo', 'DD/MM'), ''),
          null::date
     from seq s join nomes n on n.id = s.aluno_id
    where s.seguidas >= 2
   union all
   select 'reposicoes', c.aluno_id, n.nome, c.n,
-         c.n || ' de 8 reposições acumuladas' || case when c.n >= 8 then ' · no limite, não ganha mais' else '' end,
+         c.n || ' de 8 reposições acumuladas' || case when c.n >= 8 then '. No limite, não ganha mais' else '' end,
          null::date
     from cred c join nomes n on n.id = c.aluno_id
    where c.n >= 6 and not n.reposicao_livre and coalesce(n.plano, 'fixo') <> 'livre'
