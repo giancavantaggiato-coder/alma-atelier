@@ -601,8 +601,8 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .evedit{min-height:44px;padding:0 var(--s1);color:var(--muted);font-size:var(--t-body-s);font-weight:500}
 .evpag .label{margin-top:var(--s3)}
 .evt{margin-top:var(--s2);text-wrap:balance}
-.evmeta{list-style:none;margin:var(--s5) 0 0;padding:0;display:flex;flex-direction:column;gap:var(--s4)}
-.evmeta li{display:flex;align-items:flex-start;gap:var(--s3)}
+.evmeta{list-style:none;margin:var(--s5) 0 0;padding:0;display:flex;flex-wrap:wrap;gap:var(--s3) var(--s5)}
+.evmeta li{display:flex;align-items:flex-start;gap:var(--s3);flex:0 1 auto;min-width:0}
 .evi{width:36px;height:36px;border-radius:10px;background:var(--tile);display:grid;place-items:center;flex:none;color:var(--strong)}
 .evi svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .evmeta li > span:last-child{display:flex;flex-direction:column;justify-content:center;min-height:36px}
