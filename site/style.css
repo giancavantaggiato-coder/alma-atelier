@@ -373,8 +373,17 @@ body.comoaluno main{padding-top:calc(var(--s5) + 44px + env(safe-area-inset-top,
 .dfoot{display:flex;justify-content:space-between;align-items:center;gap:var(--s3);margin:var(--s4) var(--s4) 0;padding-block:var(--s3);border-top:1px solid var(--line);color:var(--muted);font-size:var(--t-body-s)}
 .dcard.foto:not(:has(.dbody)) .dfoot{border-top:0;margin-top:0}
 .dtag{font-size:var(--t-label);font-weight:500;color:var(--strong);padding:2px var(--s2);border-radius:8px;box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
-.dvazio{margin-top:var(--s6);padding:var(--s5) var(--s4);border-radius:var(--s4);background:var(--tile);display:flex;flex-direction:column;gap:var(--s2)}
-.dvazio .btn{margin-top:var(--s3)}
+.dvazio{margin-top:var(--s5);display:flex;flex-direction:column;gap:var(--s1)}
+.dvazio .h5{margin-bottom:var(--s3)}
+.dsug{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
+.dsug-i{display:flex;flex-direction:column;align-items:flex-start;gap:var(--s1);min-height:148px;padding:var(--s4);border-radius:var(--s4);background:var(--tile);text-align:left}
+.dsug-i:first-child{background:var(--accent);color:#000}
+.dsug-i:first-child .dsug-n{background:rgba(0,0,0,.08);color:#000;box-shadow:none}
+.dsug-i:first-child .dsug-d{color:#3A3A3A}
+.dsug-n{font-size:var(--t-label);font-weight:500;padding:2px var(--s2);border-radius:8px;box-shadow:inset 0 0 0 1px var(--line);color:var(--strong)}
+.dsug-t{margin-top:auto;font-size:var(--t-title);line-height:22px;font-weight:500;letter-spacing:-.01em}
+.dsug-d{font-size:var(--t-body-s);line-height:18px;color:var(--muted)}
+.dsug-i:active{transform:scale(.98)}
 .dnota{text-align:center}
 .fab{position:fixed;z-index:6;right:max(var(--s4),calc((100vw - 440px) / 2 + var(--s4)));bottom:calc(80px + var(--s4) + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;background:var(--fg);color:var(--bg);display:grid;place-items:center;box-shadow:0 6px 18px rgba(0,0,0,.22)}
 .fab::after{content:"";position:absolute;inset:-3px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--accent);pointer-events:none}

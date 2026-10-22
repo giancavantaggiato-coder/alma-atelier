@@ -326,7 +326,7 @@ async function boot(){
     await Promise.all([loadAluno(), loadEventos()]);
     render();
     abrirLinkDireto();
-    estadoPush().then(() => { if(["hoje","voce","painel"].includes(S.tab) && !document.querySelector("#sheet.show")) render(); }).catch(() => {});
+    estadoPush().then(() => { pushPadrao(); if(["hoje","voce","painel"].includes(S.tab) && !document.querySelector("#sheet.show")) render(); }).catch(() => {});
     if(isEqTab()) eqLoad();
   }catch(ex){
     $("#view").innerHTML = `<div class="loading">Não foi possível carregar. Verifique a conexão.</div>`;
@@ -1373,6 +1373,7 @@ const P = { estado: "?", salvo: false };
 const pushSuportado = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 const ehIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const instalado = () => (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+const pushDesligado = v => { try{ if(v === undefined) return localStorage.getItem("alma-push-off") === "1"; v ? localStorage.setItem("alma-push-off", "1") : localStorage.removeItem("alma-push-off"); }catch(_){ } return !!v; };
 const pushDispensado = v => { try{ if(v === undefined) return localStorage.getItem("alma-push-depois") === "1"; localStorage.setItem("alma-push-depois", "1"); }catch(_){ } return !!v; };
 let swReg = null;
 async function registrarSW(){
@@ -1410,6 +1411,7 @@ async function ativarPush(btn){
     <p class="sub">As notificações do Alma estão desligadas neste aparelho. Ative nos ajustes do celular (Ajustes → Notificações → Alma) e volte aqui.</p>
     <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
   if(P.estado === "indisponivel") return toast("Este navegador não recebe lembretes. Tente pelo app instalado na tela de início.");
+  pushDesligado(false);
   busy(btn, true);
   let perm;
   try{ perm = await Notification.requestPermission(); }catch(_){ perm = Notification.permission; }
@@ -1428,6 +1430,7 @@ async function desativarPush(btn){
     const reg = await registrarSW(), sub = reg && await reg.pushManager.getSubscription();
     if(sub){ await sb.rpc("remover_push", { p_endpoint: sub.endpoint }); await sub.unsubscribe(); }
   }catch(_){}
+  pushDesligado(true);
   P.estado = "desligado"; P.salvo = false; closeSheet(); render(); toast("Lembretes desligados neste aparelho");
 }
 const PUSH_O_QUE = () => S.equipe && !S.aluno
@@ -1454,8 +1457,29 @@ function linhaPush(){
   const end = { ativo: "Ativados", desligado: "Ativar", instalar: "Como ativar", bloqueado: "Bloqueados" }[P.estado] || "";
   return `<button class="li" id="pushBtn"><span class="ind ${P.estado === "ativo" ? "" : "n"}"></span>Lembretes no celular<span class="end">${end}</span></button>`;
 }
+/* lembretes ligados por padrão: assina sozinho; se o celular ainda não deu permissão,
+   pede no primeiro toque (o iPhone só mostra o pedido depois de um toque). Quem desligar fica desligado. */
+async function assinarSilencioso(){
+  try{
+    const reg = await registrarSW(); await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(CFG.vapid) });
+    await salvarSub(sub); P.estado = "ativo";
+  }catch(_){}
+}
+function pushPadrao(){
+  if(S.comoAluno || pushDesligado() || P.estado !== "desligado" || !pushSuportado()) return;
+  if(Notification.permission === "granted"){ assinarSilencioso().then(() => { if(["voce","painel"].includes(S.tab)) render(); }); return; }
+  if(Notification.permission !== "default" || pushPadrao.armado) return;
+  pushPadrao.armado = true;
+  document.addEventListener("click", () => {
+    if(S.comoAluno || pushDesligado() || Notification.permission !== "default") return;
+    let pedido; try{ pedido = Notification.requestPermission(); }catch(_){ return; }
+    Promise.resolve(pedido).then(perm => { if(perm === "granted") assinarSilencioso().then(() => { if(["voce","painel"].includes(S.tab)) render(); }); });
+  }, { once: true, capture: true });
+}
 function cartaoPush(){
-  if(S.comoAluno || !["desligado","instalar"].includes(P.estado) || pushDispensado()) return "";
+  if(S.comoAluno || P.estado !== "instalar" || pushDispensado()) return "";
   return `<section class="pushcard"><p class="title">Receba lembretes das aulas</p>
     <p class="sub">Um aviso na véspera, se a aula for cancelada e quando abrir vaga na sua lista de espera.</p>
     <div class="pushcard-acoes"><button class="btn pri" id="pushAtivar">${P.estado === "instalar" ? "Como ativar" : "Ativar lembretes"}</button><button class="textbtn" id="pushDepois">Agora não</button></div></section>`;
@@ -1467,8 +1491,8 @@ function bindPush(){
 }
 
 /* ---------- Diário de registros ---------- */
-const DTIPO = { anotacao: "Anotação", obra: "Obra", aula: "Aula", referencia: "Referência" };
-const DTIPO_PL = { todos: "Todos", anotacao: "Anotações", obra: "Obras", aula: "Aulas", referencia: "Referências" };
+const DTIPO = { anotacao: "Nota", obra: "Obra", aula: "Aula", referencia: "Referência" };
+const DTIPO_PL = { todos: "Todos", anotacao: "Notas", obra: "Obras", aula: "Aulas", referencia: "Referências" };
 const MES3 = ["jan.","fev.","mar.","abr.","maio","jun.","jul.","ago.","set.","out.","nov.","dez."];
 const ICO_BUSCA = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>';
 const ICO_MAIS = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
@@ -1501,7 +1525,7 @@ function cartaoDiario(i, attr){
   return `<button class="dcard${capa ? " foto" : ""}" ${attr}="${i.id}">
     ${capa ? `<span class="dimg"><img src="${esc(capa)}" alt="" loading="lazy">${fotos.length > 1 ? `<span class="dmais tnum">+${fotos.length - 1}</span>` : ""}</span>` : ""}
     ${temCorpo ? `<span class="dbody">${i.titulo ? `<span class="dtit">${esc(i.titulo)}</span>` : ""}${trecho ? `<span class="dtxt">${esc(trecho.slice(0, 220))}</span>` : ""}</span>` : ""}
-    <span class="dfoot"><span>${dataLonga(fromKey(i.data))}</span><span class="dtag">${DTIPO[i.tipo] || "Anotação"}</span></span>
+    <span class="dfoot"><span>${dataLonga(fromKey(i.data))}</span><span class="dtag">${DTIPO[i.tipo] || "Nota"}</span></span>
   </button>`;
 }
 function listaDiarioHTML(lista, attr){
@@ -1526,20 +1550,24 @@ function viewDiario(){
   const lista = all.filter(i => (D.filtro === "todos" || i.tipo === D.filtro) && (!q || `${i.titulo || ""} ${i.texto || ""}`.toLowerCase().includes(q)));
   const tipos = ["todos", ...Object.keys(DTIPO).filter(t => all.some(i => i.tipo === t))];
   return `${topo}
-  <div class="stats dstats">
+  ${all.length ? `<div class="stats dstats">
     <div class="stat"><b class="tnum">${doAno}</b><span>${doAno === 1 ? "registro" : "registros"}<br>em ${ano}</span></div>
-  </div>
+  </div>` : ""}
   ${D.buscando ? `<label class="field dbusca"><span class="sr">Buscar</span><input id="dBuscaIn" type="search" placeholder="Buscar nos registros" value="${esc(D.busca)}" autocomplete="off"></label>` : ""}
   ${all.length && tipos.length > 2 ? `<div class="chips">${tipos.map(t => `<button type="button" data-dfiltro="${t}" aria-pressed="${D.filtro === t}">${DTIPO_PL[t]}</button>`).join("")}</div>` : ""}
-  ${!all.length ? `<section class="dvazio"><p class="title">Seu diário começa aqui</p>
-      <p class="sub">Registre o que fez na aula, fotografe seus trabalhos e guarde as referências que te inspiram. Com o tempo, ele vira o mapa do seu percurso no atelier.</p>
-      <button class="btn pri" id="dPrimeiro">Escrever o primeiro registro</button></section>`
+  ${!all.length ? `<section class="dvazio">
+      <p class="label">Seu diário</p>
+      <h2 class="h5">Comece pelo que você fez hoje</h2>
+      <div class="dsug">
+        ${[["obra", "Uma obra", "Fotografe o trabalho em andamento ou pronto"], ["aula", "Uma aula", "O que foi feito e o que você aprendeu"], ["referencia", "Uma referência", "Um artista, uma imagem, uma exposição"], ["anotacao", "Uma nota", "Ideias soltas para a próxima aula"]]
+          .map(([t, l, d]) => `<button class="dsug-i" data-dsug="${t}"><span class="dsug-t">${l}</span><span class="dsug-d">${d}</span></button>`).join("")}
+      </div></section>`
     : lista.length ? `<div class="dlista">${listaDiarioHTML(lista, "data-dreg")}</div>` : `<p class="empty">Nenhum registro encontrado.</p>`}
   <button class="fab" id="dNovo" aria-label="Novo registro">${ICO_MAIS}</button>`;
 }
 function bindDiario(){
   const nb = $("#dNovo"); if(nb) nb.onclick = () => abrirEditor(null);
-  const pb = $("#dPrimeiro"); if(pb) pb.onclick = () => abrirEditor(null);
+  $$("#view [data-dsug]").forEach(b => b.onclick = () => { abrirEditor(null); if(D.ed){ D.ed.tipo = b.dataset.dsug; const t = $("#edTipoTxt"); if(t) t.textContent = DTIPO[D.ed.tipo]; $$("#dEditor [data-edtipo]").forEach(x => x.setAttribute("aria-pressed", x.dataset.edtipo === D.ed.tipo)); } });
   const bb = $("#dBusca"); if(bb) bb.onclick = () => { D.buscando = !D.buscando; if(!D.buscando) D.busca = ""; render(); const i = $("#dBuscaIn"); if(i) i.focus(); };
   const bi = $("#dBuscaIn"); if(bi) bi.oninput = () => { D.busca = bi.value; const pos = bi.selectionStart; render(); const n = $("#dBuscaIn"); if(n){ n.focus(); n.setSelectionRange(pos, pos); } };
   $$("#view [data-dfiltro]").forEach(b => b.onclick = () => { D.filtro = b.dataset.dfiltro; render(); });
@@ -1548,7 +1576,7 @@ function bindDiario(){
 
 function sheetRegistro(i, meu){
   if(!i) return;
-  sheet(`<p class="label">${DTIPO[i.tipo] || "Anotação"} · ${dataLonga(fromKey(i.data))}</p>
+  sheet(`<p class="label">${DTIPO[i.tipo] || "Nota"} · ${dataLonga(fromKey(i.data))}</p>
     ${i.titulo ? `<h3 class="h5">${esc(i.titulo)}</h3>` : ""}
     ${(i.fotos || []).length ? `<div class="dfotos">${i.fotos.map(p => `<img src="${esc(fotoUrl(p))}" alt="" loading="lazy">`).join("")}</div>` : ""}
     ${i.texto ? `<p class="desc dtexto">${esc(i.texto)}</p>` : ""}
@@ -1700,7 +1728,7 @@ function blocoDiario(){
   return `<button class="dteaser" data-go="diario">
     <span class="dteaser-t"><span class="label">Diário</span>
       <span class="title">${it.length ? plural(it.length, "registro", "registros") : "Comece seu diário"}</span>
-      <span class="sub">${ult ? `Último em ${dataLonga(fromKey(ult.data)).replace(/^./, c => c.toLowerCase())}` : "Anotações e fotos do seu percurso no atelier"}</span></span>
+      <span class="sub">${ult ? `Último em ${dataLonga(fromKey(ult.data)).replace(/^./, c => c.toLowerCase())}` : "Notas e fotos do seu percurso no atelier"}</span></span>
     ${url ? `<span class="dteaser-img"><img src="${esc(url)}" alt="" loading="lazy"></span>` : `<span class="dteaser-mais">${ICO_MAIS}</span>`}
   </button>`;
 }
