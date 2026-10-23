@@ -420,20 +420,20 @@ function aplicarTema(t){
 }
 aplicarTema(temaAtual());
 if(window.matchMedia){ const mq = matchMedia("(prefers-color-scheme: dark)"); const f = () => { if(temaAtual() === "auto") aplicarTema("auto"); }; mq.addEventListener ? mq.addEventListener("change", f) : mq.addListener && mq.addListener(f); }
-const linhaTema = () => { const t = temaAtual(); return `<button class="li" data-tema-abrir><span class="ind n"></span>Luminosidade<span class="end"><span class="amostra mini ${t}" role="img" aria-label="${TEMAS.find(x => x[0] === t)[1]}"></span></span></button>`; };
-function sheetTema(){
-  const t = temaAtual();
-  sheet(`<p class="label">Tema do app</p><h3 class="h5">Luminosidade</h3>
-    <div class="tema-op" role="radiogroup" aria-label="Luminosidade">${TEMAS.map(([k, n]) => `<button type="button" role="radio" aria-checked="${k === t}" data-tema="${k}"><span class="amostra ${k}" aria-hidden="true"></span><span>${n}</span></button>`).join("")}</div>
-    <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
-}
+const ICO_TEMA = {
+  auto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>',
+  claro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>',
+  escuro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>'
+};
+const nomeTema = t => TEMAS.find(x => x[0] === t)[1];
+const linhaTema = () => { const t = temaAtual(); return `<button class="li" data-tema-trocar aria-label="Luminosidade: ${nomeTema(t)}. Toque para trocar"><span class="ind n"></span>Luminosidade<span class="end tema-ico">${ICO_TEMA[t]}</span></button>`; };
 document.addEventListener("click", e => {
-  if(e.target.closest("[data-tema-abrir]")) return sheetTema();
-  const b = e.target.closest("[data-tema]"); if(!b) return;
-  const t = b.dataset.tema; try{ t === "auto" ? localStorage.removeItem("alma-tema") : localStorage.setItem("alma-tema", t); }catch(_){ }
+  const b = e.target.closest("[data-tema-trocar]"); if(!b) return;
+  const ordem = TEMAS.map(x => x[0]), t = ordem[(ordem.indexOf(temaAtual()) + 1) % ordem.length];
+  try{ t === "auto" ? localStorage.removeItem("alma-tema") : localStorage.setItem("alma-tema", t); }catch(_){ }
   aplicarTema(t);
-  document.querySelectorAll(".tema-op [data-tema]").forEach(x => x.setAttribute("aria-checked", String(x.dataset.tema === t)));
-  document.querySelectorAll("[data-tema-abrir] .amostra").forEach(x => { x.className = `amostra mini ${t}`; x.setAttribute("aria-label", TEMAS.find(y => y[0] === t)[1]); });
+  document.querySelectorAll("[data-tema-trocar]").forEach(x => { x.querySelector(".tema-ico").innerHTML = ICO_TEMA[t]; x.setAttribute("aria-label", `Luminosidade: ${nomeTema(t)}. Toque para trocar`); });
+  toast(`Luminosidade: ${nomeTema(t)}`);
 });
 
 
