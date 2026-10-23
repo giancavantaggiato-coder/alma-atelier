@@ -69,7 +69,7 @@ const esqueleto = () => `<div class="sk-tela" aria-busy="true" aria-label="Carre
   <span class="sk sk-l" style="width:30%"></span><span class="sk sk-h"></span><span class="sk sk-l" style="width:55%;margin-top:var(--s5)"></span>
   <span class="sk sk-tile"></span>
   <span class="sk sk-row"></span><span class="sk sk-row"></span><span class="sk sk-row"></span></div>`;
-function toast(t){ const el = $("#toast"); el.classList.remove("acao"); el.textContent = t; el.classList.add("show"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2800); }
+function toast(t){ const el = $("#toast"); el.classList.remove("acao","linha1"); el.textContent = t; el.classList.add("show"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2800); }
 /* aviso com uma ação (ex.: Desfazer), visível por alguns segundos */
 function toastAcao(t, rotulo, fn, ms = 6000){
   const el = $("#toast");
@@ -433,7 +433,7 @@ document.addEventListener("click", e => {
   try{ t === "auto" ? localStorage.removeItem("alma-tema") : localStorage.setItem("alma-tema", t); }catch(_){ }
   aplicarTema(t);
   document.querySelectorAll("[data-tema-trocar]").forEach(x => { x.querySelector(".tema-ico").innerHTML = ICO_TEMA[t]; x.setAttribute("aria-label", `Luminosidade: ${nomeTema(t)}. Toque para trocar`); });
-  toast(`Luminosidade: ${nomeTema(t)}`);
+  toast(`Luminosidade: ${nomeTema(t)}`); $("#toast").classList.add("linha1");
 });
 
 

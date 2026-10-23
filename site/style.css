@@ -767,3 +767,4 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .li .end.tema-ico svg{width:24px;height:24px;animation:temaGira .35s cubic-bezier(.34,1.56,.64,1)}
 @keyframes temaGira{from{transform:rotate(-60deg) scale(.6);opacity:0}}
 @media (prefers-reduced-motion:reduce){.li .end.tema-ico svg{animation:none}}
+.toast.linha1{width:max-content;white-space:nowrap}
