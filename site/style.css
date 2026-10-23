@@ -10,7 +10,7 @@
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
   color-scheme:light;
 }
-/* tema: automático segue o celular; data-theme força claro ou escuro (escolha em Você > Aparência) */
+/* tema: automático segue o celular; data-theme força claro ou escuro (escolha em Você > Luminosidade) */
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#000000; --fg:#FEFCE6; --muted:#ABAA98; --strong:#D5D4BF; --line:#3A3A3A; --past:#3A3A3A; --past-ink:#8C8B7C;
   --accent:#FAE08F; --gold:#FAE08F; --tile:#1E1E1E; --danger:#FEFCE6; --scrim:rgba(0,0,0,.6); color-scheme:dark}}
@@ -762,7 +762,7 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .evinfo{gap:10px}
 .evgente{margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--line)}
 
-/* Aparência: amostras de valor, como numa escala tonal */
+/* Luminosidade: amostras de valor, como numa escala tonal */
 .tema-op{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin-top:var(--s5)}
 .tema-op button{display:flex;flex-direction:column;align-items:center;gap:var(--s3);padding:var(--s4) var(--s2);border-radius:16px;font-size:var(--t-body-s);font-weight:500;color:var(--muted);text-align:center;box-shadow:inset 0 0 0 1px var(--line)}
 .tema-op button[aria-checked="true"]{color:var(--fg);box-shadow:inset 0 0 0 2px var(--fg)}
@@ -770,3 +770,5 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .amostra.claro{background:linear-gradient(90deg,#FEFCE6 0 25%,#F1EFDC 25% 50%,#D5D4BF 50% 75%,#ABAA98 75%)}
 .amostra.escuro{background:linear-gradient(90deg,#666 0 25%,#3A3A3A 25% 50%,#1E1E1E 50% 75%,#000 75%)}
 .amostra.auto{background:linear-gradient(90deg,#FEFCE6 0 25%,#ABAA98 25% 50%,#3A3A3A 50% 75%,#000 75%)}
+.amostra.mini{display:block;width:24px;height:24px}
+.li .end .amostra.mini{margin-right:2px}

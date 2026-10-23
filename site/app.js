@@ -409,7 +409,7 @@ async function checarVersao(){
 checarVersao(); setInterval(checarVersao, 5 * 60 * 1000);
 document.addEventListener("click", e => { if(e.target.closest("#comoAlunoSair")) trocarModoAluno(false); });
 
-/* Aparência: automático (segue o celular), claro ou escuro. Fica guardado neste aparelho. */
+/* Luminosidade: automático (segue o celular), claro ou escuro. Fica guardado neste aparelho. */
 const TEMAS = [["auto","Automático"],["claro","Valor alto"],["escuro","Valor baixo"]];
 const temaAtual = () => { try{ const t = localStorage.getItem("alma-tema"); return t === "claro" || t === "escuro" ? t : "auto"; }catch(_){ return "auto"; } };
 function aplicarTema(t){
@@ -420,11 +420,11 @@ function aplicarTema(t){
 }
 aplicarTema(temaAtual());
 if(window.matchMedia){ const mq = matchMedia("(prefers-color-scheme: dark)"); const f = () => { if(temaAtual() === "auto") aplicarTema("auto"); }; mq.addEventListener ? mq.addEventListener("change", f) : mq.addListener && mq.addListener(f); }
-const linhaTema = () => `<button class="li" data-tema-abrir><span class="ind n"></span>Aparência<span class="end">${TEMAS.find(x => x[0] === temaAtual())[1]}</span></button>`;
+const linhaTema = () => { const t = temaAtual(); return `<button class="li" data-tema-abrir><span class="ind n"></span>Luminosidade<span class="end"><span class="amostra mini ${t}" role="img" aria-label="${TEMAS.find(x => x[0] === t)[1]}"></span></span></button>`; };
 function sheetTema(){
   const t = temaAtual();
-  sheet(`<p class="label">Aparência</p><h3 class="h5">Tema do app</h3>
-    <div class="tema-op" role="radiogroup" aria-label="Tema do app">${TEMAS.map(([k, n]) => `<button type="button" role="radio" aria-checked="${k === t}" data-tema="${k}"><span class="amostra ${k}" aria-hidden="true"></span><span>${n}</span></button>`).join("")}</div>
+  sheet(`<p class="label">Tema do app</p><h3 class="h5">Luminosidade</h3>
+    <div class="tema-op" role="radiogroup" aria-label="Luminosidade">${TEMAS.map(([k, n]) => `<button type="button" role="radio" aria-checked="${k === t}" data-tema="${k}"><span class="amostra ${k}" aria-hidden="true"></span><span>${n}</span></button>`).join("")}</div>
     <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
 }
 document.addEventListener("click", e => {
@@ -433,7 +433,7 @@ document.addEventListener("click", e => {
   const t = b.dataset.tema; try{ t === "auto" ? localStorage.removeItem("alma-tema") : localStorage.setItem("alma-tema", t); }catch(_){ }
   aplicarTema(t);
   document.querySelectorAll(".tema-op [data-tema]").forEach(x => x.setAttribute("aria-checked", String(x.dataset.tema === t)));
-  document.querySelectorAll("[data-tema-abrir] .end").forEach(x => x.textContent = TEMAS.find(y => y[0] === t)[1]);
+  document.querySelectorAll("[data-tema-abrir] .amostra").forEach(x => { x.className = `amostra mini ${t}`; x.setAttribute("aria-label", TEMAS.find(y => y[0] === t)[1]); });
 });
 
 
