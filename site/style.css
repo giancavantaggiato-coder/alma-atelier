@@ -762,9 +762,11 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .evinfo{gap:10px}
 .evgente{margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--line)}
 
-/* Aparência */
-.tema-op{display:flex;flex-direction:column;margin-top:var(--s4)}
-.tema-op button{display:flex;align-items:center;gap:var(--s4);min-height:56px;border-bottom:1px solid var(--line);font-size:var(--t-body);text-align:left;width:100%}
-.tema-op button small{display:block;font-size:var(--t-body-s);color:var(--muted)}
-.tema-op .rd{width:20px;height:20px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--past-ink);flex:none;margin-left:auto}
-.tema-op button[aria-checked="true"] .rd{box-shadow:inset 0 0 0 6px var(--fg)}
+/* Aparência: amostras de valor, como numa escala tonal */
+.tema-op{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin-top:var(--s5)}
+.tema-op button{display:flex;flex-direction:column;align-items:center;gap:var(--s3);padding:var(--s4) var(--s2);border-radius:16px;font-size:var(--t-body-s);font-weight:500;color:var(--muted);text-align:center;box-shadow:inset 0 0 0 1px var(--line)}
+.tema-op button[aria-checked="true"]{color:var(--fg);box-shadow:inset 0 0 0 2px var(--fg)}
+.amostra{width:48px;height:48px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(128,128,128,.4)}
+.amostra.claro{background:linear-gradient(90deg,#FEFCE6 0 25%,#F1EFDC 25% 50%,#D5D4BF 50% 75%,#ABAA98 75%)}
+.amostra.escuro{background:linear-gradient(90deg,#666 0 25%,#3A3A3A 25% 50%,#1E1E1E 50% 75%,#000 75%)}
+.amostra.auto{background:linear-gradient(90deg,#FEFCE6 0 25%,#ABAA98 25% 50%,#3A3A3A 50% 75%,#000 75%)}

@@ -410,7 +410,7 @@ checarVersao(); setInterval(checarVersao, 5 * 60 * 1000);
 document.addEventListener("click", e => { if(e.target.closest("#comoAlunoSair")) trocarModoAluno(false); });
 
 /* Aparência: automático (segue o celular), claro ou escuro. Fica guardado neste aparelho. */
-const TEMAS = [["auto","Automático","Segue o tema do celular"],["claro","Claro","Fundo creme, sempre"],["escuro","Escuro","Fundo preto, sempre"]];
+const TEMAS = [["auto","Automático"],["claro","Valor alto"],["escuro","Valor baixo"]];
 const temaAtual = () => { try{ const t = localStorage.getItem("alma-tema"); return t === "claro" || t === "escuro" ? t : "auto"; }catch(_){ return "auto"; } };
 function aplicarTema(t){
   const r = document.documentElement;
@@ -424,7 +424,7 @@ const linhaTema = () => `<button class="li" data-tema-abrir><span class="ind n">
 function sheetTema(){
   const t = temaAtual();
   sheet(`<p class="label">Aparência</p><h3 class="h5">Tema do app</h3>
-    <div class="tema-op" role="radiogroup" aria-label="Tema do app">${TEMAS.map(([k, n, d]) => `<button type="button" role="radio" aria-checked="${k === t}" data-tema="${k}"><span>${n}<small>${d}</small></span><span class="rd"></span></button>`).join("")}</div>
+    <div class="tema-op" role="radiogroup" aria-label="Tema do app">${TEMAS.map(([k, n]) => `<button type="button" role="radio" aria-checked="${k === t}" data-tema="${k}"><span class="amostra ${k}" aria-hidden="true"></span><span>${n}</span></button>`).join("")}</div>
     <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
 }
 document.addEventListener("click", e => {
