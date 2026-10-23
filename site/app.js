@@ -409,6 +409,34 @@ async function checarVersao(){
 checarVersao(); setInterval(checarVersao, 5 * 60 * 1000);
 document.addEventListener("click", e => { if(e.target.closest("#comoAlunoSair")) trocarModoAluno(false); });
 
+/* Aparência: automático (segue o celular), claro ou escuro. Fica guardado neste aparelho. */
+const TEMAS = [["auto","Automático","Segue o tema do celular"],["claro","Claro","Fundo creme, sempre"],["escuro","Escuro","Fundo preto, sempre"]];
+const temaAtual = () => { try{ const t = localStorage.getItem("alma-tema"); return t === "claro" || t === "escuro" ? t : "auto"; }catch(_){ return "auto"; } };
+function aplicarTema(t){
+  const r = document.documentElement;
+  if(t === "claro") r.setAttribute("data-theme","light"); else if(t === "escuro") r.setAttribute("data-theme","dark"); else r.removeAttribute("data-theme");
+  const escuro = t === "escuro" || (t === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute("media"); m.setAttribute("content", escuro ? "#000000" : "#FEFCE6"); });
+}
+aplicarTema(temaAtual());
+if(window.matchMedia){ const mq = matchMedia("(prefers-color-scheme: dark)"); const f = () => { if(temaAtual() === "auto") aplicarTema("auto"); }; mq.addEventListener ? mq.addEventListener("change", f) : mq.addListener && mq.addListener(f); }
+const linhaTema = () => `<button class="li" data-tema-abrir><span class="ind n"></span>Aparência<span class="end">${TEMAS.find(x => x[0] === temaAtual())[1]}</span></button>`;
+function sheetTema(){
+  const t = temaAtual();
+  sheet(`<p class="label">Aparência</p><h3 class="h5">Tema do app</h3>
+    <div class="tema-op" role="radiogroup" aria-label="Tema do app">${TEMAS.map(([k, n, d]) => `<button type="button" role="radio" aria-checked="${k === t}" data-tema="${k}"><span>${n}<small>${d}</small></span><span class="rd"></span></button>`).join("")}</div>
+    <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
+}
+document.addEventListener("click", e => {
+  if(e.target.closest("[data-tema-abrir]")) return sheetTema();
+  const b = e.target.closest("[data-tema]"); if(!b) return;
+  const t = b.dataset.tema; try{ t === "auto" ? localStorage.removeItem("alma-tema") : localStorage.setItem("alma-tema", t); }catch(_){ }
+  aplicarTema(t);
+  document.querySelectorAll(".tema-op [data-tema]").forEach(x => x.setAttribute("aria-checked", String(x.dataset.tema === t)));
+  document.querySelectorAll("[data-tema-abrir] .end").forEach(x => x.textContent = TEMAS.find(y => y[0] === t)[1]);
+});
+
+
 /* ---------- senha de 4 números ---------- */
 const NS = { ativo: false, passo: 1, pin: "", troca: false };
 async function pedirSenha(){
@@ -668,6 +696,7 @@ function viewVoceV(){
   <section class="tile wide v-aviso" style="margin-top:var(--s6)"><div class="tl"><h2 class="tt">Acesso reduzido</h2><span class="chip">${rotuloV()}</span></div>
     <p class="sub">Você vê a agenda do atelier (quantos alunos vêm em cada dia) e os eventos. ${S.visitante.vinculo === "pausado" ? "Marcar aulas, ter reposições e se inscrever em eventos voltam quando a sua matrícula for reativada." : "Para marcar aulas, ter reposições e se inscrever em eventos, é só voltar às aulas."}</p></section>
   <div class="list ajustes">
+    ${linhaTema()}
     <button class="li" id="trocarSenha"><span class="ind n"></span>Trocar senha de acesso</button>
     <button class="li sairli" id="sair"><span class="ind n"></span>Sair da conta</button>
   </div>`;
@@ -1241,6 +1270,7 @@ function viewPainel(){
     <button class="li" id="pnHorario"><span class="ind n"></span>Horários do atelier</button>
     <button class="li" id="pnPerfil"><span class="ind n"></span>Editar nome e cargo</button>
     ${linhaPush()}
+    ${linhaTema()}
     <button class="li" id="pnFantasma"><span class="ind n"></span>Ver o app como aluno</button>
   </div>
   <button class="signout" id="trocarSenha">Trocar senha de acesso</button>
@@ -1321,6 +1351,7 @@ function viewVoce(){
     ${!livre() && !(S.pedido && S.pedido.status === "pendente") ? `<button class="li" id="pedMudar"><span class="ind n"></span>Mudar frequência ou dias</button>` : ""}
     <div class="li"><span class="ind n"></span>Mensalidade<span class="end">Em breve</span></div>
     ${linhaPush()}
+    ${linhaTema()}
     <button class="li" id="trocarSenha"><span class="ind n"></span>Trocar senha de acesso</button>
     <button class="li sairli" id="sair"><span class="ind n"></span>Sair da conta</button>
   </div>`;
