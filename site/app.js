@@ -114,6 +114,7 @@ function render(){
   if(precisaCompletar()) return PA.pronto ? renderPA() : primeiroAcesso();
   if(NS.ativo) return renderNovaSenha();
   renderNav();
+  document.body.classList.toggle("na-voce", ["painel","voce"].includes(S.tab));
   const v = S.visitante && !isEqTab() ? ({ hoje: viewHojeV, agenda: viewAgendaV, eventos: viewEventos, evento: viewEventoPag, voce: viewVoceV }[S.tab] || viewHojeV)
     : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, evento: viewEventoPag, voce: viewVoce, diario: viewDiario, painel: viewPainel, eqhoje: viewHojeEq }[S.tab] || (adminOnly() ? viewHojeEq : viewHoje));
   try{ $("#view").innerHTML = v(); }
