@@ -833,7 +833,8 @@ html.vinho .tf-urg{background:#A82424;color:#FEFCE6}
 html.vinho .tarefa.pronto.vai-dir .tf-urg{color:#FEFCE6}
 html.vinho .live .dot{background:#E0524C}
 html.vinho body{transition:background .6s}
-.live .brinde{display:inline-flex;flex:none;color:var(--fg);margin:0 -2px 0 -6px;animation:pulse 2s infinite}
+.live .brinde{display:inline-flex;flex:none;color:var(--fg);margin:0 -2px 0 -6px;animation:brinde 3.6s ease-in-out infinite}
+@keyframes brinde{0%,100%{opacity:1}50%{opacity:.6}}
 @media (prefers-reduced-motion:reduce){.live .brinde{animation:none}}
 .live .brinde svg{display:block}
 /* no modo vinho, a página Você (e o menu de baixo nela) continua com as cores do tema escolhido */
