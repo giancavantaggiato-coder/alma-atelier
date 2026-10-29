@@ -1786,7 +1786,9 @@ function caiNoDia(t, k){
   return false;
 }
 const horaCurta = t => t ? hm(String(t).slice(0, 5)) : "";
-const ordemHora = (a, b) => (b.t.urgente ? 1 : 0) - (a.t.urgente ? 1 : 0) || String(a.t.hora || "").localeCompare(String(b.t.hora || "")) || a.t.titulo.localeCompare(b.t.titulo);
+/* urgentes primeiro; depois a ordem que ele arrastou; o que nunca foi arrastado vem depois, pelo horário */
+const chaveOrdem = o => o.t.ordem != null ? o.t.ordem : 1e9;
+const ordemHora = (a, b) => (b.t.urgente ? 1 : 0) - (a.t.urgente ? 1 : 0) || chaveOrdem(a) - chaveOrdem(b) || String(a.t.hora || "").localeCompare(String(b.t.hora || "")) || a.t.titulo.localeCompare(b.t.titulo);
 function agendaDoDia(k){
   return AG.itens.filter(t => caiNoDia(t, k)).map(t => ({ t, k, feito: (t.feitos || []).includes(k) })).sort(ordemHora);
 }
@@ -1818,8 +1820,8 @@ function blocoAgenda(){
   return `<section class="agenda">
     <div class="aghead"><p class="label">Seu dia</p><button class="textbtn" data-agnovo="${hoje}" aria-label="Adicionar à agenda de hoje">Adicionar</button></div>
     ${dia.length ? `<p class="sub agres">${pend ? `${plural(pend, "pendência", "pendências")} para hoje` : "Tudo feito por hoje."}</p>` : ""}
-    <div class="tarefas">${[...atras.filter(o => o.t.urgente), ...dia.filter(o => o.t.urgente && !o.feito), ...atras.filter(o => !o.t.urgente), ...dia.filter(o => !(o.t.urgente && !o.feito))].map(o => linhaTarefa(o)).join("")}</div>
-    ${dia.length || atras.length ? `<p class="sub agdica">Deslize para a direita para marcar como urgente, para a esquerda para remover.</p>` : ""}
+    <div class="tarefas" id="agHojeLista">${[...atras, ...dia].sort((a, b) => ((b.t.urgente && !b.feito) ? 1 : 0) - ((a.t.urgente && !a.feito) ? 1 : 0) || chaveOrdem(a) - chaveOrdem(b) || (a.atrasada ? 0 : 1) - (b.atrasada ? 0 : 1) || String(a.t.hora || "").localeCompare(String(b.t.hora || "")) || a.t.titulo.localeCompare(b.t.titulo)).map(o => linhaTarefa(o)).join("")}</div>
+    ${dia.length || atras.length ? `<p class="sub agdica">Deslize para a direita para marcar como urgente, para a esquerda para remover. Segure e arraste para mudar a ordem.</p>` : ""}
     ${!dia.length && !atras.length ? `<button class="agvazio" data-agnovo="${hoje}">Nada marcado para hoje. Toque para adicionar uma tarefa ou compromisso.</button>` : ""}
     ${prox.length ? `<p class="label agprox">Próximos dias</p>${prox.map(([k, l]) => `<p class="agdia">${cap1(WD[fromKey(k).getDay()])}, ${dm(fromKey(k))}</p><div class="tarefas">${l.map(o => linhaTarefa(o)).join("")}</div>`).join("")}` : ""}
   </section>`;
@@ -1932,15 +1934,43 @@ function removerDeslizando(id, k){
     render();
   });
 }
-const SW = { el: null, x0: 0, y0: 0, dx: 0, ativo: false, travado: false, ignorarClique: false };
+const SW = { el: null, x0: 0, y0: 0, dx: 0, ativo: false, travado: false, ignorarClique: false, arrastar: false, timer: null };
+/* segurar e arrastar: reordena a lista de hoje e grava a ordem */
+async function gravarOrdem(){
+  const ids = $$("#agHojeLista .tarefa[data-swipe]").map(el => el.dataset.swipe);
+  const mud = [];
+  ids.forEach((id, i) => { const t = AG.itens.find(x => x.id === id); if(t && t.ordem !== (i + 1) * 10){ t.ordem = (i + 1) * 10; mud.push(t); } });
+  if(!mud.length) return;
+  const rs = await Promise.all(mud.map(t => sb.from("agenda_pessoal").update({ ordem: t.ordem }).eq("id", t.id)));
+  const err = rs.find(r => r.error); if(err){ toast(errMsg(err.error)); await loadAgenda(); }
+  render();
+}
+function moverArrastando(y){
+  const lista = SW.el.parentElement, irmas = [...lista.children].filter(x => x !== SW.el);
+  const alvo = irmas.find(x => { const r = x.getBoundingClientRect(); return y < r.top + r.height / 2; });
+  if(alvo ? SW.el.nextElementSibling !== alvo : lista.lastElementChild !== SW.el){
+    const antes = new Map([...lista.children].map(x => [x, x.getBoundingClientRect().top]));
+    lista.insertBefore(SW.el, alvo || null);
+    [...lista.children].forEach(x => { if(x === SW.el) return; const d = antes.get(x) - x.getBoundingClientRect().top; if(d){ x.style.transition = "none"; x.style.transform = `translateY(${d}px)`; requestAnimationFrame(() => { x.style.transition = "transform .18s cubic-bezier(.2,0,0,1)"; x.style.transform = ""; }); } });
+    if(navigator.vibrate) navigator.vibrate(5);
+  }
+}
 const LIMIAR = 90;
 $("#view").addEventListener("touchstart", e => {
   const el = e.target.closest(".tarefa[data-swipe]"); if(!el || e.touches.length > 1) return;
-  Object.assign(SW, { el, x0: e.touches[0].clientX, y0: e.touches[0].clientY, dx: 0, ativo: false, travado: false });
+  Object.assign(SW, { el, x0: e.touches[0].clientX, y0: e.touches[0].clientY, dx: 0, ativo: false, travado: false, arrastar: false });
+  clearTimeout(SW.timer);
+  if(el.closest("#agHojeLista")) SW.timer = setTimeout(() => {
+    if(!SW.el || SW.ativo || SW.travado) return;
+    SW.arrastar = true; SW.el.classList.add("levantada"); document.body.classList.add("reordenando");
+    if(navigator.vibrate) navigator.vibrate(15);
+  }, 380);
 }, { passive: true });
 $("#view").addEventListener("touchmove", e => {
   if(!SW.el || SW.travado) return;
   const dx = e.touches[0].clientX - SW.x0, dy = e.touches[0].clientY - SW.y0;
+  if(SW.arrastar){ e.preventDefault(); moverArrastando(e.touches[0].clientY); return; }
+  if(Math.abs(dx) > 10 || Math.abs(dy) > 10) clearTimeout(SW.timer);
   if(!SW.ativo){
     if(Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)){ SW.travado = true; return; }
     if(Math.abs(dx) < 10) return;
@@ -1953,7 +1983,13 @@ $("#view").addEventListener("touchmove", e => {
   if(pronto !== !!SW.el._pronto){ SW.el._pronto = pronto; SW.el.classList.toggle("pronto", pronto); if(pronto && navigator.vibrate) navigator.vibrate(8); }
 }, { passive: false });
 function fimSwipe(){
+  clearTimeout(SW.timer);
   const el = SW.el; if(!el) return; SW.el = null;
+  if(SW.arrastar){
+    SW.arrastar = false; el.classList.remove("levantada"); document.body.classList.remove("reordenando");
+    SW.ignorarClique = true; setTimeout(() => { SW.ignorarClique = false; }, 350);
+    gravarOrdem(); return;
+  }
   if(!SW.ativo) return;
   SW.ignorarClique = true; setTimeout(() => { SW.ignorarClique = false; }, 350);
   const inn = el.querySelector(".tin"), dx = SW.dx, id = el.dataset.swipe, k = el.dataset.swk;

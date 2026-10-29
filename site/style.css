@@ -814,3 +814,8 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .field input::-webkit-date-and-time-value{text-align:left;margin:0}
 .agdica{margin-top:var(--s3);font-size:var(--t-label);color:var(--past-ink)}
 .tarefa.urgente .tin{padding-left:var(--s2)}
+.tarefa.levantada{z-index:3;overflow:visible}
+.tarefa.levantada .tin{transform:scale(1.02);box-shadow:0 8px 24px rgba(0,0,0,.35);border-radius:12px;background:var(--tile)}
+.tarefa.urgente.levantada .tin{background:color-mix(in srgb,var(--accent) 22%,var(--tile))}
+body.reordenando{overflow:hidden;-webkit-user-select:none;user-select:none}
+.tarefa{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}

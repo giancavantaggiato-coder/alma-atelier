@@ -63,7 +63,7 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 - O admin abre em **Hoje**: saudação, se o atelier está aberto, quem está em aula agora, próxima aula (quantos vêm e "Ver quem vem"), pedidos de mudança (só quando há algum) e a agenda pessoal. Adicionar alunos, criar evento e pedidos ficam em **Você**.
 
 ## Agenda pessoal (só a equipe)
-- Em **Hoje → Seu dia**: tarefas e compromissos do dia, o que ficou para trás e os próximos 7 dias. Toque no círculo para marcar como feita. Deslizar para a direita marca como urgente (fica no topo, com fundo dourado); para a esquerda remove, com Desfazer (se repete, tira só aquele dia).
+- Em **Hoje → Seu dia**: tarefas e compromissos do dia, o que ficou para trás e os próximos 7 dias. Toque no círculo para marcar como feita. Deslizar para a direita marca como urgente (fica no topo, com fundo dourado); para a esquerda remove, com Desfazer (se repete, tira só aquele dia). Segurar e arrastar muda a ordem (coluna `ordem`); urgentes ficam sempre no topo e o que nunca foi arrastado vem depois, pelo horário.
 - Cada item tem dia, horário opcional (e fim), repetição (todo dia, toda semana, todo mês, com data final opcional), lembrete no celular (na hora até 1 semana antes) e anotações. Item que repete pode ser apagado só de um dia.
 - No **Calendário**, um pontinho embaixo do número marca dia com coisa sua; ao tocar no dia aparece "Sua agenda" junto com as aulas.
 - Banco: tabela `agenda_pessoal` (migração 27). Só o próprio dono, sendo da equipe, lê e escreve; alunos e o modo "ver como aluno" não enxergam.
