@@ -456,6 +456,9 @@ document.documentElement.classList.toggle("vinho", horaDoVinho()); aplicarTema(t
 setInterval(conferirVinho, 30 * 1000);
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") conferirVinho(); });
 if(window.matchMedia){ const mq = matchMedia("(prefers-color-scheme: dark)"); const f = () => { if(temaAtual() === "auto") aplicarTema("auto"); }; mq.addEventListener ? mq.addEventListener("change", f) : mq.addListener && mq.addListener(f); }
+/* duas taças (as mesmas da Luminosidade) se tocando, para o "Provavelmente brindando" */
+const TACA = '<path d="M7.5 3.5h9c.4 3.2.2 5.6-1 7.2-.8 1.1-2 1.8-3.5 1.8s-2.7-.7-3.5-1.8c-1.2-1.6-1.4-4-1-7.2z"/><path d="M7.4 7.5h9.2"/><path d="M12 12.5v7M8.5 20.5h7"/>';
+const ICO_BRINDE = `<svg viewBox="2 1 40 24" width="40" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(1.5 2) rotate(14 12 20.5)">${TACA}</g><g transform="translate(18.5 2) rotate(-14 12 20.5)">${TACA}</g></svg>`;
 const ICO_TEMA = {
   auto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>',
   claro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>',
@@ -1230,7 +1233,7 @@ function viewHojeEq(){
     <p class="sub" style="font-size:var(--t-body)">${estado}</p>
   </header>
   <button class="live" id="liveBtn" ${live ? "" : "disabled"}>
-    ${!live && !agora && horaDoVinho() ? `<span class="brinde" aria-hidden="true">🥂</span>` : `<span class="dot"></span>`}<u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : agora ? "Aula agora, ninguém confirmado" : horaDoVinho() ? "Provavelmente brindando" : "Sem aula no momento"}</u>
+    ${!live && !agora && horaDoVinho() ? `<span class="brinde" aria-hidden="true">${ICO_BRINDE}</span>` : `<span class="dot"></span>`}<u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : agora ? "Aula agora, ninguém confirmado" : horaDoVinho() ? "Provavelmente brindando" : "Sem aula no momento"}</u>
   </button>
   ${blocoRecados()}
   ${nx ? `<section class="tile wide next">
