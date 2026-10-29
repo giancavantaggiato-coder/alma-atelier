@@ -1786,7 +1786,7 @@ function caiNoDia(t, k){
   return false;
 }
 const horaCurta = t => t ? hm(String(t).slice(0, 5)) : "";
-const ordemHora = (a, b) => String(a.t.hora || "").localeCompare(String(b.t.hora || "")) || a.t.titulo.localeCompare(b.t.titulo);
+const ordemHora = (a, b) => (b.t.urgente ? 1 : 0) - (a.t.urgente ? 1 : 0) || String(a.t.hora || "").localeCompare(String(b.t.hora || "")) || a.t.titulo.localeCompare(b.t.titulo);
 function agendaDoDia(k){
   return AG.itens.filter(t => caiNoDia(t, k)).map(t => ({ t, k, feito: (t.feitos || []).includes(k) })).sort(ordemHora);
 }
@@ -1799,12 +1799,14 @@ function agendaAtrasada(){
 function linhaTarefa(o, mostrarDia){
   const t = o.t, h = horaCurta(t.hora), hf = horaCurta(t.hora_fim);
   const meta = [mostrarDia || o.atrasada ? `${WDS[fromKey(o.k).getDay()]} ${dm(fromKey(o.k))}` : "", h ? (hf ? `${h} às ${hf}` : h) : "Sem horário"].filter(Boolean).join(", ");
-  return `<div class="tarefa${o.feito ? " feita" : ""}">
+  return `<div class="tarefa${o.feito ? " feita" : ""}${t.urgente ? " urgente" : ""}" data-swipe="${t.id}" data-swk="${o.k}">
+    <span class="tfundo tf-urg" aria-hidden="true">${t.urgente ? "Tirar urgência" : "Urgente"}</span><span class="tfundo tf-del" aria-hidden="true">${t.repetir ? "Tirar deste dia" : "Remover"}</span>
+    <div class="tin">
     <button class="tchk" data-agfeito="${t.id}" data-agk="${o.k}" aria-pressed="${o.feito}" aria-label="${o.feito ? "Desmarcar" : "Marcar como feita"}: ${esc(t.titulo)}">${o.feito ? ICO_OK : ""}</button>
     <button class="tcorpo" data-agedit="${t.id}" data-agk="${o.k}">
       <span class="tt">${esc(t.titulo)}</span>
       <span class="tm">${o.atrasada ? `<b>Ficou para trás,</b>&nbsp;` : ""}${esc(meta)}${t.repetir ? `<i title="Repete">${ICO_REP}</i>` : ""}${t.lembrar_min != null ? `<i title="Com lembrete">${ICO_SINO}</i>` : ""}</span>
-    </button></div>`;
+    </button></div></div>`;
 }
 /* bloco da tela Hoje: o dia, o que ficou para trás e os próximos 7 dias (sem as diárias, que só enchem a lista) */
 function blocoAgenda(){
@@ -1816,7 +1818,8 @@ function blocoAgenda(){
   return `<section class="agenda">
     <div class="aghead"><p class="label">Seu dia</p><button class="textbtn" data-agnovo="${hoje}" aria-label="Adicionar à agenda de hoje">Adicionar</button></div>
     ${dia.length ? `<p class="sub agres">${pend ? `${plural(pend, "pendência", "pendências")} para hoje` : "Tudo feito por hoje."}</p>` : ""}
-    <div class="tarefas">${atras.map(o => linhaTarefa(o)).join("")}${dia.map(o => linhaTarefa(o)).join("")}</div>
+    <div class="tarefas">${[...atras.filter(o => o.t.urgente), ...dia.filter(o => o.t.urgente && !o.feito), ...atras.filter(o => !o.t.urgente), ...dia.filter(o => !(o.t.urgente && !o.feito))].map(o => linhaTarefa(o)).join("")}</div>
+    ${dia.length || atras.length ? `<p class="sub agdica">Deslize para a direita para marcar como urgente, para a esquerda para remover.</p>` : ""}
     ${!dia.length && !atras.length ? `<button class="agvazio" data-agnovo="${hoje}">Nada marcado para hoje. Toque para adicionar uma tarefa ou compromisso.</button>` : ""}
     ${prox.length ? `<p class="label agprox">Próximos dias</p>${prox.map(([k, l]) => `<p class="agdia">${cap1(WD[fromKey(k).getDay()])}, ${dm(fromKey(k))}</p><div class="tarefas">${l.map(o => linhaTarefa(o)).join("")}</div>`).join("")}` : ""}
   </section>`;
@@ -1853,6 +1856,7 @@ function sheetTarefa(id, k, volta){
         <label class="field"><span>Lembrete</span><select id="ag_lem">${opts(LEMBRAR, t.lembrar_min)}</select></label></div>
       <label class="field" id="ag_ateBox" ${t.repetir ? "" : "hidden"}><span>Repetir até (vazio = sempre)</span><input id="ag_ate" type="date" value="${esc(t.repetir_ate || "")}"></label>
       <p class="sub" id="ag_semHora" ${t.hora || t.lembrar_min == null ? "hidden" : ""}>Sem horário, o lembrete conta a partir das 8h do dia.</p>
+      <label class="check"><input type="checkbox" id="ag_urg" ${t.urgente ? "checked" : ""}>Urgente (fica no topo, em destaque)</label>
       <label class="field"><span>Anotações</span><textarea id="ag_notas" placeholder="Detalhes, telefone, endereço">${esc(t.notas || "")}</textarea></label>
       <p class="err" id="agErr" hidden></p>
       <div class="btns"><button class="btn pri" type="submit">Salvar</button>
@@ -1870,7 +1874,7 @@ function sheetTarefa(id, k, volta){
     ev.preventDefault(); const btn = $("#agForm button[type=submit]"); busy(btn, true);
     const hora = $("#ag_hora").value || null, fim = hora && $("#ag_fim").value ? $("#ag_fim").value : null, rep = $("#ag_rep").value, lem = $("#ag_lem").value;
     const row = { titulo: $("#ag_tit").value.trim(), dia: $("#ag_dia").value, hora, hora_fim: fim, repetir: rep,
-      repetir_ate: rep && $("#ag_ate").value ? $("#ag_ate").value : null, lembrar_min: lem === "" ? null : +lem, notas: $("#ag_notas").value.trim() || null };
+      repetir_ate: rep && $("#ag_ate").value ? $("#ag_ate").value : null, lembrar_min: lem === "" ? null : +lem, notas: $("#ag_notas").value.trim() || null, urgente: $("#ag_urg").checked };
     try{
       if(!row.titulo) throw new Error("Escreva o que é.");
       if(!row.dia) throw new Error("Escolha o dia.");
@@ -1903,6 +1907,70 @@ function sheetApagarTarefa(t, k, volta){
     await loadAgenda(); toast("Apagado da agenda"); if(S.tab === "eq:dia") eqLoad(); atualizarDepoisAgenda(volta);
   };
 }
+/* deslizar: para a esquerda remove (com Desfazer), para a direita marca como urgente */
+async function alternarUrgente(id){
+  const t = AG.itens.find(x => x.id === id); if(!t) return;
+  t.urgente = !t.urgente; render(); vibrar();
+  const { error } = await sb.from("agenda_pessoal").update({ urgente: t.urgente }).eq("id", id);
+  if(error){ t.urgente = !t.urgente; render(); return toast(errMsg(error)); }
+  toast(t.urgente ? "Marcado como urgente" : "Urgência retirada");
+}
+function removerDeslizando(id, k){
+  const t = AG.itens.find(x => x.id === id); if(!t) return;
+  const so = !!t.repetir, idx = AG.itens.indexOf(t);
+  if(so) t.pulados = [...(t.pulados || []), k]; else AG.itens.splice(idx, 1);
+  render(); vibrar();
+  let desfeito = false;
+  const gravar = setTimeout(async () => {
+    if(desfeito) return;
+    const { error } = so ? await sb.from("agenda_pessoal").update({ pulados: t.pulados }).eq("id", id) : await sb.from("agenda_pessoal").delete().eq("id", id);
+    if(error){ toast(errMsg(error)); await loadAgenda(); render(); }
+  }, 6000);
+  toastAcao(so ? "Tirado deste dia" : "Removido da agenda", "Desfazer", () => {
+    desfeito = true; clearTimeout(gravar);
+    if(so) t.pulados = t.pulados.filter(x => x !== k); else AG.itens.splice(idx, 0, t);
+    render();
+  });
+}
+const SW = { el: null, x0: 0, y0: 0, dx: 0, ativo: false, travado: false, ignorarClique: false };
+const LIMIAR = 90;
+$("#view").addEventListener("touchstart", e => {
+  const el = e.target.closest(".tarefa[data-swipe]"); if(!el || e.touches.length > 1) return;
+  Object.assign(SW, { el, x0: e.touches[0].clientX, y0: e.touches[0].clientY, dx: 0, ativo: false, travado: false });
+}, { passive: true });
+$("#view").addEventListener("touchmove", e => {
+  if(!SW.el || SW.travado) return;
+  const dx = e.touches[0].clientX - SW.x0, dy = e.touches[0].clientY - SW.y0;
+  if(!SW.ativo){
+    if(Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)){ SW.travado = true; return; }
+    if(Math.abs(dx) < 10) return;
+    SW.ativo = true; SW.el.classList.add("arrastando");
+  }
+  e.preventDefault();
+  SW.dx = dx; const pronto = Math.abs(dx) > LIMIAR;
+  SW.el.querySelector(".tin").style.transform = `translateX(${dx}px)`;
+  SW.el.classList.toggle("vai-dir", dx > 0); SW.el.classList.toggle("vai-esq", dx < 0);
+  if(pronto !== !!SW.el._pronto){ SW.el._pronto = pronto; SW.el.classList.toggle("pronto", pronto); if(pronto && navigator.vibrate) navigator.vibrate(8); }
+}, { passive: false });
+function fimSwipe(){
+  const el = SW.el; if(!el) return; SW.el = null;
+  if(!SW.ativo) return;
+  SW.ignorarClique = true; setTimeout(() => { SW.ignorarClique = false; }, 350);
+  const inn = el.querySelector(".tin"), dx = SW.dx, id = el.dataset.swipe, k = el.dataset.swk;
+  el.classList.remove("arrastando");
+  if(dx < -LIMIAR){
+    inn.style.transform = `translateX(-110%)`; el.classList.add("saindo");
+    setTimeout(() => removerDeslizando(id, k), 220);
+  } else {
+    inn.style.transform = "";
+    setTimeout(() => el.classList.remove("vai-dir", "vai-esq", "pronto"), 220);
+    if(dx > LIMIAR) setTimeout(() => alternarUrgente(id), 180);
+  }
+}
+$("#view").addEventListener("touchend", fimSwipe);
+$("#view").addEventListener("touchcancel", fimSwipe);
+$("#view").addEventListener("click", e => { if(SW.ignorarClique && e.target.closest(".tarefa")){ e.stopPropagation(); e.preventDefault(); } }, true);
+
 /* toques na agenda, na tela e dentro das folhas */
 function cliqueAgenda(e){
   const b = e.target.closest("[data-agfeito],[data-agedit],[data-agnovo]"); if(!b) return;

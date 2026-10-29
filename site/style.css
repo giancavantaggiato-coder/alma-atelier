@@ -775,7 +775,18 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .aghead .textbtn{align-self:center}
 .agres{margin-top:var(--s1)}
 .tarefas{display:flex;flex-direction:column;margin-top:var(--s3);border-top:1px solid var(--line)}
-.tarefa{display:flex;align-items:center;gap:var(--s3);border-bottom:1px solid var(--line);min-height:60px}
+.tarefa{position:relative;overflow:hidden;border-bottom:1px solid var(--line);touch-action:pan-y}
+.tin{position:relative;z-index:1;display:flex;align-items:center;gap:var(--s3);min-height:60px;background:var(--bg);transition:transform .22s cubic-bezier(.2,0,0,1),background .2s}
+.tarefa.arrastando .tin{transition:none}
+.tfundo{position:absolute;inset:0;display:flex;align-items:center;padding:0 var(--s4);font-size:var(--t-body-s);font-weight:500;opacity:0;transition:opacity .15s}
+.tf-urg{justify-content:flex-start;background:var(--accent);color:#000}
+.tf-del{justify-content:flex-end;background:var(--tile);color:var(--fg)}
+.tarefa.vai-dir .tf-urg,.tarefa.vai-esq .tf-del{opacity:.55}
+.tarefa.pronto.vai-dir .tf-urg,.tarefa.pronto.vai-esq .tf-del{opacity:1}
+.tarefa.saindo{transition:opacity .2s;opacity:0}
+.tarefa.urgente .tin{background:color-mix(in srgb,var(--accent) 14%,var(--bg));box-shadow:inset 3px 0 0 var(--gold)}
+.tarefa.urgente .tchk{margin-left:0}
+.tarefa.urgente.feita .tin{background:var(--bg);box-shadow:none}
 .tchk{width:44px;height:44px;margin-left:-10px;display:grid;place-items:center;flex:none;position:relative;color:var(--bg)}
 .tchk::before{content:"";position:absolute;width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--past-ink)}
 .tchk[aria-pressed="true"]::before{background:var(--fg);box-shadow:none}
@@ -801,3 +812,5 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 /* campos de data e hora: no iPhone eles têm largura própria e vazavam da coluna */
 .field input[type="date"],.field input[type="time"],.field input[type="datetime-local"]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;text-align:left;line-height:46px}
 .field input::-webkit-date-and-time-value{text-align:left;margin:0}
+.agdica{margin-top:var(--s3);font-size:var(--t-label);color:var(--past-ink)}
+.tarefa.urgente .tin{padding-left:var(--s2)}
