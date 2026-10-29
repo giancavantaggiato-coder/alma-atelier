@@ -4,7 +4,7 @@
 :root{
   --bg:#FEFCE6; --fg:#000000; --muted:#666666; --strong:#3A3A3A; --line:#D5D4BF;
   --past:#D5D4BF; --past-ink:#7E7D6C; --accent:#FAE08F; --gold:#C6AE61; --accent-ink:#000000;
-  --tile:#F1EFDC; --urg:#FCEDB8; --danger:#000000; --scrim:rgba(0,0,0,.32);
+  --tile:#F1EFDC; --urg:#FAE08F; --danger:#000000; --scrim:rgba(0,0,0,.32);
   --f:"Neue Haas Grotesk Text","Neue Haas Grotesk","Helvetica Neue",Helvetica,Arial,sans-serif;
   --t-h4:28px; --t-h5:22px; --t-title:16px; --t-body:16px; --t-body-s:14px; --t-label:12px;
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
@@ -13,10 +13,10 @@
 /* tema: automático segue o celular; data-theme força claro ou escuro (escolha em Você > Luminosidade) */
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#000000; --fg:#FEFCE6; --muted:#ABAA98; --strong:#D5D4BF; --line:#3A3A3A; --past:#3A3A3A; --past-ink:#8C8B7C;
-  --accent:#FAE08F; --gold:#FAE08F; --tile:#1E1E1E; --urg:#262626; --danger:#FEFCE6; --scrim:rgba(0,0,0,.6); color-scheme:dark}}
+  --accent:#FAE08F; --gold:#FAE08F; --tile:#1E1E1E; --urg:#FAE08F; --danger:#FEFCE6; --scrim:rgba(0,0,0,.6); color-scheme:dark}}
 :root[data-theme=dark]{
   --bg:#000000; --fg:#FEFCE6; --muted:#ABAA98; --strong:#D5D4BF; --line:#3A3A3A; --past:#3A3A3A; --past-ink:#8C8B7C;
-  --accent:#FAE08F; --gold:#FAE08F; --tile:#1E1E1E; --urg:#262626; --danger:#FEFCE6; --scrim:rgba(0,0,0,.6); color-scheme:dark}
+  --accent:#FAE08F; --gold:#FAE08F; --tile:#1E1E1E; --urg:#FAE08F; --danger:#FEFCE6; --scrim:rgba(0,0,0,.6); color-scheme:dark}
 
 *{box-sizing:border-box}
 html,body{min-height:100%;margin:0}
@@ -778,13 +778,16 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .tarefa{position:relative;overflow:hidden;border-bottom:1px solid var(--line);touch-action:pan-y}
 .tin{position:relative;z-index:1;display:flex;align-items:center;gap:var(--s3);min-height:60px;background:var(--bg);transition:transform .22s cubic-bezier(.2,0,0,1),background .2s}
 .tarefa.arrastando .tin{transition:none}
-.tfundo{position:absolute;inset:0;display:flex;align-items:center;padding:0 var(--s4);font-size:var(--t-body-s);font-weight:500;opacity:0;transition:opacity .15s}
-.tf-urg{justify-content:flex-start;background:var(--accent);color:#000}
+.tfundo{position:absolute;inset:0;display:flex;align-items:center;padding:0 var(--s4);font-size:var(--t-body-s);font-weight:500;visibility:hidden;border-radius:12px}
+.tf-urg{justify-content:flex-start;background:#FAE08F;color:#000}
 .tf-del{justify-content:flex-end;background:var(--tile);color:var(--fg)}
-.tarefa.vai-dir .tf-urg,.tarefa.vai-esq .tf-del{opacity:.55}
-.tarefa.pronto.vai-dir .tf-urg,.tarefa.pronto.vai-esq .tf-del{opacity:1}
+.tarefa.urgente .tf-urg{background:var(--tile);color:var(--fg)}
+.tarefa.vai-dir .tf-urg,.tarefa.vai-esq .tf-del{visibility:visible;color:transparent;transition:color .15s}
+.tarefa.pronto.vai-dir .tf-urg{color:#000}
+.tarefa.pronto.vai-esq .tf-del,.tarefa.urgente.pronto.vai-dir .tf-urg{color:var(--fg)}
 .tarefa.saindo{transition:opacity .2s;opacity:0}
-.tarefa.urgente .tin{background:var(--urg);box-shadow:inset 3px 0 0 var(--gold)}
+.tarefa.urgente .tin{background:var(--urg);--fg:#000000;--muted:#3A3A3A;--past-ink:#5E5A45;--bg:#FAE08F;color:#000;border-radius:12px}
+.tarefa.urgente{border-bottom-color:transparent;margin-bottom:var(--s1)}
 .tarefa.urgente .tchk{margin-left:0}
 .tarefa.urgente.feita .tin{background:var(--bg);box-shadow:none}
 .tchk{width:44px;height:44px;margin-left:-10px;display:grid;place-items:center;flex:none;position:relative;color:var(--bg)}
