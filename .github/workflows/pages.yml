@@ -19,7 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Marcar versão
-        run: echo "{\"v\":\"${GITHUB_SHA::7}\"}" > site/version.json
+        run: |
+          echo "{\"v\":\"${GITHUB_SHA::7}\"}" > site/version.json
+          sed -i "s/?v=dev/?v=${GITHUB_SHA::7}/g; s/name=\"alma-versao\" content=\"dev\"/name=\"alma-versao\" content=\"${GITHUB_SHA::7}\"/" site/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

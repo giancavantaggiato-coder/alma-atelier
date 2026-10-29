@@ -421,6 +421,9 @@ async function checarVersao(){
   try{
     const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" }); if(!r.ok) return;
     const { v } = await r.json(); if(!v) return;
+    /* a página aberta é de uma versão antiga (cache do navegador): abre de novo pedindo a nova */
+    const minha = (document.querySelector('meta[name="alma-versao"]') || {}).content;
+    if(minha && minha !== "dev" && minha !== v && new URLSearchParams(location.search).get("v") !== v && !document.querySelector("#sheet.show")){ location.replace("./?v=" + encodeURIComponent(v)); return; }
     if(VERSAO === null){ VERSAO = v; return; }
     if(v !== VERSAO && !document.querySelector("#sheet.show") && !document.querySelector("#paForm") && !document.querySelector("#nsForm") && !document.querySelector("#dEditor")) location.reload();
   }catch(_){}
