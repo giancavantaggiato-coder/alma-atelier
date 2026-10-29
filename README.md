@@ -99,3 +99,8 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 
 ## Alertas da equipe
 - `equipe_alertas()`: 2+ aulas seguidas sem vir, 6+ reposições acumuladas, aulas com lista de espera. Aparecem no Hoje da equipe.
+
+## Modo vinho
+- Sexta, das 22h à meia-noite (hora do aparelho), o app inteiro fica bordô (Cinzento 02 do brandbook), com detalhes em vermelho e creme. Vale para todos.
+- No Hoje da equipe, sem aula, aparece "Provavelmente brindando".
+- Para testar fora do horário: abrir `app.almaestudosvisuais.com.br/?vinho=1` (fica ligado até fechar a aba).

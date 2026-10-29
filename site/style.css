@@ -822,3 +822,14 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .tarefa.urgente.levantada .tin{background:var(--urg)}
 body.reordenando{overflow:hidden;-webkit-user-select:none;user-select:none}
 .tarefa{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+
+/* modo vinho: sexta, das 22h à meia-noite (bordô do brandbook, detalhes em vermelho e creme) */
+html.vinho:root{
+  --bg:#5B1F20; --fg:#FEFCE6; --muted:#DDBFB6; --strong:#F2E4D8; --line:#7A3536; --past:#7A3536; --past-ink:#C29890;
+  --accent:#FEFCE6; --gold:#E0524C; --accent-ink:#5B1F20; --tile:#6B2828; --urg:#A82424; --danger:#FEFCE6; --scrim:rgba(30,6,8,.6);
+  color-scheme:dark}
+html.vinho .tarefa.urgente .tin{--fg:#FEFCE6;--muted:#F2D3CC;--past-ink:#E6B0A8;--bg:#A82424;color:#FEFCE6}
+html.vinho .tf-urg{background:#A82424;color:#FEFCE6}
+html.vinho .tarefa.pronto.vai-dir .tf-urg{color:#FEFCE6}
+html.vinho .live .dot{background:#E0524C}
+html.vinho body{transition:background .6s}

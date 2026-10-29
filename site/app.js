@@ -438,9 +438,22 @@ function aplicarTema(t){
   const r = document.documentElement;
   if(t === "claro") r.setAttribute("data-theme","light"); else if(t === "escuro") r.setAttribute("data-theme","dark"); else r.removeAttribute("data-theme");
   const escuro = t === "escuro" || (t === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute("media"); m.setAttribute("content", escuro ? "#000000" : "#FEFCE6"); });
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute("media"); m.setAttribute("content", horaDoVinho() ? "#5B1F20" : escuro ? "#000000" : "#FEFCE6"); });
+}
+/* modo vinho: sexta, das 22h à meia-noite, o app fica bordô. ?vinho=1 liga para testar (vale até fechar o app) */
+let VINHO_TESTE = false;
+try{ VINHO_TESTE = new URLSearchParams(location.search).get("vinho") === "1" || sessionStorage.getItem("alma-vinho") === "1"; if(VINHO_TESTE) sessionStorage.setItem("alma-vinho", "1"); }catch(_){}
+function horaDoVinho(){ const d = new Date(); return VINHO_TESTE || (d.getDay() === 5 && d.getHours() >= 22); }
+function conferirVinho(){
+  const on = horaDoVinho(), r = document.documentElement;
+  if(on === r.classList.contains("vinho")) return;
+  r.classList.toggle("vinho", on); aplicarTema(temaAtual());
+  if(typeof render === "function" && S.session) try{ render(); }catch(_){}
 }
 aplicarTema(temaAtual());
+document.documentElement.classList.toggle("vinho", horaDoVinho()); aplicarTema(temaAtual());
+setInterval(conferirVinho, 30 * 1000);
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") conferirVinho(); });
 if(window.matchMedia){ const mq = matchMedia("(prefers-color-scheme: dark)"); const f = () => { if(temaAtual() === "auto") aplicarTema("auto"); }; mq.addEventListener ? mq.addEventListener("change", f) : mq.addListener && mq.addListener(f); }
 const ICO_TEMA = {
   auto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>',
@@ -1215,7 +1228,7 @@ function viewHojeEq(){
     <p class="sub" style="font-size:var(--t-body)">${estado}</p>
   </header>
   <button class="live" id="liveBtn" ${live ? "" : "disabled"}>
-    <span class="dot"></span><u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : agora ? "Aula agora, ninguém confirmado" : "Sem aula no momento"}</u>
+    <span class="dot"></span><u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : agora ? "Aula agora, ninguém confirmado" : horaDoVinho() ? "Provavelmente brindando" : "Sem aula no momento"}</u>
   </button>
   ${blocoRecados()}
   ${nx ? `<section class="tile wide next">
