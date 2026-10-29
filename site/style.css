@@ -4,7 +4,7 @@
 :root{
   --bg:#FEFCE6; --fg:#000000; --muted:#666666; --strong:#3A3A3A; --line:#D5D4BF;
   --past:#D5D4BF; --past-ink:#7E7D6C; --accent:#FAE08F; --gold:#C6AE61; --accent-ink:#000000;
-  --tile:#F1EFDC; --danger:#000000; --scrim:rgba(0,0,0,.32);
+  --tile:#F1EFDC; --urg:#FCEDB8; --danger:#000000; --scrim:rgba(0,0,0,.32);
   --f:"Neue Haas Grotesk Text","Neue Haas Grotesk","Helvetica Neue",Helvetica,Arial,sans-serif;
   --t-h4:28px; --t-h5:22px; --t-title:16px; --t-body:16px; --t-body-s:14px; --t-label:12px;
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
@@ -13,10 +13,10 @@
 /* tema: automático segue o celular; data-theme força claro ou escuro (escolha em Você > Luminosidade) */
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#000000; --fg:#FEFCE6; --muted:#ABAA98; --strong:#D5D4BF; --line:#3A3A3A; --past:#3A3A3A; --past-ink:#8C8B7C;
-  --accent:#FAE08F; --gold:#FAE08F; --tile:#1E1E1E; --danger:#FEFCE6; --scrim:rgba(0,0,0,.6); color-scheme:dark}}
+  --accent:#FAE08F; --gold:#FAE08F; --tile:#1E1E1E; --urg:#262626; --danger:#FEFCE6; --scrim:rgba(0,0,0,.6); color-scheme:dark}}
 :root[data-theme=dark]{
   --bg:#000000; --fg:#FEFCE6; --muted:#ABAA98; --strong:#D5D4BF; --line:#3A3A3A; --past:#3A3A3A; --past-ink:#8C8B7C;
-  --accent:#FAE08F; --gold:#FAE08F; --tile:#1E1E1E; --danger:#FEFCE6; --scrim:rgba(0,0,0,.6); color-scheme:dark}
+  --accent:#FAE08F; --gold:#FAE08F; --tile:#1E1E1E; --urg:#262626; --danger:#FEFCE6; --scrim:rgba(0,0,0,.6); color-scheme:dark}
 
 *{box-sizing:border-box}
 html,body{min-height:100%;margin:0}
@@ -784,7 +784,7 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .tarefa.vai-dir .tf-urg,.tarefa.vai-esq .tf-del{opacity:.55}
 .tarefa.pronto.vai-dir .tf-urg,.tarefa.pronto.vai-esq .tf-del{opacity:1}
 .tarefa.saindo{transition:opacity .2s;opacity:0}
-.tarefa.urgente .tin{background:color-mix(in srgb,var(--accent) 14%,var(--bg));box-shadow:inset 3px 0 0 var(--gold)}
+.tarefa.urgente .tin{background:var(--urg);box-shadow:inset 3px 0 0 var(--gold)}
 .tarefa.urgente .tchk{margin-left:0}
 .tarefa.urgente.feita .tin{background:var(--bg);box-shadow:none}
 .tchk{width:44px;height:44px;margin-left:-10px;display:grid;place-items:center;flex:none;position:relative;color:var(--bg)}
@@ -816,6 +816,6 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .tarefa.urgente .tin{padding-left:var(--s2)}
 .tarefa.levantada{z-index:3;overflow:visible}
 .tarefa.levantada .tin{transform:scale(1.02);box-shadow:0 8px 24px rgba(0,0,0,.35);border-radius:12px;background:var(--tile)}
-.tarefa.urgente.levantada .tin{background:color-mix(in srgb,var(--accent) 22%,var(--tile))}
+.tarefa.urgente.levantada .tin{background:var(--urg)}
 body.reordenando{overflow:hidden;-webkit-user-select:none;user-select:none}
 .tarefa{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
