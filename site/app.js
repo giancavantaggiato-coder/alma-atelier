@@ -797,8 +797,8 @@ function viewAgenda(){
   ${repoLivre() ? `<div class="credits"><span><b>Reposições sem limite</b> <span style="color:var(--muted)">marque quantas quiser</span></span></div>
   <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>` : livre() ? `<div class="credits"><span><b>Plano livre</b> <span style="color:var(--muted)">sem limite de aulas</span></span></div>
   <div class="hint"><span>Toque num dia com vaga para marcar uma aula.</span><span>Toque numa aula marcada para desmarcar.</span></div>` : `<div class="credits">
-    <span class="tnum"><b>${ac} de ${MAX_CRED}</b> <span style="color:var(--muted)">reposições disponíveis</span></span>
-    <div class="dots" aria-hidden="true">${Array.from({length:MAX_CRED},(_,i)=>`<span class="${i<ac?"on":""}"></span>`).join("")}</div>
+    <span class="tnum"><b>${ac > MAX_CRED ? ac : `${ac} de ${MAX_CRED}`}</b> <span style="color:var(--muted)">reposições disponíveis</span></span>
+    ${ac > MAX_CRED ? "" : `<div class="dots" aria-hidden="true">${Array.from({length:MAX_CRED},(_,i)=>`<span class="${i<ac?"on":""}"></span>`).join("")}</div>`}
   </div>
   <div class="hint"><span>Toque num dia com vaga para marcar uma reposição.</span><span>Toque no seu dia para desmarcar ou remarcar.</span></div>`}
   ${!livre() && mudancas().total ? `<button class="textbtn voltar" id="voltarFixos">Reverter para meus dias fixos</button>` : ""}`;
@@ -1374,7 +1374,7 @@ function viewVoce(){
   <div class="tiles">
     ${repoLivre() ? `<button class="tile" data-go="agenda"><div class="tl"><h2 class="tt">Reposições</h2></div><div class="tv">∞</div><p class="ts">Sem limite</p></button>` : livre() ? `<button class="tile" data-go="agenda"><div class="tl"><h2 class="tt">Seu plano</h2></div><div class="tv">Livre</div><p class="ts">Sem limite de aulas</p></button>` : `<button class="tile" data-go="agenda">
       <div class="tl"><h2 class="tt">Reposições</h2></div>
-      <div class="tv tnum">${cr.length}<small> de ${MAX_CRED}</small></div>
+      <div class="tv tnum">${cr.length}${cr.length > MAX_CRED ? "" : `<small> de ${MAX_CRED}</small>`}</div>
     </button>`}
     <section class="tile">
       <div class="tl"><h2 class="tt">Seus dias</h2>${turmas[0] && turmas.every(t => t.inicio === turmas[0].inicio && t.fim === turmas[0].fim) ? `<span class="chip">${hm(turmas[0].inicio)}–${hm(turmas[0].fim)}</span>` : ""}</div>
