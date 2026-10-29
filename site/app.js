@@ -4,8 +4,13 @@ const CFG = window.ALMA_CONFIG || {};
 /* Modo aluno da equipe: com ele ligado, todo pedido ao banco leva x-alma-ver-como: aluno
    e o banco trata a equipe como o seu cadastro fantasma. Fica lembrado neste aparelho. */
 const verAluno = v => { try{ if(v === undefined) return localStorage.getItem("alma-ver-aluno") === "1"; v ? localStorage.setItem("alma-ver-aluno","1") : localStorage.removeItem("alma-ver-aluno"); }catch(_){ } return !!v; };
+/* Trava do login só dentro desta aba. A trava padrão do Supabase é dividida entre todas as abas
+   do app; no Android, uma aba antiga congelada em segundo plano segurava a trava e a tela
+   ficava carregando para sempre depois do código. */
+let _filaAuth = Promise.resolve();
+const travaDaAba = (_nome, _espera, fn) => { const r = _filaAuth.then(() => fn()); _filaAuth = r.catch(() => {}); return r; };
 const sb = window.supabase.createClient(CFG.url, CFG.key, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: "alma-atelier-auth" },
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: "alma-atelier-auth", lock: travaDaAba },
   global: { fetch: (url, opts = {}) => {
     if(!verAluno() || !String(url).includes("/rest/v1/")) return fetch(url, opts);
     const h = new Headers(opts.headers || {}); h.set("x-alma-ver-como", "aluno");
@@ -347,7 +352,23 @@ function abrirLinkDireto(){
   if(ir && ["hoje","agenda","eventos","voce","diario","painel"].includes(ir)) go(ir);
   if(aula && S.aluno){ const a = S.agenda.find(x => x.aula_id === aula); if(a) sheetAula(a); }
 }
+/* se a abertura travar, em vez de carregar para sempre mostra um botão para tentar de novo */
+let BOOT = 0, bootFeito = 0;
+function vigiarBoot(id){
+  setTimeout(() => {
+    if(bootFeito >= id || BOOT !== id || !document.querySelector("#view .sk-tela")) return;
+    $("#nav").hidden = true;
+    $("#view").innerHTML = `<div class="auth"><div class="auth-hero">${LOGO_ALMA}</div><div class="auth-panel">
+      <div class="auth-head"><h1>O app demorou para abrir</h1><p>Toque para tentar de novo. Você continua conectado.</p></div>
+      <button class="abtn light" id="bootDeNovo">Tentar de novo</button></div></div>`;
+    $("#bootDeNovo").onclick = () => location.reload();
+  }, 12000);
+}
 async function boot(){
+  const id = ++BOOT; vigiarBoot(id);
+  try{ return await bootDentro(); } finally { if(BOOT === id) bootFeito = id; }
+}
+async function bootDentro(){
   $("#view").innerHTML = esqueleto();
   const { data } = await sb.auth.getSession();
   S.session = data.session;
@@ -371,10 +392,8 @@ async function boot(){
       $("#sair").onclick = () => sb.auth.signOut();
       return;
     }
-    if(precisaCompletar()){
-      if(!acabouDeEntrar() && !S.comoAluno){ await sb.auth.signOut(); return; }
-      return primeiroAcesso();
-    }
+    /* cadastro incompleto: vai direto para o cadastro, sem pedir o código de novo */
+    if(precisaCompletar()) return await primeiroAcesso();
     if(!S.comoAluno && await pedirSenha()) return;
     if(!S.aluno){ if(!["eqhoje","painel"].includes(S.tab) && !isEqTab()) S.tab = "eqhoje"; if(S.tab === "eqhoje") loadHojeEq(); }
     await Promise.all([loadAluno(), loadEventos()]);
