@@ -1814,7 +1814,7 @@ function blocoAgenda(){
   const prox = []; for(let i = 1; i <= 7; i++){ const k = dkey(addDays(now(), i)); const l = agendaDoDia(k).filter(o => !o.feito && o.t.repetir !== "diario"); if(l.length) prox.push([k, l]); }
   const pend = dia.filter(o => !o.feito).length;
   return `<section class="agenda">
-    <div class="aghead"><p class="label">Seu dia</p><button class="agadd" data-agnovo="${hoje}" aria-label="Adicionar à agenda de hoje">${ICO_MAIS}</button></div>
+    <div class="aghead"><p class="label">Seu dia</p><button class="textbtn" data-agnovo="${hoje}" aria-label="Adicionar à agenda de hoje">Adicionar</button></div>
     ${dia.length ? `<p class="sub agres">${pend ? `${plural(pend, "pendência", "pendências")} para hoje` : "Tudo feito por hoje."}</p>` : ""}
     <div class="tarefas">${atras.map(o => linhaTarefa(o)).join("")}${dia.map(o => linhaTarefa(o)).join("")}</div>
     ${!dia.length && !atras.length ? `<button class="agvazio" data-agnovo="${hoje}">Nada marcado para hoje. Toque para adicionar uma tarefa ou compromisso.</button>` : ""}
@@ -1852,7 +1852,7 @@ function sheetTarefa(id, k, volta){
       <div class="row2"><label class="field"><span>Repetir</span><select id="ag_rep">${opts(REPETIR, t.repetir)}</select></label>
         <label class="field"><span>Lembrete</span><select id="ag_lem">${opts(LEMBRAR, t.lembrar_min)}</select></label></div>
       <label class="field" id="ag_ateBox" ${t.repetir ? "" : "hidden"}><span>Repetir até (vazio = sempre)</span><input id="ag_ate" type="date" value="${esc(t.repetir_ate || "")}"></label>
-      <p class="sub" id="ag_semHora" ${t.hora ? "hidden" : ""}>Sem horário, o lembrete conta a partir das 8h do dia.</p>
+      <p class="sub" id="ag_semHora" ${t.hora || t.lembrar_min == null ? "hidden" : ""}>Sem horário, o lembrete conta a partir das 8h do dia.</p>
       <label class="field"><span>Anotações</span><textarea id="ag_notas" placeholder="Detalhes, telefone, endereço">${esc(t.notas || "")}</textarea></label>
       <p class="err" id="agErr" hidden></p>
       <div class="btns"><button class="btn pri" type="submit">Salvar</button>
@@ -1861,7 +1861,8 @@ function sheetTarefa(id, k, volta){
         <button class="btn ghost" type="button" ${volta ? `id="agVoltar"` : "data-close"}>${volta ? "Voltar ao dia" : "Cancelar"}</button></div>
     </form>`);
   $("#ag_rep").onchange = () => { $("#ag_ateBox").hidden = !$("#ag_rep").value; };
-  $("#ag_hora").oninput = () => { $("#ag_semHora").hidden = !!$("#ag_hora").value; };
+  const dica = () => { $("#ag_semHora").hidden = !!$("#ag_hora").value || $("#ag_lem").value === ""; };
+  $("#ag_hora").oninput = dica; $("#ag_lem").onchange = dica;
   const vv = $("#agVoltar"); if(vv) vv.onclick = () => sheetDiaEq(volta);
   const fb = $("#agFeito"); if(fb) fb.onclick = async () => { await marcarFeito(id, ocorr); atualizarDepoisAgenda(volta); };
   const ab = $("#agApagar"); if(ab) ab.onclick = () => sheetApagarTarefa(t, ocorr, volta);

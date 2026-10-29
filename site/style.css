@@ -89,7 +89,7 @@ main{padding-left:max(var(--s4),env(safe-area-inset-left,0px));padding-right:max
 .field > span{font-size:var(--t-label);font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .field input,.field select,.field textarea{font:inherit;font-size:var(--t-body);color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:12px;height:48px;padding:0 var(--s4);width:100%;min-width:0}
 .field textarea{height:96px;padding:var(--s3) var(--s4);resize:vertical}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--s3)}
 .check{display:flex;align-items:center;gap:var(--s3);min-height:44px;font-size:var(--t-body)}
 .check input{width:20px;height:20px;accent-color:var(--fg)}
 .form{display:flex;flex-direction:column;gap:var(--s3);margin-top:var(--s4)}
@@ -773,8 +773,6 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .agenda{margin-top:var(--s6)}
 .aghead{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);min-height:40px}
 .aghead .textbtn{align-self:center}
-.agadd{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--fg);color:var(--bg);flex:none}
-.agadd svg{width:22px;height:22px}
 .agres{margin-top:var(--s1)}
 .tarefas{display:flex;flex-direction:column;margin-top:var(--s3);border-top:1px solid var(--line)}
 .tarefa{display:flex;align-items:center;gap:var(--s3);border-bottom:1px solid var(--line);min-height:60px}
@@ -799,3 +797,7 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 .agdot{width:5px;height:5px;border-radius:50%;background:var(--fg);flex:none}
 .agdot.feito{background:var(--past-ink)}
 .aglegenda{display:inline-flex;align-items:center;gap:var(--s2)}
+
+/* campos de data e hora: no iPhone eles têm largura própria e vazavam da coluna */
+.field input[type="date"],.field input[type="time"],.field input[type="datetime-local"]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;text-align:left;line-height:46px}
+.field input::-webkit-date-and-time-value{text-align:left;margin:0}
