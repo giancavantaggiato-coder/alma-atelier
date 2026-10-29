@@ -114,7 +114,8 @@ function render(){
   if(precisaCompletar()) return PA.pronto ? renderPA() : primeiroAcesso();
   if(NS.ativo) return renderNovaSenha();
   renderNav();
-  document.body.classList.toggle("na-voce", ["painel","voce"].includes(S.tab));
+  const naVoce = ["painel","voce"].includes(S.tab);
+  if(naVoce !== document.body.classList.contains("na-voce")){ document.body.classList.toggle("na-voce", naVoce); if(horaDoVinho()) aplicarTema(temaAtual()); }
   const v = S.visitante && !isEqTab() ? ({ hoje: viewHojeV, agenda: viewAgendaV, eventos: viewEventos, evento: viewEventoPag, voce: viewVoceV }[S.tab] || viewHojeV)
     : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, evento: viewEventoPag, voce: viewVoce, diario: viewDiario, painel: viewPainel, eqhoje: viewHojeEq }[S.tab] || (adminOnly() ? viewHojeEq : viewHoje));
   try{ $("#view").innerHTML = v(); }
@@ -439,7 +440,7 @@ function aplicarTema(t){
   const r = document.documentElement;
   if(t === "claro") r.setAttribute("data-theme","light"); else if(t === "escuro" || t === "vinho") r.setAttribute("data-theme","dark"); else r.removeAttribute("data-theme");
   const escuro = t === "escuro" || (t === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute("media"); m.setAttribute("content", horaDoVinho() ? "#5B1F20" : escuro ? "#000000" : "#FEFCE6"); });
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute("media"); m.setAttribute("content", horaDoVinho() && !document.body.classList.contains("na-voce") ? "#5B1F20" : escuro ? "#000000" : "#FEFCE6"); });
 }
 /* modo vinho: sexta, das 22h à meia-noite, o app fica bordô. ?vinho=1 liga para testar (vale até fechar o app) */
 let VINHO_TESTE = false;
