@@ -94,7 +94,7 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 ## Lembretes no celular
 - `site/sw.js` recebe os avisos. Inscrições em `push_inscricoes`; avisos em `notificacoes`, enviados pela função `enviar-push`.
 - Chaves no Vault: `vapid_publica`, `vapid_privada`, `push_segredo`. A pública também está em `config.js`.
-- Avisos: véspera da aula (19h, pg_cron), aula cancelada, vaga aberta na lista de espera, pedido de mudança (equipe e aluno).
+- Avisos: véspera da aula (19h, pg_cron), aula cancelada, vaga aberta na lista de espera, pedido de mudança (equipe e aluno), reposição marcada por aluno (equipe, migração 30) e lembretes da agenda pessoal.
 - No iPhone só funciona com o app instalado na tela de início (iOS 16.4+).
 
 ## Alertas da equipe

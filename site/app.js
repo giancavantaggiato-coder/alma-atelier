@@ -2094,7 +2094,7 @@ async function desativarPush(btn){
   P.estado = "desligado"; P.salvo = false; closeSheet(); render(); toast("Lembretes desligados neste aparelho");
 }
 const PUSH_O_QUE = () => S.equipe && !S.aluno
-  ? ["Quando chega um pedido de mudança de frequência ou dias"]
+  ? ["Quando chega um pedido de mudança de frequência ou dias", "Quando um aluno marca uma reposição", "Os lembretes da sua agenda"]
   : ["Na véspera de cada aula, às 19h", "Se o atelier cancelar uma aula sua", "Quando abrir vaga numa aula da sua lista de espera", "Quando seu pedido de mudança for respondido"];
 function sheetPush(){
   if(P.estado !== "ativo") return ativarPush($("#pushBtn"));
