@@ -21,11 +21,9 @@ create table if not exists public.agenda_pessoal (
 create index if not exists agenda_pessoal_dono on public.agenda_pessoal (dono, dia);
 
 alter table public.agenda_pessoal enable row level security;
-drop policy if exists agenda_pessoal_dono on public.agenda_pessoal;
 create policy agenda_pessoal_dono on public.agenda_pessoal for all to authenticated
   using (dono = auth.uid() and public.sou_equipe())
   with check (dono = auth.uid() and public.sou_equipe());
-revoke all on public.agenda_pessoal from anon;
 grant select, insert, update, delete on public.agenda_pessoal to authenticated;
 
 -- a tarefa acontece neste dia?
@@ -43,13 +41,9 @@ returns boolean language sql immutable set search_path = public as $$
          end
 $$;
 
--- avisos para um login específico (a agenda é de quem criou, não da equipe toda)
+-- avisos para um login específico (a agenda é de quem criou, não da equipe toda):
+-- o aviso entra como destino 'equipe' com auth_user_id preenchido, e a enviar-push manda só para esse login.
 alter table public.notificacoes add column if not exists auth_user_id uuid references auth.users(id) on delete cascade;
-alter table public.notificacoes drop constraint if exists notificacoes_destino_check;
-alter table public.notificacoes drop constraint if exists notificacoes_check;
-alter table public.notificacoes add constraint notificacoes_destino_check check (destino in ('pessoa','equipe','usuario'));
-alter table public.notificacoes add constraint notificacoes_check check (
-  destino = 'equipe' or (destino = 'pessoa' and pessoa_id is not null) or (destino = 'usuario' and auth_user_id is not null));
 
 -- lembretes da agenda pessoal: roda a cada minuto e manda o que venceu nos últimos 15 min
 create or replace function public.gerar_lembretes_agenda()
@@ -68,7 +62,7 @@ begin
            between now() - interval '15 minutes' and now()
   loop
     insert into public.notificacoes (destino, auth_user_id, titulo, corpo, url, chave)
-    values ('usuario', r.dono, r.titulo,
+    values ('equipe', r.dono, r.titulo,
       case when r.hora is null then 'Hoje, sem horário marcado.'
            when r.lembrar_min = 0 then 'Agora, ' || public.hora_txt(r.quando) || '.'
            when (r.quando at time zone 'America/Sao_Paulo')::date = v_hoje then 'Hoje às ' || public.hora_txt(r.quando) || '.'
@@ -89,5 +83,4 @@ language sql stable set search_path = public as $$
               else upper(left(public.quando_txt(p), 1)) || substr(public.quando_txt(p), 2) end || '.'
 $$;
 
-select cron.unschedule('alma-agenda-lembretes') where exists (select 1 from cron.job where jobname = 'alma-agenda-lembretes');
 select cron.schedule('alma-agenda-lembretes', '* * * * *', $$select public.gerar_lembretes_agenda()$$);

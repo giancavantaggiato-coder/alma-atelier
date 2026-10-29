@@ -2,7 +2,7 @@
 // Chamada pelo próprio banco (pg_net) quando entra um aviso novo e a cada 10 min por segurança.
 // As chaves ficam no Vault; quem chama precisa mandar o x-alma-segredo certo.
 // Os avisos são reservados por pegar_notificacoes() (skip locked), então chamadas simultâneas não mandam o mesmo aviso duas vezes.
-// Destinos: 'pessoa' (aluno pelo cadastro), 'equipe' (toda a equipe) e 'usuario' (um login só, ex.: agenda pessoal).
+// Destinos: 'pessoa' (aluno pelo cadastro) e 'equipe' (toda a equipe). Com auth_user_id preenchido, vai só para esse login (ex.: agenda pessoal).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
   (pessoas || []).forEach((p: any) => { if (p.auth_user_id) userDe[p.id] = p.auth_user_id; });
   const { data: eq } = await admin.from("equipe").select("auth_user_id").not("auth_user_id", "is", null);
   const equipeUsers = (eq || []).map((e: any) => e.auth_user_id);
-  const diretos = pend.filter((n: any) => n.destino === "usuario" && n.auth_user_id).map((n: any) => n.auth_user_id);
+  const diretos = pend.filter((n: any) => n.auth_user_id).map((n: any) => n.auth_user_id);
   const users = [...new Set([...Object.values(userDe), ...equipeUsers, ...diretos])];
   const { data: subs } = users.length
     ? await admin.from("push_inscricoes").select("*").in("auth_user_id", users)
@@ -44,15 +44,15 @@ Deno.serve(async (req) => {
   let enviados = 0;
   const mortas = new Set<string>();
   for (const n of pend as any[]) {
-    const alvos = n.destino === "equipe" ? equipeUsers
-      : n.destino === "usuario" ? (n.auth_user_id ? [n.auth_user_id] : [])
+    const alvos = n.auth_user_id ? [n.auth_user_id]
+      : n.destino === "equipe" ? equipeUsers
       : (userDe[n.pessoa_id] ? [userDe[n.pessoa_id]] : []);
     const meus = (subs || []).filter((s: any) => alvos.includes(s.auth_user_id) && !mortas.has(s.endpoint));
     const payload = JSON.stringify({ title: n.titulo, body: n.corpo || "", url: n.url || "./", tag: n.chave || n.id });
     let ok = meus.length === 0, falhou = false; // sem aparelho inscrito: dá como resolvido
     for (const s of meus) {
       try {
-        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 60 * 60 * 12, urgency: n.destino === "usuario" ? "high" : "normal" });
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 60 * 60 * 12, urgency: n.auth_user_id ? "high" : "normal" });
         ok = true; enviados++;
         await admin.from("push_inscricoes").update({ usado_em: new Date().toISOString() }).eq("endpoint", s.endpoint);
       } catch (e) {

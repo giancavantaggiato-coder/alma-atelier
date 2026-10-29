@@ -67,7 +67,7 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 - Cada item tem dia, horário opcional (e fim), repetição (todo dia, toda semana, todo mês, com data final opcional), lembrete no celular (na hora até 1 semana antes) e anotações. Item que repete pode ser apagado só de um dia.
 - No **Calendário**, um pontinho embaixo do número marca dia com coisa sua; ao tocar no dia aparece "Sua agenda" junto com as aulas.
 - Banco: tabela `agenda_pessoal` (migração 27). Só o próprio dono, sendo da equipe, lê e escreve; alunos e o modo "ver como aluno" não enxergam.
-- Lembretes: `gerar_lembretes_agenda()` roda a cada minuto (pg_cron `alma-agenda-lembretes`) e cria avisos com destino `usuario`, enviados pela `enviar-push` só para o login dono. Sem horário, o lembrete conta a partir das 8h.
+- Lembretes: `gerar_lembretes_agenda()` roda a cada minuto (pg_cron `alma-agenda-lembretes`) e cria avisos (destino `equipe` com `auth_user_id` do dono), e a `enviar-push` manda só para esse login. Sem horário, o lembrete conta a partir das 8h.
 - Menu do admin: Hoje · Calendário · Pessoas · Eventos · Você. **Horários** fica em Você → Horários do atelier.
 
 ## Primeiros passos da equipe
