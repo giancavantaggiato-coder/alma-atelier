@@ -349,7 +349,7 @@ function abrirLinkDireto(){
   const q = new URLSearchParams(location.search), aula = q.get("aula"), ir = q.get("ir");
   if(!aula && !ir) return;
   try{ history.replaceState(null, "", location.pathname); }catch(_){}
-  if(ir && ["hoje","agenda","eventos","voce","diario","painel"].includes(ir)) go(ir);
+  if(ir && ["hoje","agenda","eventos","voce","diario","painel","eqhoje"].includes(ir)) go(ir);
   if(aula && S.aluno){ const a = S.agenda.find(x => x.aula_id === aula); if(a) sheetAula(a); }
 }
 /* se a abertura travar, em vez de carregar para sempre mostra um botão para tentar de novo */
@@ -1187,7 +1187,7 @@ async function loadHojeEq(){
   const [ms, live, pd, pn, , al] = await Promise.all([
     sb.rpc("equipe_mes", { p_de: dkey(de), p_ate: dkey(ate) }), sb.rpc("em_aula_agora"),
     sb.rpc("equipe_pedidos"), S.painel ? Promise.resolve({ data: S.painel }) : sb.rpc("meu_painel_equipe"), loadEventos(),
-    sb.rpc("equipe_alertas"), loadRecados()
+    sb.rpc("equipe_alertas"), loadRecados(), loadAgenda()
   ]);
   const ordem = { faltas: 0, reposicoes: 1, espera: 2 };
   S.eq.alertas = (al.data || []).sort((a, b) => (ordem[a.tipo] ?? 9) - (ordem[b.tipo] ?? 9) || b.valor - a.valor);
@@ -1205,9 +1205,6 @@ function viewHojeEq(){
   const nx = abertas.find(a => a.fim > n && a !== agora) || null;
   const estado = agora ? `Atelier aberto agora, até as ${hh(agora.fim)}.` : hoje.length ? `Hoje o atelier abre às ${hh(hoje[0].ini)}.` : abertas.some(a => dkey(a.ini) === dkey(n)) ? "As aulas de hoje já terminaram." : "Hoje o atelier está fechado.";
   const live = S.live.length, np = (E.pedidos || []).length;
-  const ev = S.eventos.find(e => e.fim > n);
-  const sem = abertas.filter(a => a.ini >= startOfDay(n) && a.ini < addDays(startOfDay(n), 7));
-  const vagasSem = sem.reduce((t, a) => t + Math.max(0, a.capacidade - a.ocupadas), 0);
   return `
   <header class="hello">
     <p class="label">${cap1(WD[n.getDay()])}, ${dm(n)}</p>
@@ -1224,12 +1221,8 @@ function viewHojeEq(){
     <p class="ts">${hh(nx.ini)} às ${hh(nx.fim)}</p>
     <button class="textbtn" data-eqdia="${dkey(nx.ini)}">Ver quem vem</button>
   </section>` : `<section class="tile wide next"><div class="tl"><h2 class="tt">Próxima aula</h2></div><p class="sub">Nenhuma aula nas próximas semanas. Confira os horários do atelier.</p></section>`}
-  <div class="list">
-    <button class="li" id="pnPedidos"><span class="ind ${np ? "" : "n"}"></span>Pedidos de mudança<span class="end tnum">${np ? `${np} aguardando` : "nenhum"}</span></button>
-    <button class="li" data-tabgo="eq:dia"><span class="ind n"></span>Próximos 7 dias<span class="end tnum">${plural(sem.length, "aula", "aulas")}, ${plural(vagasSem, "vaga", "vagas")}</span></button>
-    ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${ev.inscritos ? `, ${plural(ev.inscritos, "inscrito", "inscritos")}` : ""}</span></button>` : `<button class="li" data-editev="novo"><span class="ind n"></span>Criar evento</button>`}
-    <button class="li" id="pnEmails"><span class="ind n"></span>Adicionar alunos por e-mail</button>
-  </div>
+  ${np ? `<div class="list"><button class="li" id="pnPedidos"><span class="ind"></span>Pedidos de mudança<span class="end tnum">${np} aguardando</span></button></div>` : ""}
+  ${blocoAgenda()}
   ${blocoAlertas()}
   ${botaoRecado()}`;
 }
@@ -1453,7 +1446,7 @@ async function eqLoad(){
   sb.rpc("equipe_pedidos").then(({ data }) => { const n = (data || []).length, mudou = n !== (E.pedidos || []).length; E.pedidos = data || []; if(mudou && isEqTab()) render(); });
   if(E.sec === "dia"){
     const de = E.mes, ate = new Date(E.mes.getFullYear(), E.mes.getMonth()+1, 0);
-    const { data } = await sb.rpc("equipe_mes", { p_de: dkey(de), p_ate: dkey(ate) });
+    const [{ data }] = await Promise.all([sb.rpc("equipe_mes", { p_de: dkey(de), p_ate: dkey(ate) }), loadAgenda()]);
     E.mesDados = (data || []).map(a => ({ ...a, ini: new Date(a.inicia_em), fim: new Date(a.termina_em) }));
   } else if(E.sec === "pessoas"){
     const [al, cr, mt, tu] = await Promise.all([
@@ -1483,10 +1476,13 @@ function viewEquipe(){
     for(let d=1; d<=days; d++){
       const dt = new Date(y,m,d), k = dkey(dt), list = byDay[k], isToday = +dt === +today;
       const cc = `cell${isToday ? " today" : ""}${dt < today ? " past" : ""}`;
-      if(!list){ cells += `<div class="${cc}"><span class="slot"></span><span class="n tnum">${d}</span></div>`; continue; }
+      const ag = agendaLigada() ? agendaDoDia(k) : [], agp = ag.filter(o => !o.feito).length;
+      const agDot = ag.length ? `<span class="agdot${agp ? "" : " feito"}" aria-hidden="true"></span>` : "";
+      const agTxt = ag.length ? `, ${agp ? plural(agp, "pendência sua", "pendências suas") : "agenda feita"}` : "";
+      if(!list){ cells += agendaLigada() ? `<button class="${cc}" data-eqdia="${k}" aria-label="${d} de ${MES[m]}${agTxt}"><span class="slot"></span><span class="n tnum">${d}</span>${agDot}</button>` : `<div class="${cc}"><span class="slot"></span><span class="n tnum">${d}</span></div>`; continue; }
       const abertas = list.filter(a => !a.cancelada), qtd = abertas.reduce((t,a) => t + a.ocupadas, 0);
       const cls = !abertas.length ? "c off" : abertas.every(a => a.fim <= now()) ? "c done eqc" : "c eqc" + (qtd ? " cheio" : "");
-      cells += `<button class="${cc}" data-eqdia="${k}" aria-label="${d} de ${MES[m]}, ${plural(qtd,"aluno","alunos")}"><span class="slot"><span class="${cls}">${abertas.length ? `<b class="tnum">${qtd}</b>` : ""}</span></span><span class="n tnum">${d}</span></button>`;
+      cells += `<button class="${cc}" data-eqdia="${k}" aria-label="${d} de ${MES[m]}, ${plural(qtd,"aluno","alunos")}${agTxt}"><span class="slot"><span class="${cls}">${abertas.length ? `<b class="tnum">${qtd}</b>` : ""}</span></span><span class="n tnum">${d}</span>${agDot}</button>`;
     }
     body = `<div class="monthbar">
         <button class="iconbtn" id="eqPrevM" aria-label="Mês anterior">${CHEV_L}</button>
@@ -1495,7 +1491,7 @@ function viewEquipe(){
       </div>
       <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
       <div class="grid">${cells}</div>
-      <div class="hint"><span>Toque no dia para ver quem estará no atelier.</span></div>`;
+      <div class="hint"><span>Toque no dia para ver quem estará no atelier${agendaLigada() ? " e a sua agenda" : ""}.</span>${agendaLigada() ? `<span class="aglegenda"><span class="agdot"></span>Dia com tarefa ou compromisso seu</span>` : ""}</div>`;
   } else if(E.sec === "pessoas"){
     const f = ["todos","alunos","suspensos","ex"].includes(E.filtro) ? E.filtro : "alunos", q = (E.busca || "").toLowerCase();
     const grupos = { todos: p => ["aluno","pausado","ex_aluno"].includes(p.vinculo), alunos: p => p.vinculo === "aluno" && !p.fantasma,
@@ -1562,13 +1558,15 @@ async function sheetDiaEq(k){
   const lista = Object.values(aulas);
   const motivo = { desmarcada: "desmarcou", ausencia_tardia: "avisou em cima da hora", aula_cancelada: "aula cancelada", falta: "faltou" };
   sheet(`<p class="label">Atelier</p><h3 class="h5">${cap1(WD[d.getDay()])}, ${dm(d)}</h3>
+    ${blocoAgendaDia(k)}
+    ${agendaLigada() ? `<p class="label agaulas">Aulas</p>` : ""}
     ${lista.length ? lista.map(a => {
       const vem = a.pessoas.filter(p => ["confirmada","presente"].includes(p.status));
       const fora = a.pessoas.filter(p => !["confirmada","presente"].includes(p.status));
       return `<div class="eqaula"><div class="row"><p class="title">${hh(a.ini)} às ${hh(a.fim)}</p><span class="sub tnum">${a.cancelada ? "cancelada" : `${vem.length} de ${a.capacidade} vagas`}</span></div>
         ${vem.length ? vem.map(p => `<div class="prow"><span class="nm">${esc(p.aluno_nome)}</span>${p.tipo === "reposicao" ? `<span class="meta">reposição</span>` : ""}</div>`).join("") : `<p class="sub">Ninguém marcado.</p>`}
         ${fora.length ? `<p class="sub" style="margin-top:var(--s2)">Não vêm: ${fora.map(p => `${esc(firstName(p.aluno_nome))} (${motivo[p.status] || p.status})`).join(", ")}</p>` : ""}
-        ${(fila[a.aula_id] || []).length ? `<p class="sub" style="margin-top:var(--s2)">Lista de espera: ${fila[a.aula_id].map(n => esc(firstName(n))).join(", ")}</p>` : ""}</div>`; }).join("") : `<p class="sub">Atelier fechado neste dia.</p>`}
+        ${(fila[a.aula_id] || []).length ? `<p class="sub" style="margin-top:var(--s2)">Lista de espera: ${fila[a.aula_id].map(n => esc(firstName(n))).join(", ")}</p>` : ""}</div>`; }).join("") : `<p class="sub agfechado">Atelier fechado neste dia.</p>`}
     <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
 }
 function sheetPedidosEq(){
@@ -1762,6 +1760,157 @@ function sheetEventoEq(id){
     }catch(ex){ const e = $("#fErr"); e.textContent = errMsg(ex); e.hidden = false; busy(btn, false); }
   };
 }
+
+/* ---------- Agenda pessoal (só a equipe, cada um vê só a sua) ---------- */
+const AG = { itens: [], pronto: false, erro: false };
+const agendaLigada = () => adminOnly();
+const REPETIR = [["","Não repete"],["diario","Todo dia"],["semanal","Toda semana"],["mensal","Todo mês"]];
+const LEMBRAR = [["","Sem lembrete"],["0","Na hora"],["5","5 min antes"],["15","15 min antes"],["30","30 min antes"],["60","1 hora antes"],["120","2 horas antes"],["1440","1 dia antes"],["10080","1 semana antes"]];
+const ICO_REP = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a7 7 0 0 1 12-4.9L18 8M20 13a7 7 0 0 1-12 4.9L6 16"/><path d="M18 4v4h-4M6 20v-4h4"/></svg>';
+const ICO_SINO = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>';
+const ICO_OK = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+async function loadAgenda(){
+  if(!agendaLigada()) return;
+  const { data, error } = await sb.from("agenda_pessoal").select("*").order("dia");
+  AG.erro = !!error; AG.itens = data || []; AG.pronto = true;
+}
+const diasNoMes = d => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+/* a tarefa acontece neste dia? (mesma regra do banco: agenda_cai_no_dia) */
+function caiNoDia(t, k){
+  if(k < t.dia || (t.repetir_ate && k > t.repetir_ate) || (t.pulados || []).includes(k)) return false;
+  if(!t.repetir) return k === t.dia;
+  if(t.repetir === "diario") return true;
+  const d = fromKey(k), b = fromKey(t.dia);
+  if(t.repetir === "semanal") return d.getDay() === b.getDay();
+  if(t.repetir === "mensal") return d.getDate() === Math.min(b.getDate(), diasNoMes(d));
+  return false;
+}
+const horaCurta = t => t ? hm(String(t).slice(0, 5)) : "";
+const ordemHora = (a, b) => String(a.t.hora || "").localeCompare(String(b.t.hora || "")) || a.t.titulo.localeCompare(b.t.titulo);
+function agendaDoDia(k){
+  return AG.itens.filter(t => caiNoDia(t, k)).map(t => ({ t, k, feito: (t.feitos || []).includes(k) })).sort(ordemHora);
+}
+/* tarefas sem repetição de dias anteriores que ficaram sem marcar (até 30 dias) */
+function agendaAtrasada(){
+  const hoje = dkey(now()), lim = dkey(addDays(now(), -30));
+  return AG.itens.filter(t => !t.repetir && t.dia < hoje && t.dia >= lim && !(t.feitos || []).includes(t.dia) && !(t.pulados || []).includes(t.dia))
+    .map(t => ({ t, k: t.dia, feito: false, atrasada: true })).sort((a, b) => a.k.localeCompare(b.k) || ordemHora(a, b));
+}
+function linhaTarefa(o, mostrarDia){
+  const t = o.t, h = horaCurta(t.hora), hf = horaCurta(t.hora_fim);
+  const meta = [mostrarDia || o.atrasada ? `${WDS[fromKey(o.k).getDay()]} ${dm(fromKey(o.k))}` : "", h ? (hf ? `${h} às ${hf}` : h) : "Sem horário"].filter(Boolean).join(", ");
+  return `<div class="tarefa${o.feito ? " feita" : ""}">
+    <button class="tchk" data-agfeito="${t.id}" data-agk="${o.k}" aria-pressed="${o.feito}" aria-label="${o.feito ? "Desmarcar" : "Marcar como feita"}: ${esc(t.titulo)}">${o.feito ? ICO_OK : ""}</button>
+    <button class="tcorpo" data-agedit="${t.id}" data-agk="${o.k}">
+      <span class="tt">${esc(t.titulo)}</span>
+      <span class="tm">${o.atrasada ? `<b>Ficou para trás,</b>&nbsp;` : ""}${esc(meta)}${t.repetir ? `<i title="Repete">${ICO_REP}</i>` : ""}${t.lembrar_min != null ? `<i title="Com lembrete">${ICO_SINO}</i>` : ""}</span>
+    </button></div>`;
+}
+/* bloco da tela Hoje: o dia, o que ficou para trás e os próximos 7 dias (sem as diárias, que só enchem a lista) */
+function blocoAgenda(){
+  if(!agendaLigada()) return "";
+  if(AG.erro) return `<section class="agenda"><div class="aghead"><p class="label">Seu dia</p></div><p class="sub">Não foi possível carregar a sua agenda.</p></section>`;
+  const hoje = dkey(now()), dia = agendaDoDia(hoje), atras = agendaAtrasada();
+  const prox = []; for(let i = 1; i <= 7; i++){ const k = dkey(addDays(now(), i)); const l = agendaDoDia(k).filter(o => !o.feito && o.t.repetir !== "diario"); if(l.length) prox.push([k, l]); }
+  const pend = dia.filter(o => !o.feito).length;
+  return `<section class="agenda">
+    <div class="aghead"><p class="label">Seu dia</p><button class="agadd" data-agnovo="${hoje}" aria-label="Adicionar à agenda de hoje">${ICO_MAIS}</button></div>
+    ${dia.length ? `<p class="sub agres">${pend ? `${plural(pend, "pendência", "pendências")} para hoje` : "Tudo feito por hoje."}</p>` : ""}
+    <div class="tarefas">${atras.map(o => linhaTarefa(o)).join("")}${dia.map(o => linhaTarefa(o)).join("")}</div>
+    ${!dia.length && !atras.length ? `<button class="agvazio" data-agnovo="${hoje}">Nada marcado para hoje. Toque para adicionar uma tarefa ou compromisso.</button>` : ""}
+    ${prox.length ? `<p class="label agprox">Próximos dias</p>${prox.map(([k, l]) => `<p class="agdia">${cap1(WD[fromKey(k).getDay()])}, ${dm(fromKey(k))}</p><div class="tarefas">${l.map(o => linhaTarefa(o)).join("")}</div>`).join("")}` : ""}
+  </section>`;
+}
+/* o que mostra o dia do calendário */
+function blocoAgendaDia(k){
+  if(!agendaLigada()) return "";
+  const l = agendaDoDia(k);
+  return `<div class="agsheet"><div class="aghead"><p class="label">Sua agenda</p><button class="textbtn" data-agnovo="${k}" data-agvolta="${k}">Adicionar</button></div>
+    ${l.length ? `<div class="tarefas">${l.map(o => linhaTarefa(o).replace(/data-agedit=/, `data-agvolta="${k}" data-agedit=`)).join("")}</div>` : `<p class="sub">Nada marcado neste dia.</p>`}</div>`;
+}
+const atualizarDepoisAgenda = volta => { if(volta) sheetDiaEq(volta); else closeSheet(); render(); };
+async function marcarFeito(id, k){
+  const t = AG.itens.find(x => x.id === id); if(!t) return;
+  const antes = t.feitos || [], feito = antes.includes(k);
+  t.feitos = feito ? antes.filter(x => x !== k) : [...antes, k];
+  render(); if(!feito) vibrar();
+  const ags = $("#sheetBody .agsheet"); if(ags && $("#sheet").classList.contains("show")) ags.outerHTML = blocoAgendaDia(k);
+  const { error } = await sb.from("agenda_pessoal").update({ feitos: t.feitos }).eq("id", id);
+  if(error){ t.feitos = antes; render(); toast(errMsg(error)); }
+}
+function sheetTarefa(id, k, volta){
+  const novo = id === "novo", t = novo ? { titulo: "", dia: k || dkey(now()), hora: "", hora_fim: "", repetir: "", lembrar_min: null, notas: "", repetir_ate: "" } : AG.itens.find(x => x.id === id);
+  if(!t) return;
+  const ocorr = k || t.dia, feito = !novo && (t.feitos || []).includes(ocorr);
+  const opts = (lista, v) => lista.map(([val, l]) => `<option value="${val}" ${String(v ?? "") === val ? "selected" : ""}>${l}</option>`).join("");
+  sheet(`<p class="label">${novo ? "Nova tarefa" : t.repetir ? `${cap1(WD[fromKey(ocorr).getDay()])}, ${dm(fromKey(ocorr))}` : "Sua agenda"}</p><h3 class="h5">${esc(t.titulo || "Tarefa ou compromisso")}</h3>
+    <form class="form" id="agForm">
+      <label class="field"><span>O quê</span><input id="ag_tit" value="${esc(t.titulo)}" placeholder="Ligar para o fornecedor" maxlength="200" required></label>
+      <label class="field"><span>${t.repetir ? "Começa em" : "Dia"}</span><input id="ag_dia" type="date" value="${esc(t.dia)}" required></label>
+      <div class="row2"><label class="field"><span>Horário</span><input id="ag_hora" type="time" value="${esc(String(t.hora || "").slice(0, 5))}"></label>
+        <label class="field"><span>Até (opcional)</span><input id="ag_fim" type="time" value="${esc(String(t.hora_fim || "").slice(0, 5))}"></label></div>
+      <div class="row2"><label class="field"><span>Repetir</span><select id="ag_rep">${opts(REPETIR, t.repetir)}</select></label>
+        <label class="field"><span>Lembrete</span><select id="ag_lem">${opts(LEMBRAR, t.lembrar_min)}</select></label></div>
+      <label class="field" id="ag_ateBox" ${t.repetir ? "" : "hidden"}><span>Repetir até (vazio = sempre)</span><input id="ag_ate" type="date" value="${esc(t.repetir_ate || "")}"></label>
+      <p class="sub" id="ag_semHora" ${t.hora ? "hidden" : ""}>Sem horário, o lembrete conta a partir das 8h do dia.</p>
+      <label class="field"><span>Anotações</span><textarea id="ag_notas" placeholder="Detalhes, telefone, endereço">${esc(t.notas || "")}</textarea></label>
+      <p class="err" id="agErr" hidden></p>
+      <div class="btns"><button class="btn pri" type="submit">Salvar</button>
+        ${novo ? "" : `<button class="btn ghost" type="button" id="agFeito">${feito ? "Desmarcar como feita" : "Marcar como feita"}</button>
+        <button class="btn ghost dperigo" type="button" id="agApagar">Apagar</button>`}
+        <button class="btn ghost" type="button" ${volta ? `id="agVoltar"` : "data-close"}>${volta ? "Voltar ao dia" : "Cancelar"}</button></div>
+    </form>`);
+  $("#ag_rep").onchange = () => { $("#ag_ateBox").hidden = !$("#ag_rep").value; };
+  $("#ag_hora").oninput = () => { $("#ag_semHora").hidden = !!$("#ag_hora").value; };
+  const vv = $("#agVoltar"); if(vv) vv.onclick = () => sheetDiaEq(volta);
+  const fb = $("#agFeito"); if(fb) fb.onclick = async () => { await marcarFeito(id, ocorr); atualizarDepoisAgenda(volta); };
+  const ab = $("#agApagar"); if(ab) ab.onclick = () => sheetApagarTarefa(t, ocorr, volta);
+  $("#agForm").onsubmit = async ev => {
+    ev.preventDefault(); const btn = $("#agForm button[type=submit]"); busy(btn, true);
+    const hora = $("#ag_hora").value || null, fim = hora && $("#ag_fim").value ? $("#ag_fim").value : null, rep = $("#ag_rep").value, lem = $("#ag_lem").value;
+    const row = { titulo: $("#ag_tit").value.trim(), dia: $("#ag_dia").value, hora, hora_fim: fim, repetir: rep,
+      repetir_ate: rep && $("#ag_ate").value ? $("#ag_ate").value : null, lembrar_min: lem === "" ? null : +lem, notas: $("#ag_notas").value.trim() || null };
+    try{
+      if(!row.titulo) throw new Error("Escreva o que é.");
+      if(!row.dia) throw new Error("Escolha o dia.");
+      if(fim && fim <= hora) throw new Error("O fim precisa ser depois do início.");
+      if(row.repetir_ate && row.repetir_ate < row.dia) throw new Error("O fim da repetição precisa ser depois do primeiro dia.");
+      const { error } = novo ? await sb.from("agenda_pessoal").insert(row) : await sb.from("agenda_pessoal").update(row).eq("id", id);
+      if(error) throw error;
+      await loadAgenda();
+      toast(novo ? "Adicionado à agenda" : "Agenda atualizada");
+      if(row.lembrar_min != null && pushSuportado() && Notification.permission !== "granted") setTimeout(() => toast("Para receber o lembrete, ative os avisos em Você"), 2900);
+      if(S.tab === "eq:dia") eqLoad();
+      atualizarDepoisAgenda(volta);
+    }catch(ex){ const e = $("#agErr"); e.textContent = errMsg(ex); e.hidden = false; busy(btn, false); }
+  };
+}
+function sheetApagarTarefa(t, k, volta){
+  sheet(`<p class="label">Sua agenda</p><h3 class="h5">Apagar ${esc(t.titulo)}?</h3>
+    ${t.repetir ? `<p class="sub">Esta tarefa se repete. Você pode tirar só o dia ${dm(fromKey(k))} ou todas as vezes.</p>` : ""}
+    <div class="btns">${t.repetir ? `<button class="btn danger" id="agSo">Só neste dia</button><button class="btn ghost dperigo" id="agTodas">Todas as vezes</button>` : `<button class="btn danger" id="agTodas">Apagar</button>`}
+      <button class="btn ghost" id="agNao">Voltar</button></div>`);
+  $("#agNao").onclick = () => sheetTarefa(t.id, k, volta);
+  const so = $("#agSo"); if(so) so.onclick = async () => {
+    busy(so, true); const { error } = await sb.from("agenda_pessoal").update({ pulados: [...(t.pulados || []), k] }).eq("id", t.id);
+    if(error){ busy(so, false); return toast(errMsg(error)); }
+    await loadAgenda(); toast("Tirado deste dia"); if(S.tab === "eq:dia") eqLoad(); atualizarDepoisAgenda(volta);
+  };
+  $("#agTodas").onclick = async () => {
+    const b = $("#agTodas"); busy(b, true); const { error } = await sb.from("agenda_pessoal").delete().eq("id", t.id);
+    if(error){ busy(b, false); return toast(errMsg(error)); }
+    await loadAgenda(); toast("Apagado da agenda"); if(S.tab === "eq:dia") eqLoad(); atualizarDepoisAgenda(volta);
+  };
+}
+/* toques na agenda, na tela e dentro das folhas */
+function cliqueAgenda(e){
+  const b = e.target.closest("[data-agfeito],[data-agedit],[data-agnovo]"); if(!b) return;
+  if(b.dataset.agfeito) return marcarFeito(b.dataset.agfeito, b.dataset.agk);
+  if(b.dataset.agedit) return sheetTarefa(b.dataset.agedit, b.dataset.agk, b.dataset.agvolta);
+  if(b.dataset.agnovo) return sheetTarefa("novo", b.dataset.agnovo, b.dataset.agvolta);
+}
+$("#view").addEventListener("click", cliqueAgenda);
+$("#sheetBody").addEventListener("click", cliqueAgenda);
 
 /* ---------- ligações ---------- */
 /* ---------- Lembretes no celular (Web Push) ---------- */

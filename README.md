@@ -60,7 +60,14 @@ Abrir o endereço no Safari → Compartilhar → Adicionar à Tela de Início.
 O login é por código de 6 dígitos (e não por link) justamente para funcionar dentro do app instalado.
 
 ## Tela inicial da equipe
-- O admin abre em **Hoje**: saudação, se o atelier está aberto, quem está em aula agora, próxima aula (quantos vêm e "Ver quem vem"), pedidos de mudança, resumo dos próximos 7 dias, próximo evento e atalho para adicionar alunos.
+- O admin abre em **Hoje**: saudação, se o atelier está aberto, quem está em aula agora, próxima aula (quantos vêm e "Ver quem vem"), pedidos de mudança (só quando há algum) e a agenda pessoal. Adicionar alunos, criar evento e pedidos ficam em **Você**.
+
+## Agenda pessoal (só a equipe)
+- Em **Hoje → Seu dia**: tarefas e compromissos do dia, o que ficou para trás e os próximos 7 dias. Toque no círculo para marcar como feita.
+- Cada item tem dia, horário opcional (e fim), repetição (todo dia, toda semana, todo mês, com data final opcional), lembrete no celular (na hora até 1 semana antes) e anotações. Item que repete pode ser apagado só de um dia.
+- No **Calendário**, um pontinho embaixo do número marca dia com coisa sua; ao tocar no dia aparece "Sua agenda" junto com as aulas.
+- Banco: tabela `agenda_pessoal` (migração 27). Só o próprio dono, sendo da equipe, lê e escreve; alunos e o modo "ver como aluno" não enxergam.
+- Lembretes: `gerar_lembretes_agenda()` roda a cada minuto (pg_cron `alma-agenda-lembretes`) e cria avisos com destino `usuario`, enviados pela `enviar-push` só para o login dono. Sem horário, o lembrete conta a partir das 8h.
 - Menu do admin: Hoje · Calendário · Pessoas · Eventos · Você. **Horários** fica em Você → Horários do atelier.
 
 ## Primeiros passos da equipe

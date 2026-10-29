@@ -768,3 +768,34 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 @keyframes temaGira{from{transform:rotate(-60deg) scale(.6);opacity:0}}
 @media (prefers-reduced-motion:reduce){.li .end.tema-ico svg{animation:none}}
 .toast.linha1{width:max-content;white-space:nowrap}
+
+/* agenda pessoal da equipe */
+.agenda{margin-top:var(--s6)}
+.aghead{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);min-height:40px}
+.aghead .textbtn{align-self:center}
+.agadd{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--fg);color:var(--bg);flex:none}
+.agadd svg{width:22px;height:22px}
+.agres{margin-top:var(--s1)}
+.tarefas{display:flex;flex-direction:column;margin-top:var(--s3);border-top:1px solid var(--line)}
+.tarefa{display:flex;align-items:center;gap:var(--s3);border-bottom:1px solid var(--line);min-height:60px}
+.tchk{width:44px;height:44px;margin-left:-10px;display:grid;place-items:center;flex:none;position:relative;color:var(--bg)}
+.tchk::before{content:"";position:absolute;width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--past-ink)}
+.tchk[aria-pressed="true"]::before{background:var(--fg);box-shadow:none}
+.tchk svg{position:relative}
+.tcorpo{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding-block:var(--s2);text-align:left}
+.tcorpo .tt{font-size:var(--t-body);line-height:22px;overflow-wrap:anywhere}
+.tcorpo .tm{display:flex;align-items:center;flex-wrap:wrap;gap:var(--s1);font-size:var(--t-body-s);color:var(--muted)}
+.tcorpo .tm b{font-weight:500;color:var(--fg)}
+.tcorpo .tm i{display:inline-flex;margin-left:2px}
+.tarefa.feita .tt{color:var(--past-ink);text-decoration:line-through;text-decoration-color:var(--past-ink)}
+.agvazio{margin-top:var(--s3);width:100%;padding:var(--s4);border:1px dashed var(--line);border-radius:var(--s4);text-align:left;color:var(--muted);font-size:var(--t-body-s);line-height:20px}
+.agprox{margin-top:var(--s6)}
+.agdia{margin:var(--s4) 0 0;font-size:var(--t-body-s);font-weight:500;color:var(--strong)}
+.agdia + .tarefas{margin-top:var(--s1)}
+.agsheet{margin-top:var(--s4)}
+.agsheet > .sub{margin-top:var(--s2)}
+.agaulas{margin-top:var(--s5);margin-bottom:var(--s2)}
+.cell{position:relative}
+.agdot{width:5px;height:5px;border-radius:50%;background:var(--fg);flex:none}
+.agdot.feito{background:var(--past-ink)}
+.aglegenda{display:inline-flex;align-items:center;gap:var(--s2)}
