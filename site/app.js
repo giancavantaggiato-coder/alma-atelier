@@ -1786,9 +1786,13 @@ function caiNoDia(t, k){
   return false;
 }
 const horaCurta = t => t ? hm(String(t).slice(0, 5)) : "";
-/* urgentes primeiro; depois a ordem que ele arrastou; o que nunca foi arrastado vem depois, pelo horário */
+/* urgentes primeiro; depois as sem horário, na ordem que ele arrastou; depois as com horário, pelo relógio */
 const chaveOrdem = o => o.t.ordem != null ? o.t.ordem : 1e9;
-const ordemHora = (a, b) => (b.t.urgente ? 1 : 0) - (a.t.urgente ? 1 : 0) || chaveOrdem(a) - chaveOrdem(b) || String(a.t.hora || "").localeCompare(String(b.t.hora || "")) || a.t.titulo.localeCompare(b.t.titulo);
+const grupoTarefa = o => ((o.t.urgente && !o.feito) ? "u" : "n") + (o.t.hora ? "h" : "s");
+const ordemHora = (a, b) => ((b.t.urgente && !b.feito) ? 1 : 0) - ((a.t.urgente && !a.feito) ? 1 : 0)
+  || (a.t.hora ? 1 : 0) - (b.t.hora ? 1 : 0)
+  || (a.t.hora ? String(a.t.hora).localeCompare(String(b.t.hora)) : chaveOrdem(a) - chaveOrdem(b) || (a.atrasada ? 0 : 1) - (b.atrasada ? 0 : 1))
+  || a.t.titulo.localeCompare(b.t.titulo);
 function agendaDoDia(k){
   return AG.itens.filter(t => caiNoDia(t, k)).map(t => ({ t, k, feito: (t.feitos || []).includes(k) })).sort(ordemHora);
 }
@@ -1801,7 +1805,7 @@ function agendaAtrasada(){
 function linhaTarefa(o, mostrarDia){
   const t = o.t, h = horaCurta(t.hora), hf = horaCurta(t.hora_fim);
   const meta = [mostrarDia || o.atrasada ? `${WDS[fromKey(o.k).getDay()]} ${dm(fromKey(o.k))}` : "", h ? (hf ? `${h} às ${hf}` : h) : "Sem horário"].filter(Boolean).join(", ");
-  return `<div class="tarefa${o.feito ? " feita" : ""}${t.urgente ? " urgente" : ""}" data-swipe="${t.id}" data-swk="${o.k}">
+  return `<div class="tarefa${o.feito ? " feita" : ""}${t.urgente ? " urgente" : ""}" data-swipe="${t.id}" data-swk="${o.k}" data-grp="${grupoTarefa(o)}">
     <span class="tfundo tf-urg" aria-hidden="true">${t.urgente ? "Tirar urgência" : "Urgente"}</span><span class="tfundo tf-del" aria-hidden="true">${t.repetir ? "Tirar deste dia" : "Remover"}</span>
     <div class="tin">
     <button class="tchk" data-agfeito="${t.id}" data-agk="${o.k}" aria-pressed="${o.feito}" aria-label="${o.feito ? "Desmarcar" : "Marcar como feita"}: ${esc(t.titulo)}">${o.feito ? ICO_OK : ""}</button>
@@ -1820,8 +1824,8 @@ function blocoAgenda(){
   return `<section class="agenda">
     <div class="aghead"><p class="label">Seu dia</p><button class="textbtn" data-agnovo="${hoje}" aria-label="Adicionar à agenda de hoje">Adicionar</button></div>
     ${dia.length ? `<p class="sub agres">${pend ? `${plural(pend, "pendência", "pendências")} para hoje` : "Tudo feito por hoje."}</p>` : ""}
-    <div class="tarefas" id="agHojeLista">${[...atras, ...dia].sort((a, b) => ((b.t.urgente && !b.feito) ? 1 : 0) - ((a.t.urgente && !a.feito) ? 1 : 0) || chaveOrdem(a) - chaveOrdem(b) || (a.atrasada ? 0 : 1) - (b.atrasada ? 0 : 1) || String(a.t.hora || "").localeCompare(String(b.t.hora || "")) || a.t.titulo.localeCompare(b.t.titulo)).map(o => linhaTarefa(o)).join("")}</div>
-    ${dia.length || atras.length ? `<p class="sub agdica">Deslize para a direita para marcar como urgente, para a esquerda para remover. Segure e arraste para mudar a ordem.</p>` : ""}
+    <div class="tarefas" id="agHojeLista">${[...atras, ...dia].sort(ordemHora).map(o => linhaTarefa(o)).join("")}</div>
+    ${dia.length || atras.length ? `<p class="sub agdica">Deslize para a direita para marcar como urgente, para a esquerda para remover. Segure e arraste as sem horário para mudar a ordem.</p>` : ""}
     ${!dia.length && !atras.length ? `<button class="agvazio" data-agnovo="${hoje}">Nada marcado para hoje. Toque para adicionar uma tarefa ou compromisso.</button>` : ""}
     ${prox.length ? `<p class="label agprox">Próximos dias</p>${prox.map(([k, l]) => `<p class="agdia">${cap1(WD[fromKey(k).getDay()])}, ${dm(fromKey(k))}</p><div class="tarefas">${l.map(o => linhaTarefa(o)).join("")}</div>`).join("")}` : ""}
   </section>`;
@@ -1937,7 +1941,7 @@ function removerDeslizando(id, k){
 const SW = { el: null, x0: 0, y0: 0, dx: 0, ativo: false, travado: false, ignorarClique: false, arrastar: false, timer: null };
 /* segurar e arrastar: reordena a lista de hoje e grava a ordem */
 async function gravarOrdem(){
-  const ids = $$("#agHojeLista .tarefa[data-swipe]").map(el => el.dataset.swipe);
+  const ids = $$('#agHojeLista .tarefa[data-grp$="s"]').map(el => el.dataset.swipe);
   const mud = [];
   ids.forEach((id, i) => { const t = AG.itens.find(x => x.id === id); if(t && t.ordem !== (i + 1) * 10){ t.ordem = (i + 1) * 10; mud.push(t); } });
   if(!mud.length) return;
@@ -1946,9 +1950,12 @@ async function gravarOrdem(){
   render();
 }
 function moverArrastando(y){
-  const lista = SW.el.parentElement, irmas = [...lista.children].filter(x => x !== SW.el);
-  const alvo = irmas.find(x => { const r = x.getBoundingClientRect(); return y < r.top + r.height / 2; });
-  if(alvo ? SW.el.nextElementSibling !== alvo : lista.lastElementChild !== SW.el){
+  /* só troca de lugar com as do mesmo grupo (sem horário, urgente ou não) */
+  const lista = SW.el.parentElement, grp = SW.el.dataset.grp, irmas = [...lista.children].filter(x => x !== SW.el && x.dataset.grp === grp);
+  if(!irmas.length) return;
+  let alvo = irmas.find(x => { const r = x.getBoundingClientRect(); return y < r.top + r.height / 2; });
+  if(!alvo) alvo = irmas[irmas.length - 1].nextElementSibling;
+  if(SW.el.nextElementSibling !== alvo && !(alvo === null && lista.lastElementChild === SW.el)){
     const antes = new Map([...lista.children].map(x => [x, x.getBoundingClientRect().top]));
     lista.insertBefore(SW.el, alvo || null);
     [...lista.children].forEach(x => { if(x === SW.el) return; const d = antes.get(x) - x.getBoundingClientRect().top; if(d){ x.style.transition = "none"; x.style.transform = `translateY(${d}px)`; requestAnimationFrame(() => { x.style.transition = "transform .18s cubic-bezier(.2,0,0,1)"; x.style.transform = ""; }); } });
@@ -1960,7 +1967,7 @@ $("#view").addEventListener("touchstart", e => {
   const el = e.target.closest(".tarefa[data-swipe]"); if(!el || e.touches.length > 1) return;
   Object.assign(SW, { el, x0: e.touches[0].clientX, y0: e.touches[0].clientY, dx: 0, ativo: false, travado: false, arrastar: false });
   clearTimeout(SW.timer);
-  if(el.closest("#agHojeLista")) SW.timer = setTimeout(() => {
+  if(el.closest("#agHojeLista") && /s$/.test(el.dataset.grp || "")) SW.timer = setTimeout(() => {
     if(!SW.el || SW.ativo || SW.travado) return;
     SW.arrastar = true; SW.el.classList.add("levantada"); document.body.classList.add("reordenando");
     if(navigator.vibrate) navigator.vibrate(15);
