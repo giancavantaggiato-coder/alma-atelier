@@ -1230,7 +1230,7 @@ function viewHojeEq(){
     <p class="sub" style="font-size:var(--t-body)">${estado}</p>
   </header>
   <button class="live" id="liveBtn" ${live ? "" : "disabled"}>
-    <span class="dot"></span><u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : agora ? "Aula agora, ninguém confirmado" : horaDoVinho() ? "Provavelmente brindando" : "Sem aula no momento"}</u>
+    ${!live && !agora && horaDoVinho() ? `<span class="brinde" aria-hidden="true">🥂</span>` : `<span class="dot"></span>`}<u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : agora ? "Aula agora, ninguém confirmado" : horaDoVinho() ? "Provavelmente brindando" : "Sem aula no momento"}</u>
   </button>
   ${blocoRecados()}
   ${nx ? `<section class="tile wide next">
