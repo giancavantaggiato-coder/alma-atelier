@@ -432,18 +432,19 @@ checarVersao(); setInterval(checarVersao, 5 * 60 * 1000);
 document.addEventListener("click", e => { if(e.target.closest("#comoAlunoSair")) trocarModoAluno(false); });
 
 /* Luminosidade: automático (segue o celular), claro ou escuro. Fica guardado neste aparelho. */
-const TEMAS = [["auto","Automático"],["claro","Valor alto"],["escuro","Valor baixo"]];
-const temaAtual = () => { try{ const t = localStorage.getItem("alma-tema"); return t === "claro" || t === "escuro" ? t : "auto"; }catch(_){ return "auto"; } };
+const TEMAS = [["auto","Automático"],["claro","Valor alto"],["escuro","Valor baixo"],["vinho","Vinho"]];
+const temaAtual = () => { try{ const t = localStorage.getItem("alma-tema"); return ["claro","escuro","vinho"].includes(t) ? t : "auto"; }catch(_){ return "auto"; } };
 function aplicarTema(t){
   const r = document.documentElement;
-  if(t === "claro") r.setAttribute("data-theme","light"); else if(t === "escuro") r.setAttribute("data-theme","dark"); else r.removeAttribute("data-theme");
+  if(t === "claro") r.setAttribute("data-theme","light"); else if(t === "escuro" || t === "vinho") r.setAttribute("data-theme","dark"); else r.removeAttribute("data-theme");
   const escuro = t === "escuro" || (t === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute("media"); m.setAttribute("content", horaDoVinho() ? "#5B1F20" : escuro ? "#000000" : "#FEFCE6"); });
 }
 /* modo vinho: sexta, das 22h à meia-noite, o app fica bordô. ?vinho=1 liga para testar (vale até fechar o app) */
 let VINHO_TESTE = false;
 try{ VINHO_TESTE = new URLSearchParams(location.search).get("vinho") === "1" || sessionStorage.getItem("alma-vinho") === "1"; if(VINHO_TESTE) sessionStorage.setItem("alma-vinho", "1"); }catch(_){}
-function horaDoVinho(){ const d = new Date(); return VINHO_TESTE || (d.getDay() === 5 && d.getHours() >= 22); }
+/* "Vinho" na Luminosidade (só no app da equipe) deixa o modo ligado o tempo todo */
+function horaDoVinho(){ const d = new Date(); return VINHO_TESTE || temaAtual() === "vinho" || (d.getDay() === 5 && d.getHours() >= 22); }
 function conferirVinho(){
   const on = horaDoVinho(), r = document.documentElement;
   if(on === r.classList.contains("vinho")) return;
@@ -458,15 +459,16 @@ if(window.matchMedia){ const mq = matchMedia("(prefers-color-scheme: dark)"); co
 const ICO_TEMA = {
   auto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>',
   claro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>',
+  vinho: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 3.5h9c.4 3.2.2 5.6-1 7.2-.8 1.1-2 1.8-3.5 1.8s-2.7-.7-3.5-1.8c-1.2-1.6-1.4-4-1-7.2z"/><path d="M7.4 7.5h9.2" /><path d="M12 12.5v7M8.5 20.5h7"/></svg>',
   escuro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>'
 };
 const nomeTema = t => TEMAS.find(x => x[0] === t)[1];
 const linhaTema = () => { const t = temaAtual(); return `<button class="li" data-tema-trocar aria-label="Luminosidade: ${nomeTema(t)}. Toque para trocar"><span class="ind n"></span>Luminosidade<span class="end tema-ico">${ICO_TEMA[t]}</span></button>`; };
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-tema-trocar]"); if(!b) return;
-  const ordem = TEMAS.map(x => x[0]), t = ordem[(ordem.indexOf(temaAtual()) + 1) % ordem.length];
+  const ordem = TEMAS.map(x => x[0]).filter(k => k !== "vinho" || adminOnly() || temaAtual() === "vinho"), t = ordem[(ordem.indexOf(temaAtual()) + 1) % ordem.length];
   try{ t === "auto" ? localStorage.removeItem("alma-tema") : localStorage.setItem("alma-tema", t); }catch(_){ }
-  aplicarTema(t);
+  aplicarTema(t); conferirVinho();
   document.querySelectorAll("[data-tema-trocar]").forEach(x => { x.querySelector(".tema-ico").innerHTML = ICO_TEMA[t]; x.setAttribute("aria-label", `Luminosidade: ${nomeTema(t)}. Toque para trocar`); });
   toast(`Luminosidade: ${nomeTema(t)}`); $("#toast").classList.add("linha1");
 });
