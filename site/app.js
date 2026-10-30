@@ -300,7 +300,7 @@ async function loadAluno(){
     sb.rpc("em_aula_agora"),
     sb.rpc("meu_resumo"),
     sb.from("creditos").select("*").eq("aluno_id", S.aluno.id).is("usado_em_reserva_id", null).gte("expira_em", dkey(new Date())).order("data_falta"),
-    sb.from("matriculas").select("turma_id, turmas(nome,dia_semana,inicio,fim)").eq("aluno_id", S.aluno.id).is("ate", null),
+    sb.from("matriculas").select("turma_id, quinzenal, turmas(nome,dia_semana,inicio,fim)").eq("aluno_id", S.aluno.id).is("ate", null),
     sb.from("pedidos_mudanca").select("*").eq("aluno_id", S.aluno.id).order("criado_em", { ascending: false }).limit(1),
     sb.from("lista_espera").select("aula_id, avisado_em").eq("aluno_id", S.aluno.id)
   ]);
@@ -318,7 +318,8 @@ async function loadAluno(){
   loadDiario().then(() => { if(["voce","diario"].includes(S.tab) && !precisaCompletar() && !NS.ativo) render(); }).catch(() => {});
 }
 async function loadEventos(){
-  const [{ data }, { data: qv }, { data: mc }, { data: fo }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("inscritos_eventos"), sb.rpc("mural_contagem"), sb.from("eventos").select("id,foto_url").not("foto_url", "is", null)]);
+  let [{ data }, { data: qv, error: qe }, { data: mc }, { data: fo }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("inscritos_eventos_perfil"), sb.rpc("mural_contagem"), sb.from("eventos").select("id,foto_url").not("foto_url", "is", null)]);
+  if(qe) ({ data: qv } = await sb.rpc("inscritos_eventos"));
   const foto = {}; (fo || []).forEach(f => foto[f.id] = f.foto_url);
   const porEv = {}; (qv || []).forEach(q => (porEv[q.evento_id] ||= []).push(q));
   const nc = {}; (mc || []).forEach(m => nc[m.evento_id] = m.total);
@@ -559,6 +560,7 @@ function acabouDeEntrar(v){
   if(_entrou) return true; try{ return sessionStorage.getItem("alma-entrou") === "1"; }catch(_){ return false; }
 }
 const livre = () => !!(S.aluno && S.aluno.plano === "livre");
+const quinzenal = () => (S.matriculas || []).some(m => m.quinzenal);
 const repoLivre = () => !!(S.aluno && S.aluno.reposicao_livre && !livre());
 const precisaCompletar = () => !!(S.aluno && !S.aluno.cadastro_completo_em);
 const PA = { passo: 1, nome: "", sobrenome: "", whats: "", desde: "", freq: 0, dias: [], horarios: [], fixos: false };
@@ -571,6 +573,8 @@ async function primeiroAcesso(){
   PA.horarios = data || []; PA.pronto = true;
   const meus = PA.horarios.filter(h => h.meu).map(h => h.id);
   PA.fixos = meus.length > 0;
+  PA.quinzenal = false;
+  if(PA.fixos){ const { data: mq } = await sb.from("matriculas").select("quinzenal").eq("aluno_id", S.aluno.id).is("ate", null); PA.quinzenal = (mq || []).some(m => m.quinzenal); }
   if(PA.fixos){ PA.dias = meus; PA.freq = meus.length; }
   else if(!PA.freq && S.aluno.frequencia_semanal) PA.freq = S.aluno.frequencia_semanal;
   renderPA();
@@ -601,8 +605,8 @@ function renderPA(){
         <span>${cap1(WD[h.dia_semana])}</span><small>${hm(h.inicio)} às ${hm(h.fim)}${lotado ? ", completo" : ""}</small></button>`; }).join("") : "";
     const falta = PA.freq - PA.dias.length;
     panel = `<form id="paForm" novalidate style="display:contents">${passo}
-      <div class="auth-head"><h1>Quantas vezes por semana você vem ao atelier?</h1></div>
-      <div class="afreq">${opcoes.map(n => `<button type="button" class="aopt${PA.freq === n ? " on" : ""}" data-freq="${n}" aria-pressed="${PA.freq === n}" ${PA.fixos ? "disabled" : ""}><span>${n}x</span><small>por semana</small></button>`).join("")}</div>
+      ${PA.quinzenal ? `<div class="auth-head"><h1>Seu dia no atelier</h1><p>A cada 15 dias, semana sim, semana não.</p></div>` : `<div class="auth-head"><h1>Quantas vezes por semana você vem ao atelier?</h1></div>
+      <div class="afreq">${opcoes.map(n => `<button type="button" class="aopt${PA.freq === n ? " on" : ""}" data-freq="${n}" aria-pressed="${PA.freq === n}" ${PA.fixos ? "disabled" : ""}><span>${n}x</span><small>por semana</small></button>`).join("")}</div>`}
       ${PA.freq ? `<div class="auth-head" style="margin-top:var(--s3)"><h1>${PA.freq === 1 ? "Qual dia?" : "Quais dias?"}</h1>
         <p>${PA.fixos ? "Seus dias já foram definidos pelo atelier." : falta > 0 ? `Escolha ${plural(falta, "dia", "dias")}${PA.dias.length ? " a mais" : ""}.` : "Esses serão seus dias fixos no atelier."}</p></div>
         <div class="adias">${dias || `<p class="sub">O atelier ainda não cadastrou os horários.</p>`}</div>` : ""}
@@ -1155,7 +1159,7 @@ function viewEventoPag(){
         ${e.local ? `<li class="lin"><span class="evico">${EVI.local}</span><span><b>${esc(e.local)}</b>${/atelier/i.test(e.local) ? `<span>, Rua São Paulo, 864</span>` : ""}</span></li>` : ""}
         ${!S.aluno && preco1 ? `<li class="lin"><span class="evico">${EVI.valor}</span><span><b>${esc(preco1)}</b>${precoResto.length ? `<span>, ${esc(precoResto.join(", "))}</span>` : ""}</span></li>` : ""}
       </ul>
-      <div class="evgente">${(e.quem || []).length ? quemVaiHTML(e, 5) : `<span class="fpt">Ninguém inscrito ainda</span>`}${vagasTxt ? `<span class="evvag">${vagasTxt}</span>` : ""}</div>
+      <div class="evgente">${(e.quem || []).length ? `<button class="evquem" id="evQuem" aria-label="Ver quem vai">${quemVaiHTML(e, 5)}</button>` : `<span class="fpt">Ninguém inscrito ainda</span>`}${vagasTxt ? `<span class="evvag">${vagasTxt}</span>` : ""}</div>
       ${e.descricao ? `<h2 class="evsec">Sobre</h2><p class="evdesc">${esc(e.descricao)}</p>` : ""}
       <section class="evmural">
         <div class="mtopo"><h2 class="evsec">Mural</h2>${aquiHTML()}</div>
@@ -1191,6 +1195,7 @@ function bindEventoPag(){
     if(error){ busy(b, false); return toast(errMsg(error)); } vibrar(); toast("Inscrição feita"); await loadEventos(); render(); });
   $$("#view [data-unev]").forEach(b => b.onclick = async () => { busy(b, true); const { error } = await sb.rpc("cancelar_inscricao", { p_evento: id });
     if(error){ busy(b, false); return toast(errMsg(error)); } toast("Inscrição cancelada"); await loadEventos(); render(); });
+  const eq = $("#evQuem"); if(eq) eq.onclick = () => sheetQuemVai(id);
   const ra = $("#rAdd"); if(ra) ra.onclick = () => { EV.tray = !EV.tray; render(); };
   $$("#view [data-reac]").forEach(b => b.onclick = async () => {
     EV.tray = false;
@@ -1403,11 +1408,12 @@ function viewVoce(){
     <section class="tile">
       <div class="tl"><h2 class="tt">Seus dias</h2>${turmas[0] && turmas.every(t => t.inicio === turmas[0].inicio && t.fim === turmas[0].fim) ? `<span class="chip">${hm(turmas[0].inicio)}–${hm(turmas[0].fim)}</span>` : ""}</div>
       <div class="tv${turmas.length > 2 ? " tv-s" : ""}">${livre() && !turmas.length ? "Avulsos" : turmas.length ? turmas.slice().sort((x,y) => ((x.dia_semana+6)%7) - ((y.dia_semana+6)%7) || String(x.inicio).localeCompare(String(y.inicio))).map(t => cap1(WDS[t.dia_semana])).join(", ") : "—"}</div>
+      ${quinzenal() ? `<p class="ts">Semana sim, semana não</p>` : ""}
     </section>
   </div>
   ${blocoPedido()}
   <div class="list ajustes">
-    ${!livre() && !(S.pedido && S.pedido.status === "pendente") ? `<button class="li" id="pedMudar"><span class="ind n"></span>Mudar frequência ou dias</button>` : ""}
+    ${!livre() && !quinzenal() && !(S.pedido && S.pedido.status === "pendente") ? `<button class="li" id="pedMudar"><span class="ind n"></span>Mudar frequência ou dias</button>` : ""}
     <div class="li"><span class="ind n"></span>Mensalidade<span class="end">Em breve</span></div>
     ${linhaPush()}
     ${linhaTema()}
@@ -1497,11 +1503,11 @@ async function eqLoad(){
   } else if(E.sec === "pessoas"){
     const [al, cr, mt, tu] = await Promise.all([
       sb.from("pessoas").select("*").order("nome"), sb.rpc("equipe_creditos"),
-      sb.from("matriculas").select("aluno_id,turma_id").is("ate", null), sb.from("turmas").select("*").order("dia_semana").order("inicio")
+      sb.from("matriculas").select("aluno_id,turma_id,quinzenal").is("ate", null), sb.from("turmas").select("*").order("dia_semana").order("inicio")
     ]);
     E.alunos = al.data || []; E.turmas = tu.data || [];
     E.cred = Object.fromEntries((cr.data || []).map(c => [c.aluno_id, c.ativos]));
-    E.mat = {}; (mt.data || []).forEach(m => (E.mat[m.aluno_id] ||= []).push(m.turma_id));
+    E.mat = {}; E.quinz = {}; (mt.data || []).forEach(m => { (E.mat[m.aluno_id] ||= []).push(m.turma_id); if(m.quinzenal) E.quinz[m.aluno_id] = true; });
   } else if(E.sec === "turmas"){
     const { data } = await sb.from("turmas").select("*").order("dia_semana").order("inicio"); E.turmas = data || [];
   } else if(E.sec === "eventos"){
@@ -1673,7 +1679,7 @@ function sheetPessoaEq(id){
           <label class="field"><span>Próximo vencimento</span><input id="f_venc" type="date" value="${esc(p.pagamento_proximo_vencimento)}"></label></div>
         <label class="check"><input type="checkbox" id="f_repolivre" ${p.reposicao_livre ? "checked" : ""}>Reposições sem limite (mantém os dias fixos)</label>
         <label class="check"><input type="checkbox" id="f_livre" ${p.plano === "livre" ? "checked" : ""}>Plano livre (sem dias fixos, marca as aulas que quiser)</label>
-        <p class="label" style="margin-top:var(--s2)">Dias fixos no atelier${p.frequencia_semanal ? `, ${p.frequencia_semanal}x por semana` : ""}</p>
+        <p class="label" style="margin-top:var(--s2)">Dias fixos no atelier${E.quinz && E.quinz[p.id] ? ", semana sim, semana não" : p.frequencia_semanal ? `, ${p.frequencia_semanal}x por semana` : ""}</p>
         ${E.turmas.map(t => `<label class="check"><input type="checkbox" data-mat="${t.id}" ${minhas.includes(t.id) ? "checked" : ""}>${esc(horarioNome(t))}</label>`).join("") || `<p class="sub">Cadastre os horários do atelier primeiro (Equipe → Horários).</p>`}
       </div>
 
@@ -2682,6 +2688,32 @@ function bind(){
 const listaEmAula = () => S.live.length
   ? `<div class="people">${S.live.map(p => `<div class="person"><div class="av">${esc(initials(p.nome))}</div><span>${esc(p.nome)}</span><span class="tag">${p.sou_eu ? "você" : p.tipo === "reposicao" ? "reposição" : ""}</span></div>`).join("")}</div>`
   : `<p class="sub">Ninguém confirmado nesta aula.</p>`;
+/* quem vai ao evento e perfil público de cada pessoa */
+function sheetQuemVai(evId){
+  const e = S.eventos.find(x => x.id === evId); if(!e) return;
+  const l = e.quem || [];
+  sheet(`<p class="label">${esc(e.titulo)}</p><h3 class="h5">${plural(l.length, "pessoa vai", "pessoas vão")}</h3>
+    <div class="quemlista">${l.map(q => `<button class="quemli" ${q.pessoa_id ? `data-perfil="${q.pessoa_id}" data-perfilev="${evId}"` : "disabled"}>
+      ${avatarMini(q)}<span class="quemnome">${q.sou_eu ? "Você" : esc(q.nome)}</span>${q.cargo ? `<span class="tag">${esc(q.cargo)}</span>` : ""}</button>`).join("")}</div>
+    <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
+}
+async function sheetPerfil(id, evId){
+  const voltar = evId ? `<button class="btn ghost" data-quemvai="${evId}">Voltar</button>` : `<button class="btn ghost" data-close>Fechar</button>`;
+  sheet(`<div class="pperfil"><div class="pcapa"></div><span class="pav"></span><p class="sub">Carregando…</p></div><div class="btns">${voltar}</div>`);
+  const { data, error } = await sb.rpc("perfil_publico", { p_pessoa: id });
+  const p = data && data[0];
+  if(error || !p) return sheet(`<h3 class="h5">Perfil</h3><p class="sub">${error ? esc(errMsg(error)) : "Este perfil não está disponível."}</p><div class="btns">${voltar}</div>`);
+  const tempo = p.aluno_desde ? tempoAtelier(p) : "";
+  sheet(`<div class="pperfil">
+      <div class="pcapa${p.capa_url ? " has" : ""}">${p.capa_url ? `<img src="${esc(p.capa_url)}" alt="">` : ""}</div>
+      <span class="pav">${p.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="">` : `<span class="ini">${esc(initials(p.nome.replace(".", "")))}</span>`}</span>
+      <h3 class="h5">${p.sou_eu ? "Você" : esc(p.nome)}</h3>
+      ${p.cargo ? `<p class="pcargo">${esc(p.cargo)}</p>` : ""}
+      ${tempo ? `<p class="sub">${esc(tempo)}</p>` : ""}
+    </div>
+    ${p.dias ? `<div class="pinfo"><p class="label">No atelier</p><p>${esc(p.dias)}</p></div>` : ""}
+    <div class="btns">${voltar}</div>`);
+}
 function sheetPessoas(){
   const cur = S.agenda.find(a => !a.cancelada && a.ini <= now() && a.fim > now());
   sheet(`<p class="label">Agora no atelier</p><h3 class="h5">${plural(S.live.length,"aluno em aula","alunos em aula")}</h3>
@@ -2692,6 +2724,8 @@ function sheetPessoas(){
 $("#sheetBody").addEventListener("click", async e => {
   const t = e.target.closest("button"); if(!t) return;
   if(t.hasAttribute("data-close")) return closeSheet();
+  if(t.dataset.perfil) return sheetPerfil(t.dataset.perfil, t.dataset.perfilev);
+  if(t.dataset.quemvai) return sheetQuemVai(t.dataset.quemvai);
   if(t.dataset.aula && t.classList.contains("opt")){ const a = S.agenda.find(x => x.aula_id === t.dataset.aula); return a && sheetAula(a); }
   if(t.dataset.book) return doBook(t.dataset.book, t);
   if(t.dataset.remarcar){ busy(t, true); const { error } = await sb.rpc("remarcar_aula", { p_reserva: t.dataset.remarcar });
