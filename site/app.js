@@ -189,10 +189,13 @@ async function registrarAparelho(){
   if(!error && ok){ guardarAparelho(email, t); lembrarEmail(email.toLowerCase()); }
 }
 async function entrarPeloAparelho(){
-  const token = tokenAparelho(loginEmail); if(!token) return false;
+  // sem token guardado: tenta com um novo (vale se a equipe liberou a entrada sem código)
+  let token = tokenAparelho(loginEmail), novo = false;
+  if(!token){ const b = new Uint8Array(32); crypto.getRandomValues(b); token = [...b].map(x => x.toString(16).padStart(2, "0")).join(""); novo = true; }
   const { data: r, error } = await sb.functions.invoke("entrar-aparelho", { body: { email: loginEmail, token } });
   if(error || !r) return false;
-  if(r.status !== "ok"){ if(["desconhecido","equipe"].includes(r.status)) guardarAparelho(loginEmail, ""); return false; }
+  if(r.status !== "ok"){ if(!novo && ["desconhecido","equipe"].includes(r.status)) guardarAparelho(loginEmail, ""); return false; }
+  if(novo) guardarAparelho(loginEmail, token);
   acabouDeEntrar(true);
   const { error: ev } = await sb.auth.verifyOtp({ token_hash: r.token_hash, type: "magiclink" });
   if(ev){ acabouDeEntrar(false); return false; }
