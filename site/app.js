@@ -321,12 +321,12 @@ async function loadAluno(){
   loadDiario().then(() => { if(["voce","diario"].includes(S.tab) && !precisaCompletar() && !NS.ativo) render(); }).catch(() => {});
 }
 async function loadEventos(){
-  let [{ data }, { data: qv, error: qe }, { data: mc }, { data: fo }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("inscritos_eventos_perfil"), sb.rpc("mural_contagem"), sb.from("eventos").select("id,foto_url").not("foto_url", "is", null)]);
+  let [{ data }, { data: qv, error: qe }, { data: mc }, { data: fo }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("inscritos_eventos_perfil"), sb.rpc("mural_contagem"), sb.from("eventos").select("id,foto_url,inscricoes_ate")]);
   if(qe) ({ data: qv } = await sb.rpc("inscritos_eventos"));
-  const foto = {}; (fo || []).forEach(f => foto[f.id] = f.foto_url);
+  const foto = {}, insAte = {}; (fo || []).forEach(f => { foto[f.id] = f.foto_url; insAte[f.id] = f.inscricoes_ate ? new Date(f.inscricoes_ate) : null; });
   const porEv = {}; (qv || []).forEach(q => (porEv[q.evento_id] ||= []).push(q));
   const nc = {}; (mc || []).forEach(m => nc[m.evento_id] = m.total);
-  S.eventos = (data || []).map(e => ({ ...e, ini: new Date(e.inicia_em), fim: new Date(e.termina_em), quem: porEv[e.id] || [], nc: nc[e.id] || 0, foto_url: foto[e.id] || null }));
+  S.eventos = (data || []).map(e => ({ ...e, ini: new Date(e.inicia_em), fim: new Date(e.termina_em), quem: porEv[e.id] || [], nc: nc[e.id] || 0, foto_url: foto[e.id] || null, insAte: insAte[e.id] || null }));
 }
 /* fotinhas de quem vai ao evento (foto ou iniciais) */
 const avatarMini = q => q.avatar_url
@@ -375,7 +375,8 @@ window.addEventListener("offline", () => { if(S.session) { S.cacheTs = S.cacheTs
 
 /* link vindo de uma notificação: ?aula=… abre a aula, ?ir=diario abre a aba */
 function abrirLinkDireto(){
-  const q = new URLSearchParams(location.search), aula = q.get("aula"), ir = q.get("ir");
+  const q = new URLSearchParams(location.search), aula = q.get("aula"), ir = q.get("ir"), evento = q.get("evento");
+  if(evento){ try{ history.replaceState(null, "", location.pathname); }catch(_){} if(S.eventos.some(x => x.id === evento)) abrirEvento(evento); return; }
   if(!aula && !ir) return;
   try{ history.replaceState(null, "", location.pathname); }catch(_){}
   if(ir && ["hoje","agenda","eventos","voce","diario","painel","eqhoje"].includes(ir)) go(ir);
@@ -1141,13 +1142,13 @@ function viewEventoPag(){
   if(!e){ setTimeout(() => S.tab === "evento" && go(EV.volta || "eventos")); return ""; }
   const vag = e.vagas == null ? null : Math.max(0, e.vagas - e.inscritos);
   const [preco1, ...precoResto] = String(e.preco_texto || "").split(/\s+·\s+|\s*\/\s*|;\s*/).filter(Boolean);
-  const passou = e.ini <= now();
+  const passou = e.ini <= now(), fechou = !passou && e.insAte && e.insAte < now();
   const vagasTxt = vag == null ? "" : vag === 0 ? "Esgotado" : plural(vag, "vaga livre", "vagas livres");
   const preco = `<span class="evbar-l"><span class="evbar-r">Valor</span><b>${esc(preco1 || "A definir")}</b>${precoResto.length ? `<span class="evbar-n">${esc(precoResto.join(", "))}</span>` : ""}</span>`;
   let barra = "";
   if(S.visitante && !S.equipe) barra = `${preco}<span class="evbar-aviso">Inscrição para alunos ativos</span>`;
   else if(S.aluno && e.inscrito) barra = `<span class="evbar-l"><span class="evbar-r">Inscrição</span><b class="evvai">Você vai</b></span><button class="btn evcta ghost-line" data-unev="${e.id}">Cancelar</button>`;
-  else if(S.aluno) barra = `${preco}<button class="btn pri evcta" data-inev="${e.id}" ${vag === 0 || passou ? "disabled" : ""}>${vag === 0 ? "Esgotado" : passou ? "Encerrado" : "Quero ir"}</button>`;
+  else if(S.aluno) barra = `${preco}<button class="btn pri evcta" data-inev="${e.id}" ${vag === 0 || passou || fechou ? "disabled" : ""}>${vag === 0 ? "Esgotado" : passou ? "Encerrado" : fechou ? "Inscrições encerradas" : "Quero ir"}</button>`;
   return `<header class="evhero${e.foto_url ? " comfoto" : ""}${EV.reac.length ? " comreac" : ""}">
       ${e.foto_url ? `<img class="evfoto" src="${esc(e.foto_url)}" alt="">` : ""}
       <div class="evhero-top"><button class="evround" data-evvoltar aria-label="Voltar">${EVI_TOPO.voltar}</button>
@@ -1159,6 +1160,7 @@ function viewEventoPag(){
       <h1 class="evtit">${esc(e.titulo)}</h1>
       <ul class="evinfo">
         <li class="lin"><span class="evico">${EVI.data}</span><span><b>${cap1(WD[e.ini.getDay()])}, ${e.ini.getDate()} de ${MES[e.ini.getMonth()]}</b><span>, ${hh(e.ini)} às ${hh(e.fim)}</span></span></li>
+        ${e.insAte && !passou ? `<li class="lin"><span class="evico">${EVI.vagas}</span><span><b>${fechou ? "Inscrições encerradas" : `Inscrições até ${e.insAte.getDate()} de ${MES[e.insAte.getMonth()]}`}</b></span></li>` : ""}
         ${e.local ? `<li class="lin"><span class="evico">${EVI.local}</span><span><b>${esc(e.local)}</b>${/atelier/i.test(e.local) ? `<span>, Rua São Paulo, 864</span>` : ""}</span></li>` : ""}
         ${!S.aluno && preco1 ? `<li class="lin"><span class="evico">${EVI.valor}</span><span><b>${esc(preco1)}</b>${precoResto.length ? `<span>, ${esc(precoResto.join(", "))}</span>` : ""}</span></li>` : ""}
       </ul>
@@ -1808,6 +1810,7 @@ function sheetEventoEq(id){
       <div class="row2"><label class="field"><span>Começa</span><input id="e_ini" type="datetime-local" value="${toLocalInput(e.ini)}"></label><label class="field"><span>Termina</span><input id="e_fim" type="datetime-local" value="${toLocalInput(e.fim)}"></label></div>
       <label class="field"><span>Local</span><input id="e_local" value="${esc(e.local || "Atelier Alma")}"></label>
       <div class="row2"><label class="field"><span>Vagas (vazio = sem limite)</span><input id="e_vagas" type="number" min="1" value="${esc(e.vagas)}"></label><label class="field"><span>Valor</span><input id="e_preco" value="${esc(e.preco_texto)}" placeholder="R$ 90 / alunos R$ 70"></label></div>
+      <label class="field"><span>Inscrições até (vazio = até o início)</span><input id="e_insate" type="date" value="${e.insAte ? dkey(e.insAte) : ""}"></label>
       <label class="check"><input type="checkbox" id="e_pub" ${e.publicado ? "checked" : ""}>Visível para os alunos</label>
       ${e.foto_url ? `<label class="check"><input type="checkbox" id="e_semfoto">Tirar a foto do topo</label>` : ""}
       <p class="err" id="fErr" hidden></p>
@@ -1817,7 +1820,8 @@ function sheetEventoEq(id){
     ev.preventDefault(); const btn = $("#evForm button[type=submit]"); busy(btn, true);
     const row = { tipo: $("#e_tipo").value.trim(), titulo: $("#e_tit").value.trim(), descricao: $("#e_desc").value.trim() || null,
       inicia_em: new Date($("#e_ini").value).toISOString(), termina_em: new Date($("#e_fim").value).toISOString(),
-      local: $("#e_local").value.trim() || null, vagas: $("#e_vagas").value ? +$("#e_vagas").value : null, preco_texto: $("#e_preco").value.trim() || null, publicado: $("#e_pub").checked };
+      local: $("#e_local").value.trim() || null, vagas: $("#e_vagas").value ? +$("#e_vagas").value : null, preco_texto: $("#e_preco").value.trim() || null, publicado: $("#e_pub").checked,
+      inscricoes_ate: $("#e_insate").value ? new Date($("#e_insate").value + "T23:59:59").toISOString() : null };
     if($("#e_semfoto") && $("#e_semfoto").checked) row.foto_url = null;
     try{
       if(!row.tipo || !row.titulo) throw new Error("Preencha tipo e título.");
