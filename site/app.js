@@ -1378,6 +1378,19 @@ function tempoAtelier(a){
   if(!anos) return `${plural(meses, "mês", "meses")} de atelier`;
   return `${plural(anos, "ano", "anos")}${meses ? ` e ${plural(meses, "mês", "meses")}` : ""} de atelier`;
 }
+/* aviso do ritmo: só aparece quando há uma falta recente ainda sem reposição */
+function avisoRitmo(){
+  if(livre()) return "";
+  const n = now(), lim = 14 * 864e5;
+  const falta = S.agenda.filter(a => isMine(a) && a.reserva_tipo === "fixa" && !a.cancelada
+      && ["desmarcada","falta","ausencia_tardia"].includes(a.reserva_status) && a.ini <= n && n - a.ini < lim)
+    .sort((x, y) => y.ini - x.ini)[0];
+  if(!falta) return "";
+  const repos = S.agenda.some(a => isMine(a) && a.reserva_tipo === "reposicao" && ["confirmada","presente"].includes(a.reserva_status) && a.ini > falta.ini);
+  if(repos) return "";
+  const ate = new Date(falta.ini.getTime() + lim);
+  return `<p class="ritmo-aviso">Reponha a aula de ${dm(falta.ini)} até ${dm(ate)} para manter o ritmo.</p>`;
+}
 function viewVoce(){
   const a = S.aluno, r = S.resumo || {}, sem = r.semanas_ritmo || 0, cr = S.creditos, prox = cr[0];
   const desde = a.aluno_desde ? fromKey(a.aluno_desde) : null;
@@ -1400,7 +1413,7 @@ function viewVoce(){
   <div class="ritmo">
     <p class="label">Frequência</p>
     <div class="ritmo-row"><span class="ritmo-n tnum">${sem}</span><span class="ritmo-t">${sem === 1 ? "semana" : "semanas"}<br>mantendo o ritmo</span></div>
-    <p class="ritmo-aviso">Faltou? Reponha em até duas semanas para não perder o ritmo.</p>
+    ${avisoRitmo()}
   </div>
   ${blocoDiario()}
   <div class="tiles">
