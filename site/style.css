@@ -204,6 +204,7 @@ button.cell:hover .c{transform:scale(1.1)}
 .ritmo-row{display:flex;align-items:flex-end;gap:var(--s3)}
 .ritmo-n{font-size:72px;line-height:.9;font-weight:500;letter-spacing:-.04em}
 .ritmo-t{font-size:var(--t-body);line-height:20px;color:var(--muted);padding-bottom:4px}
+.ritmo-aviso{margin-top:var(--s1);font-size:var(--t-body-s);line-height:20px;color:var(--muted)}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s5) var(--s4);margin-top:var(--s6);padding-top:var(--s5);border-top:1px solid var(--line)}
 .stat b{display:block;font-size:var(--t-h4);line-height:36px;font-weight:500;letter-spacing:-.02em}
 .stat b small{font-size:var(--t-title);color:var(--muted);font-weight:400}
