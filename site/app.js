@@ -974,7 +974,7 @@ function cardEventoHTML(e, eq){
   </button>`;
 }
 /* ---------- Página do evento: detalhes, reações e mural ---------- */
-const EMOJIS = ["❤️","😍","👏","🎨","🔥","😂"];
+const EMOJIS = ["❤️","😍","👏","🎨","🔥","😂","🍷"];
 const EV = { id: null, volta: null, mural: null, reac: [], quem: [], rascunho: "", carregado: null };
 const muralContaHTML = e => e.nc ? `<span class="mcount">${plural(e.nc, "comentário", "comentários")}</span>` : "";
 const podeEscrever = () => !!(S.aluno || S.equipe) && !(S.visitante && !S.equipe);
