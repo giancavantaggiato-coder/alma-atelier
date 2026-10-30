@@ -176,6 +176,28 @@ const EMAIL_KEY = "alma-email";
 const emailLembrado = () => { try{ return localStorage.getItem(EMAIL_KEY) || ""; }catch(_){ return ""; } };
 const lembrarEmail = e => { try{ e ? localStorage.setItem(EMAIL_KEY, e) : localStorage.removeItem(EMAIL_KEY); }catch(_){} };
 const trocarSenhaDepois = v => { try{ if(v === undefined) return sessionStorage.getItem("alma-nova-senha") === "1"; v ? sessionStorage.setItem("alma-nova-senha","1") : sessionStorage.removeItem("alma-nova-senha"); }catch(_){ return false; } };
+/* aparelho conhecido: o aluno que já entrou neste celular volta só com o e-mail */
+const APARELHO_KEY = "alma-aparelhos";
+const aparelhos = () => { try{ return JSON.parse(localStorage.getItem(APARELHO_KEY) || "{}") || {}; }catch(_){ return {}; } };
+const tokenAparelho = e => aparelhos()[String(e || "").toLowerCase()] || "";
+const guardarAparelho = (e, t) => { try{ const m = aparelhos(); t ? (m[e.toLowerCase()] = t) : delete m[e.toLowerCase()]; localStorage.setItem(APARELHO_KEY, JSON.stringify(m)); }catch(_){} };
+async function registrarAparelho(){
+  const email = S.session && S.session.user && S.session.user.email; if(!email || tokenAparelho(email)) return;
+  const b = new Uint8Array(32); crypto.getRandomValues(b);
+  const t = [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+  const { data: ok, error } = await sb.rpc("registrar_aparelho", { p_token: t });
+  if(!error && ok){ guardarAparelho(email, t); lembrarEmail(email.toLowerCase()); }
+}
+async function entrarPeloAparelho(){
+  const token = tokenAparelho(loginEmail); if(!token) return false;
+  const { data: r, error } = await sb.functions.invoke("entrar-aparelho", { body: { email: loginEmail, token } });
+  if(error || !r) return false;
+  if(r.status !== "ok"){ if(["desconhecido","equipe"].includes(r.status)) guardarAparelho(loginEmail, ""); return false; }
+  acabouDeEntrar(true);
+  const { error: ev } = await sb.auth.verifyOtp({ token_hash: r.token_hash, type: "magiclink" });
+  if(ev){ acabouDeEntrar(false); return false; }
+  lembrarEmail(loginEmail); loginStep = "inicio"; return true;
+}
 let loginEmail = emailLembrado(), loginStep = "inicio", reenvio = 0, reenvioT = null;
 function startReenvio(){ reenvio = 60; clearInterval(reenvioT); reenvioT = setInterval(() => { reenvio--; const b = $("#reenviar"); if(b){ b.disabled = reenvio > 0; b.textContent = reenvio > 0 ? `Reenviar em ${reenvio}s` : "Reenviar código"; } if(reenvio <= 0) clearInterval(reenvioT); }, 1000); }
 async function enviarCodigo(){
@@ -206,6 +228,7 @@ function renderLogin(step){
         const { data: modo, error: em } = await sb.rpc("como_entrar", { p_email: loginEmail });
         if(em) throw new Error("Não foi possível verificar o e-mail. Tente de novo.");
         if(!modo) throw new Error("Este e-mail não está cadastrado no atelier. Use o e-mail que você passou para a equipe ou fale com a gente.");
+        if(await entrarPeloAparelho()) return;
         if(modo === "senha") return renderLogin("senha");
         await enviarCodigo();
         renderLogin("codigo");
@@ -379,7 +402,7 @@ async function bootDentro(){
     await loadMe();
     if(S.visitante && !S.equipe){
       if(!["hoje","agenda","eventos","voce"].includes(S.tab)) S.tab = "hoje";
-      if(await pedirSenha()) return;
+      registrarAparelho().catch(() => {});
       await loadVisitante(); render(); return;
     }
     if(!S.aluno && !S.equipe){
@@ -396,7 +419,8 @@ async function bootDentro(){
     }
     /* cadastro incompleto: vai direto para o cadastro, sem pedir o código de novo */
     if(precisaCompletar()) return await primeiroAcesso();
-    if(!S.comoAluno && await pedirSenha()) return;
+    if(S.equipe && !S.comoAluno){ if(await pedirSenha()) return; }
+    else if(!S.comoAluno) registrarAparelho().catch(() => {});
     if(!S.aluno){ if(!["eqhoje","painel"].includes(S.tab) && !isEqTab()) S.tab = "eqhoje"; if(S.tab === "eqhoje") loadHojeEq(); }
     await Promise.all([loadAluno(), loadEventos()]);
     render();
@@ -739,7 +763,6 @@ function viewVoceV(){
     <p class="sub">Você vê a agenda do atelier (quantos alunos vêm em cada dia) e os eventos. ${S.visitante.vinculo === "pausado" ? "Marcar aulas, ter reposições e se inscrever em eventos voltam quando a sua matrícula for reativada." : "Para marcar aulas, ter reposições e se inscrever em eventos, é só voltar às aulas."}</p></section>
   <div class="list ajustes">
     ${linhaTema()}
-    <button class="li" id="trocarSenha"><span class="ind n"></span>Trocar senha de acesso</button>
     <button class="li sairli" id="sair"><span class="ind n"></span>Sair da conta</button>
   </div>`;
 }
@@ -1388,7 +1411,6 @@ function viewVoce(){
     <div class="li"><span class="ind n"></span>Mensalidade<span class="end">Em breve</span></div>
     ${linhaPush()}
     ${linhaTema()}
-    <button class="li" id="trocarSenha"><span class="ind n"></span>Trocar senha de acesso</button>
     <button class="li sairli" id="sair"><span class="ind n"></span>Sair da conta</button>
   </div>`;
 }

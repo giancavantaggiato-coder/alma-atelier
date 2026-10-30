@@ -34,9 +34,11 @@ Uma tabela só (`pessoas`) para todo mundo que se relaciona com o Alma. Cada pes
 
 ## Acesso ao app
 - Quem está cadastrado como **Aluno** com e-mail entra direto: no primeiro acesso o app manda o código para esse e-mail.
-- Depois de entrar, a pessoa cria uma **senha de 4 números**. Das próximas vezes digita o e-mail e a senha, sem código.
-  - O app lembra o e-mail no aparelho. Sequências óbvias (1234, 1111) não são aceitas.
-  - **Esqueci a senha**: o app manda o código por e-mail e pede uma senha nova.
+- Depois de entrar, a pessoa fica logada até sair da conta.
+- **Aluno, celular conhecido**: se sair, volta digitando só o e-mail, sem código e sem senha. O app guarda um token no aparelho; o banco guarda só o hash (`aparelhos_app`, Edge Function `entrar-aparelho`).
+- **Aluno, celular novo** (ou se o celular apagou os dados do app): recebe o código por e-mail uma vez.
+- **Equipe**: continua com a **senha de 4 números**, porque dá acesso ao painel.
+  - Sequências óbvias (1234, 1111) não são aceitas. **Esqueci a senha** manda o código por e-mail.
   - 5 senhas erradas bloqueiam a senha; a pessoa entra pelo código e cria outra.
   - Trocar a senha: aba **Você → Trocar senha de acesso**.
   - Por trás: tabela `senhas_app` (só o hash), funções em `supabase/13_senha_pin.sql` e a Edge Function `entrar-pin`.
