@@ -1369,7 +1369,7 @@ function viewVoce(){
   <div class="ritmo">
     <p class="label">Frequência</p>
     <div class="ritmo-row"><span class="ritmo-n tnum">${sem}</span><span class="ritmo-t">${sem === 1 ? "semana" : "semanas"}<br>mantendo o ritmo</span></div>
-    <p class="ritmo-aviso">Faltou numa semana? Reponha em até duas semanas para não perder o ritmo.</p>
+    <p class="ritmo-aviso">Faltou? Reponha em até duas semanas para não perder o ritmo.</p>
   </div>
   ${blocoDiario()}
   <div class="tiles">
