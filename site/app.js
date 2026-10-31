@@ -680,7 +680,7 @@ function viewHoje(){
     ${estado ? `<p class="sub" style="font-size:var(--t-body)">${estado}</p>` : ""}
   </header>
   <button class="live" id="liveBtn" ${live ? "" : "disabled"}>
-    <span class="dot"></span><u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : "Ninguém no atelier agora"}</u>
+    ${!live && horaDoVinho() ? `<span class="brinde" aria-hidden="true">${ICO_BRINDE}</span>` : `<span class="dot"></span>`}<u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : horaDoVinho() ? "Provavelmente brindando" : "Ninguém no atelier agora"}</u>
   </button>
   ${aniversarioAtelier()}
   ${blocoRecados()}
@@ -720,7 +720,7 @@ function viewHojeV(){
     <h1 class="h4">${saudacao()}, ${esc(firstName(v.nome))}</h1>
     <p class="sub" style="font-size:var(--t-body)">${hoje.length ? `O atelier abre hoje às ${hh(hoje[0].ini)}.` : "Hoje o atelier não abre."}</p>
   </header>
-  <div class="live" aria-disabled="true"><span class="dot"></span><span>${live ? `${plural(live,"aluno","alunos")} no atelier agora` : "Ninguém no atelier agora"}</span></div>
+  <div class="live" aria-disabled="true">${!live && horaDoVinho() ? `<span class="brinde" aria-hidden="true">${ICO_BRINDE}</span>` : `<span class="dot"></span>`}<span>${live ? `${plural(live,"aluno","alunos")} no atelier agora` : horaDoVinho() ? "Provavelmente brindando" : "Ninguém no atelier agora"}</span></div>
   <section class="tile wide next v-aviso"><div class="tl"><h2 class="tt">${rotuloV()}</h2><span class="chip">Acesso reduzido</span></div>
     <p class="sub">${S.visitante.vinculo === "pausado" ? "Sua matrícula está suspensa. Você acompanha a agenda do atelier e os eventos; marcar aulas, reposições e inscrições voltam quando a matrícula for reativada." : "Você acompanha a agenda do atelier e os eventos. Marcar aulas, reposições e inscrições ficam disponíveis quando você voltar às aulas."}</p></section>
   <div class="list">
