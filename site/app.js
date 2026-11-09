@@ -670,7 +670,7 @@ function viewHoje(){
   const n = now(), cur = currentClass(), hoje = todayClasses().filter(a => a.ini > n);
   const estado = cur ? "" : hoje.length ? `Sua aula hoje é às ${hh(hoje[0].ini)}.` : "Hoje você não tem aula.";
   const nx = nextClass(), ac = nCred(), live = S.live.length;
-  const ev = S.eventos.find(e => e.ini > n && e.publicado);
+  const ev1 = S.eventos.find(e => e.ini > n && e.publicado), evs = ev1 ? S.eventos.filter(e => e.ini > n && e.publicado && dkey(e.ini) === dkey(ev1.ini)) : [];
   const esp = S.agenda.filter(a => naEspera(a.aula_id) && a.ini > n && !a.cancelada && !activeMine(a));
   const espAberta = esp.filter(a => vagas(a) > 0), espFila = esp.filter(a => vagas(a) <= 0);
   return `
@@ -696,7 +696,7 @@ function viewHoje(){
   <div class="list">
     ${espFila.map(a => `<button class="li" data-abreaula="${a.aula_id}"><span class="ind n"></span>Na lista de espera<span class="end tnum">${WDS[a.ini.getDay()]} ${dm(a.ini)}, ${hh(a.ini)}</span></button>`).join("")}
     <button class="li" data-go="agenda"><span class="ind"></span><span class="tnum">${livre() ? "Plano livre: marque as aulas que quiser" : repoLivre() ? "Reposições sem limite" : ac === 1 ? "1 reposição disponível" : `${ac} reposições disponíveis`}</span></button>
-    ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
+    ${evs.map(ev => `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${evs.length > 1 ? `, ${hh(ev.ini)}` : ""}</span></button>`).join("")}
   </div>
   ${cartaoPush()}
   ${botaoRecado()}`;
@@ -713,7 +713,7 @@ async function loadVisitante(){
 const AVISO_V = "Função ativa somente para alunos ativos";
 function viewHojeV(){
   const n = now(), v = S.visitante, live = S.agoraV || 0;
-  const ev = S.eventos.find(e => e.ini > n && e.publicado);
+  const ev1 = S.eventos.find(e => e.ini > n && e.publicado), evs = ev1 ? S.eventos.filter(e => e.ini > n && e.publicado && dkey(e.ini) === dkey(ev1.ini)) : [];
   const hoje = (S.agendaV || []).filter(a => !a.cancelada && dkey(a.ini) === dkey(n));
   return `<header class="hello">
     <p class="label">${cap1(WD[n.getDay()])}, ${dm(n)}</p>
@@ -724,7 +724,7 @@ function viewHojeV(){
   <section class="tile wide next v-aviso"><div class="tl"><h2 class="tt">${rotuloV()}</h2><span class="chip">Acesso reduzido</span></div>
     <p class="sub">${S.visitante.vinculo === "pausado" ? "Sua matrícula está suspensa. Você acompanha a agenda do atelier e os eventos; marcar aulas, reposições e inscrições voltam quando a matrícula for reativada." : "Você acompanha a agenda do atelier e os eventos. Marcar aulas, reposições e inscrições ficam disponíveis quando você voltar às aulas."}</p></section>
   <div class="list">
-    ${ev ? `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}</span></button>` : ""}
+    ${evs.map(ev => `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${evs.length > 1 ? `, ${hh(ev.ini)}` : ""}</span></button>`).join("")}
   </div>`;
 }
 function viewAgendaV(){
