@@ -1314,7 +1314,7 @@ function viewPainel(){
   const desde = p.desde ? new Date(p.desde) : null;
   const np = p.pedidos ?? (S.eq.pedidos || []).length;
   return `<header class="profile">
-    <div class="cover ${p.capa_url ? "has" : ""}">${p.capa_url ? `<img class="coverimg" src="${esc(p.capa_url)}" alt="">` : ""}
+    <div class="cover ${p.capa_url ? "has" : ""}">${p.capa_url ? `<img class="coverimg" draggable="false" src="${esc(p.capa_url)}" alt="">` : ""}
       <label class="coverbtn" for="capaIn">${CAM}<span>${p.capa_url ? "Trocar capa" : "Adicionar capa"}</span></label>
       <input type="file" id="capaIn" accept="image/*" hidden>
     </div>
@@ -1400,7 +1400,7 @@ function viewVoce(){
   const venc = a.pagamento_proximo_vencimento ? fromKey(a.pagamento_proximo_vencimento) : null;
   const ult = a.pagamento_ultimo ? fromKey(a.pagamento_ultimo) : null;
   return `<header class="profile">
-    <div class="cover ${a.capa_url ? "has" : ""}">${a.capa_url ? `<img class="coverimg" src="${esc(a.capa_url)}" alt="">` : ""}
+    <div class="cover ${a.capa_url ? "has" : ""}">${a.capa_url ? `<img class="coverimg" draggable="false" src="${esc(a.capa_url)}" alt="">` : ""}
       <label class="coverbtn" for="capaIn">${CAM}<span>${a.capa_url ? "Trocar capa" : "Adicionar capa"}</span></label>
       <input type="file" id="capaIn" accept="image/*" hidden>
     </div>
@@ -2725,7 +2725,7 @@ async function sheetPerfil(id, evId){
   if(error || !p) return sheet(`<h3 class="h5">Perfil</h3><p class="sub">${error ? esc(errMsg(error)) : "Este perfil não está disponível."}</p><div class="btns">${voltar}</div>`);
   const tempo = p.aluno_desde ? tempoAtelier(p) : "";
   sheet(`<div class="pperfil">
-      <div class="pcapa${p.capa_url ? " has" : ""}">${p.capa_url ? `<img src="${esc(p.capa_url)}" alt="">` : ""}</div>
+      <div class="pcapa${p.capa_url ? " has" : ""}">${p.capa_url ? `<img draggable="false" src="${esc(p.capa_url)}" alt="">` : ""}</div>
       <span class="pav">${p.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="">` : `<span class="ini">${esc(initials(p.nome.replace(".", "")))}</span>`}</span>
       <h3 class="h5">${p.sou_eu ? "Você" : esc(p.nome)}</h3>
       ${p.cargo ? `<p class="pcargo">${esc(p.cargo)}</p>` : ""}
