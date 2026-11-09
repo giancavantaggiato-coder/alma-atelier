@@ -824,7 +824,7 @@ body.offline main{padding-top:calc(var(--s5) + 32px + env(safe-area-inset-top,0p
 body.reordenando{overflow:hidden;-webkit-user-select:none;user-select:none}
 .tarefa{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 
-/* modo vinho: sexta, das 22h à meia-noite (bordô do brandbook, detalhes em vermelho e creme) */
+/* modo vinho: sexta, das 22h à meia-noite, e sábado, das 18h às 20h (bordô do brandbook, detalhes em vermelho e creme) */
 html.vinho:root{
   --bg:#5B1F20; --fg:#FEFCE6; --muted:#DDBFB6; --strong:#F2E4D8; --line:#7A3536; --past:#7A3536; --past-ink:#C29890;
   --accent:#FEFCE6; --gold:#E0524C; --accent-ink:#5B1F20; --tile:#6B2828; --urg:#A82424; --danger:#FEFCE6; --scrim:rgba(30,6,8,.6);

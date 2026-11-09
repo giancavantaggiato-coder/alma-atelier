@@ -471,11 +471,11 @@ function aplicarTema(t){
   const escuro = t === "escuro" || (t === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute("media"); m.setAttribute("content", horaDoVinho() && !document.body.classList.contains("na-voce") ? "#5B1F20" : escuro ? "#000000" : "#FEFCE6"); });
 }
-/* modo vinho: sexta, das 22h à meia-noite, o app fica bordô. ?vinho=1 liga para testar (vale até fechar o app) */
+/* modo vinho: sexta, das 22h à meia-noite, e sábado, das 18h às 20h, o app fica bordô. ?vinho=1 liga para testar (vale até fechar o app) */
 let VINHO_TESTE = false;
 try{ VINHO_TESTE = new URLSearchParams(location.search).get("vinho") === "1" || sessionStorage.getItem("alma-vinho") === "1"; if(VINHO_TESTE) sessionStorage.setItem("alma-vinho", "1"); }catch(_){}
 /* "Vinho" na Luminosidade (só no app da equipe) deixa o modo ligado o tempo todo */
-function horaDoVinho(){ const d = new Date(); return VINHO_TESTE || temaAtual() === "vinho" || (d.getDay() === 5 && d.getHours() >= 22); }
+function horaDoVinho(){ const d = new Date(); return VINHO_TESTE || temaAtual() === "vinho" || (d.getDay() === 5 && d.getHours() >= 22) || (d.getDay() === 6 && d.getHours() >= 18 && d.getHours() < 20); }
 function conferirVinho(){
   const on = horaDoVinho(), r = document.documentElement;
   if(on === r.classList.contains("vinho")) return;
