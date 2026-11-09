@@ -863,3 +863,6 @@ html.vinho[data-theme=dark] body.na-voce{--bg:#000000; --fg:#FEFCE6; --muted:#AB
 .pcargo{margin:0;font-size:var(--t-label);font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--gold)}
 .pinfo{margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--line)}
 .pinfo p:last-child{margin:var(--s1) 0 0;font-size:var(--t-body)}
+
+/* fotos de perfil: segurar não abre a imagem original */
+.avatar img,.pav img,.av img,.fp img,.rec-av img{pointer-events:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
