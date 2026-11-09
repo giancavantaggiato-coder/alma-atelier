@@ -866,3 +866,12 @@ html.vinho[data-theme=dark] body.na-voce{--bg:#000000; --fg:#FEFCE6; --muted:#AB
 
 /* fotos de perfil: segurar não abre a imagem original */
 .avatar img,.pav img,.av img,.fp img,.rec-av img{pointer-events:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
+
+/* mensalidade */
+.mens-valor{font-size:var(--t-h4);font-weight:500;letter-spacing:-.02em;margin-top:var(--s2)}
+.mens-valor small{font-size:var(--t-body-s);font-weight:400;color:var(--muted);margin-left:4px;letter-spacing:0}
+.diasgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--s2);margin-top:var(--s3)}
+.diasgrid button{height:40px;border-radius:20px;border:1px solid var(--line);font-size:var(--t-body-s);color:var(--strong)}
+.diasgrid button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.diasgrid button:disabled{opacity:.35}
+.opt .sub{text-align:right}

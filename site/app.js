@@ -298,19 +298,21 @@ async function trocarModoAluno(ligar){
 async function loadAluno(){
   if(!S.aluno) return;
   const de = addDays(new Date(), -120), ate = addDays(new Date(), 150);
-  const [ag, live, res, cr, mt, pd, le] = await Promise.all([
+  const [ag, live, res, cr, mt, pd, le, mens] = await Promise.all([
     sb.rpc("agenda", { p_de: dkey(de), p_ate: dkey(ate) }),
     sb.rpc("em_aula_agora"),
     sb.rpc("meu_resumo"),
     sb.from("creditos").select("*").eq("aluno_id", S.aluno.id).is("usado_em_reserva_id", null).gte("expira_em", dkey(new Date())).order("data_falta"),
     sb.from("matriculas").select("turma_id, quinzenal, turmas(nome,dia_semana,inicio,fim)").eq("aluno_id", S.aluno.id).is("ate", null),
     sb.from("pedidos_mudanca").select("*").eq("aluno_id", S.aluno.id).order("criado_em", { ascending: false }).limit(1),
-    sb.from("lista_espera").select("aula_id, avisado_em").eq("aluno_id", S.aluno.id)
+    sb.from("lista_espera").select("aula_id, avisado_em").eq("aluno_id", S.aluno.id),
+    sb.rpc("minha_mensalidade")
   ]);
   if(semRede(ag.error)) throw new Error("offline");
   S.espera = (le && le.data) || [];
   await loadRecados();
   S.pedido = (pd.data && pd.data[0]) || null;
+  S.mens = (mens && !mens.error && mens.data && mens.data[0]) || null;
   S.agenda = (ag.data || []).map(a => ({ ...a, ini: new Date(a.inicia_em), fim: new Date(a.termina_em) }));
   S.live = live.data || [];
   S.resumo = (res.data && res.data[0]) || null;
@@ -1242,7 +1244,7 @@ async function loadHojeEq(){
   const de = startOfDay(new Date()), ate = addDays(de, 21);
   const [ms, live, pd, pn, , al] = await Promise.all([
     sb.rpc("equipe_mes", { p_de: dkey(de), p_ate: dkey(ate) }), sb.rpc("em_aula_agora"),
-    sb.rpc("equipe_pedidos"), S.painel ? Promise.resolve({ data: S.painel }) : sb.rpc("meu_painel_equipe"), loadEventos(),
+    pedidosEq(), S.painel ? Promise.resolve({ data: S.painel }) : sb.rpc("meu_painel_equipe"), loadEventos(),
     sb.rpc("equipe_alertas"), loadRecados(), loadAgenda()
   ]);
   const ordem = { faltas: 0, reposicoes: 1, espera: 2 };
@@ -1304,7 +1306,7 @@ async function abrirPessoaAlerta(id){
 
 /* ---------- Painel da equipe ---------- */
 async function loadPainel(){
-  const [pn, pd, ps] = await Promise.all([sb.rpc("meu_painel_equipe"), sb.rpc("equipe_pedidos"), sb.from("pessoas").select("id,email,nome,vinculo")]);
+  const [pn, pd, ps] = await Promise.all([sb.rpc("meu_painel_equipe"), pedidosEq(), sb.from("pessoas").select("id,email,nome,vinculo")]);
   S.painel = pn.data || {}; S.eq.pedidos = pd.data || [];
   if(!S.eq.alunos || !S.eq.alunos.length) S.eq.alunos = ps.data || [];
   if(S.tab === "painel") render();
@@ -1312,7 +1314,7 @@ async function loadPainel(){
 function viewPainel(){
   const p = S.painel || {}, nome = p.nome || "Equipe Alma";
   const desde = p.desde ? new Date(p.desde) : null;
-  const np = p.pedidos ?? (S.eq.pedidos || []).length;
+  const np = (S.eq.pedidos || []).length || p.pedidos || 0;
   return `<header class="profile">
     <div class="cover ${p.capa_url ? "has" : ""}">${p.capa_url ? `<img class="coverimg" draggable="false" src="${esc(p.capa_url)}" alt="">` : ""}
       <label class="coverbtn" for="capaIn">${CAM}<span>${p.capa_url ? "Trocar capa" : "Adicionar capa"}</span></label>
@@ -1432,11 +1434,84 @@ function viewVoce(){
   ${blocoPedido()}
   <div class="list ajustes">
     ${!livre() && !quinzenal() && !(S.pedido && S.pedido.status === "pendente") ? `<button class="li" id="pedMudar"><span class="ind n"></span>Mudar frequência ou dias</button>` : ""}
-    <div class="li"><span class="ind n"></span>Mensalidade<span class="end">Em breve</span></div>
+    ${linhaMensalidade()}
     ${linhaPush()}
     ${linhaTema()}
     <button class="li sairli" id="sair"><span class="ind n"></span>Sair da conta</button>
   </div>`;
+}
+/* ---------- Mensalidade ----------
+   Enquanto o Asaas não estiver ligado, só o login fantasma vê a tela nova; os alunos continuam vendo "Em breve". */
+const PAGAMENTO_ABERTO = false;
+const pagLiberado = () => PAGAMENTO_ABERTO || souFantasma();
+const brl = v => "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: Number(v) % 1 ? 2 : 0, maximumFractionDigits: 2 });
+const FORMAS = [
+  ["pix_automatico", "Pix Automático", "Você autoriza uma vez e o valor sai sozinho todo mês"],
+  ["cartao", "Cartão de crédito", "Cobrado todo mês no cartão"],
+  ["pix", "Pix", "Todo mês chega um Pix para você pagar"],
+  ["boleto", "Boleto", "Todo mês chega um boleto para você pagar"]
+];
+const nomeForma = k => (FORMAS.find(f => f[0] === k) || [k, k])[1];
+function linhaMensalidade(){
+  const m = S.mens;
+  if(!pagLiberado() || !m) return `<div class="li"><span class="ind n"></span>Mensalidade<span class="end">Em breve</span></div>`;
+  const fim = m.isento ? "Sem mensalidade" : !m.chave ? "Fale com o atelier" : m.chave === "avulsa" ? `${brl(m.valor)} por aula`
+    : m.vencimento_dia ? `${brl(m.valor)}, dia ${m.vencimento_dia}` : "Configurar";
+  return `<button class="li" id="mensBtn"><span class="ind${m.vencimento_dia || m.isento ? " n" : ""}"></span>Mensalidade<span class="end tnum">${fim}</span></button>`;
+}
+function sheetMensalidade(){
+  const m = S.mens; if(!m) return;
+  const topo = `<p class="label">Mensalidade</p>`;
+  if(m.isento) return sheet(`${topo}<h3 class="h5">Sem mensalidade</h3><p class="sub">Você não tem mensalidade a pagar.</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
+  if(!m.chave) return sheet(`${topo}<h3 class="h5">Plano a definir</h3><p class="sub">Fale com o atelier para definir o seu plano.</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
+  if(m.chave === "avulsa") return sheet(`${topo}<h3 class="h5">Aulas avulsas</h3><p class="sub">${brl(m.valor)} por aula, combinado com o atelier.</p><div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
+  if(!m.vencimento_dia) return sheetConfigurarPagamento();
+  sheet(`${topo}<h3 class="h5">${esc(m.rotulo)}</h3>
+    <p class="mens-valor tnum">${brl(m.valor)}<small> por mês</small></p>
+    <div class="opts">
+      <div class="opt"><span>Vencimento</span><span class="sub tnum">Todo dia ${m.vencimento_dia}</span></div>
+      <div class="opt"><span>Forma de pagamento</span><span class="sub">${esc(nomeForma(m.forma))}</span></div>
+    </div>
+    ${m.vencimento_pedido ? `<section class="pedido"><p class="label">Troca de vencimento</p><p class="title tnum">Dia ${m.vencimento_pedido}, aguardando aprovação do atelier</p>
+      <p class="sub">O dia ${m.vencimento_dia} continua valendo até a aprovação.</p>
+      <div class="pedido-acoes"><button class="textbtn" id="vencCancelar">Cancelar pedido</button></div></section>` : ""}
+    <div class="btns"><button class="btn ghost" id="formaTrocar">Trocar forma de pagamento</button>
+      ${m.vencimento_pedido ? "" : `<button class="btn ghost" id="vencTrocar">Pedir troca do dia</button>`}
+      <button class="btn ghost" data-close>Fechar</button></div>`);
+  $("#formaTrocar").onclick = () => sheetConfigurarPagamento("forma");
+  const vt = $("#vencTrocar"); if(vt) vt.onclick = () => sheetConfigurarPagamento("dia");
+  const vc = $("#vencCancelar"); if(vc) vc.onclick = async () => { busy(vc, true); const { error } = await sb.rpc("cancelar_troca_vencimento"); if(error){ busy(vc, false); return toast(errMsg(error)); } await loadAluno(); render(); sheetMensalidade(); toast("Pedido cancelado"); };
+}
+/* modo: undefined = primeira vez (dia e forma), "forma" = só a forma, "dia" = pedido de troca do dia */
+function sheetConfigurarPagamento(modo){
+  const m = S.mens, P = { dia: modo === "dia" ? null : m.vencimento_dia, forma: modo === "dia" ? m.forma : (m.forma || null) };
+  const comDia = modo !== "forma", comForma = modo !== "dia";
+  const draw = () => {
+    const pronto = (!comDia || P.dia) && (!comForma || P.forma);
+    sheet(`<p class="label">Mensalidade</p>
+      <h3 class="h5">${modo === "forma" ? "Trocar forma de pagamento" : modo === "dia" ? "Pedir troca do dia" : "Configurar pagamento"}</h3>
+      ${modo ? "" : `<p class="sub">${esc(m.rotulo)}: <span class="tnum">${brl(m.valor)}</span> por mês.</p>`}
+      ${modo === "dia" ? `<p class="sub">O pedido vai para o atelier. Hoje a sua mensalidade vence todo dia ${m.vencimento_dia}.</p>` : ""}
+      ${comDia ? `<p class="label" style="margin-top:var(--s5)">Dia do vencimento</p>
+        <p class="sub">${modo === "dia" ? "Escolha o novo dia." : "Escolha o melhor dia do mês. Ele fica fixo todo mês."}</p>
+        <div class="diasgrid">${Array.from({ length: 28 }, (_, i) => i + 1).map(d => `<button type="button" class="tnum" data-pdia="${d}" aria-pressed="${P.dia === d}" ${modo === "dia" && d === m.vencimento_dia ? "disabled" : ""}>${d}</button>`).join("")}</div>` : ""}
+      ${comForma ? `<p class="label" style="margin-top:var(--s5)">Forma de pagamento</p>
+        <div class="opts">${FORMAS.map(([k, n, d]) => `<button type="button" class="opt" data-pforma="${k}" aria-pressed="${P.forma === k}"><span>${n}</span><span class="sub">${d}</span></button>`).join("")}</div>` : ""}
+      <p class="err" id="pErr" hidden></p>
+      <div class="btns"><button class="btn pri" id="pOk" ${pronto ? "" : "disabled"}>${modo === "dia" ? "Enviar pedido" : "Confirmar"}</button><button class="btn ghost" id="pVoltar">${modo ? "Voltar" : "Agora não"}</button></div>`);
+    $$("[data-pdia]").forEach(b => b.onclick = () => { P.dia = +b.dataset.pdia; draw(); });
+    $$("[data-pforma]").forEach(b => b.onclick = () => { P.forma = b.dataset.pforma; draw(); });
+    $("#pVoltar").onclick = () => modo ? sheetMensalidade() : closeSheet();
+    $("#pOk").onclick = async ev => {
+      const btn = ev.currentTarget; busy(btn, true);
+      const { error } = modo === "dia" ? await sb.rpc("pedir_troca_vencimento", { p_dia: P.dia })
+        : await sb.rpc("configurar_pagamento", { p_dia: P.dia, p_forma: P.forma });
+      if(error){ busy(btn, false); const e = $("#pErr"); e.textContent = errMsg(error); e.hidden = false; return; }
+      await loadAluno(); render(); sheetMensalidade();
+      toast(modo === "dia" ? "Pedido enviado para o atelier" : modo === "forma" ? "Forma de pagamento atualizada" : "Pagamento configurado");
+    };
+  };
+  draw();
 }
 function blocoPedido(){
   const p = S.pedido, n = now();
@@ -1510,20 +1585,35 @@ async function uploadFoto(input, qual){
   }catch(ex){ toast("Não foi possível enviar a foto."); }
 }
 
+/* plano e valor de uma pessoa, no painel da equipe (mesma regra do banco) */
+function planoEq(p){
+  if(p.isento) return "Sem mensalidade" + (p.isento_motivo ? ` (${p.isento_motivo})` : "");
+  const k = p.plano === "livre" ? "avulsa" : S.eq.quinz && S.eq.quinz[p.id] ? "mes_2" : p.frequencia_semanal >= 1 && p.frequencia_semanal <= 3 ? "semanal_" + p.frequencia_semanal : null;
+  const pr = (S.eq.precos || []).find(x => x.chave === k);
+  return pr ? `${pr.rotulo}: ${brl(pr.valor)} ${k === "avulsa" ? "por aula" : "por mês"}` : "Plano a definir";
+}
+/* pedidos de mudança de dias + pedidos de troca do dia de vencimento, numa lista só */
+async function pedidosEq(){
+  const [a, b] = await Promise.all([sb.rpc("equipe_pedidos"), sb.rpc("equipe_pedidos_vencimento")]);
+  const venc = ((b && !b.error && b.data) || []).map(v => ({ id: "venc:" + v.pessoa_id, tipo: "venc", pessoa_id: v.pessoa_id, aluno_nome: v.nome, dia_atual: v.dia_atual, dia_novo: v.dia_novo, criado_em: v.pedido_em }));
+  return { data: [...(a.data || []), ...venc].sort((x, y) => new Date(x.criado_em) - new Date(y.criado_em)), error: a.error };
+}
+
 /* ---------- Equipe ---------- */
 async function eqLoad(){
   const E = S.eq;
-  sb.rpc("equipe_pedidos").then(({ data }) => { const n = (data || []).length, mudou = n !== (E.pedidos || []).length; E.pedidos = data || []; if(mudou && isEqTab()) render(); });
+  pedidosEq().then(({ data }) => { const n = (data || []).length, mudou = n !== (E.pedidos || []).length; E.pedidos = data || []; if(mudou && isEqTab()) render(); });
   if(E.sec === "dia"){
     const de = E.mes, ate = new Date(E.mes.getFullYear(), E.mes.getMonth()+1, 0);
     const [{ data }] = await Promise.all([sb.rpc("equipe_mes", { p_de: dkey(de), p_ate: dkey(ate) }), loadAgenda()]);
     E.mesDados = (data || []).map(a => ({ ...a, ini: new Date(a.inicia_em), fim: new Date(a.termina_em) }));
   } else if(E.sec === "pessoas"){
-    const [al, cr, mt, tu] = await Promise.all([
+    const [al, cr, mt, tu, pr] = await Promise.all([
       sb.from("pessoas").select("*").order("nome"), sb.rpc("equipe_creditos"),
-      sb.from("matriculas").select("aluno_id,turma_id,quinzenal").is("ate", null), sb.from("turmas").select("*").order("dia_semana").order("inicio")
+      sb.from("matriculas").select("aluno_id,turma_id,quinzenal").is("ate", null), sb.from("turmas").select("*").order("dia_semana").order("inicio"),
+      sb.from("precos").select("*").order("ordem")
     ]);
-    E.alunos = al.data || []; E.turmas = tu.data || [];
+    E.alunos = al.data || []; E.turmas = tu.data || []; E.precos = (pr && pr.data) || [];
     E.cred = Object.fromEntries((cr.data || []).map(c => [c.aluno_id, c.ativos]));
     E.mat = {}; E.quinz = {}; (mt.data || []).forEach(m => { (E.mat[m.aluno_id] ||= []).push(m.turma_id); if(m.quinzenal) E.quinz[m.aluno_id] = true; });
   } else if(E.sec === "turmas"){
@@ -1643,7 +1733,13 @@ function sheetPedidosEq(){
   const L = S.eq.pedidos || [];
   if(!L.length) return closeSheet();
   sheet(`<p class="label">Pedidos de mudança</p><h3 class="h5">${L.length === 1 ? "1 pedido aguardando" : `${L.length} pedidos aguardando`}</h3>
-    ${L.map(p => `<div class="eqaula">
+    ${L.map(p => p.tipo === "venc" ? `<div class="eqaula">
+      <p class="title">${esc(p.aluno_nome)}</p>
+      <p class="sub">Hoje: mensalidade vence todo dia ${p.dia_atual}</p>
+      <p class="sub" style="color:var(--fg)">Quer: todo dia ${p.dia_novo}</p>
+      <p class="sub">Pedido em ${dm(new Date(p.criado_em))}</p>
+      <div class="pedido-acoes"><button class="btn pri" data-vencok="${p.pessoa_id}" style="width:auto;padding:0 var(--s5)">Aprovar</button><button class="textbtn" data-vencno="${p.pessoa_id}">Recusar</button></div>
+    </div>` : `<div class="eqaula">
       <p class="title">${esc(p.aluno_nome)}</p>
       <p class="sub">Hoje: ${p.frequencia_atual ? `${p.frequencia_atual}x por semana, ` : ""}${esc(p.dias_atuais || "sem dia fixo")}</p>
       <p class="sub" style="color:var(--fg)">Quer: ${p.frequencia_nova}x por semana, ${esc(p.dias_novos || "")}</p>
@@ -1691,10 +1787,14 @@ function sheetPessoaEq(id){
         <div class="row2"><label class="field"><span>Aluno desde</span><input id="f_desde" type="date" value="${esc(p.aluno_desde)}"></label>
           <label class="field"><span>Aulas antes do app</span><input id="f_ant" type="number" min="0" value="${esc(p.aulas_anteriores)}"></label></div>
         <p class="label" style="margin-top:var(--s2)">Mensalidade</p>
+        <p class="sub" style="margin-top:calc(-1 * var(--s2))">${esc(planoEq(p))}${p.vencimento_pedido ? `. Pediu para trocar o vencimento para o dia ${p.vencimento_pedido}` : ""}</p>
+        <label class="check"><input type="checkbox" id="f_isento" ${p.isento ? "checked" : ""}>Isento de mensalidade</label>
+        <label class="field" id="f_isento_wrap" ${p.isento ? "" : "hidden"}><span>Motivo da isenção</span><input id="f_isento_m" value="${esc(p.isento_motivo)}" placeholder="Parceria, equipe…"></label>
+        <div class="row2"><label class="field"><span>Vence todo dia</span><input id="f_vdia" type="number" min="1" max="28" inputmode="numeric" value="${esc(p.vencimento_dia)}" placeholder="1 a 28"></label>
+          <label class="field"><span>Forma</span><select id="f_forma"><option value="">—</option>${FORMAS.map(([k, n]) => `<option value="${k}" ${p.forma_pagamento === k ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>
         <div class="row2"><label class="field"><span>Situação</span><select id="f_pag">${Object.entries(PAG).map(([k,l]) => `<option value="${k}" ${p.pagamento_status === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-          <label class="field"><span>Forma</span><input id="f_metodo" value="${esc(p.pagamento_metodo)}" placeholder="Pix"></label></div>
-        <div class="row2"><label class="field"><span>Último pagamento</span><input id="f_ult" type="date" value="${esc(p.pagamento_ultimo)}"></label>
-          <label class="field"><span>Próximo vencimento</span><input id="f_venc" type="date" value="${esc(p.pagamento_proximo_vencimento)}"></label></div>
+          <label class="field"><span>Último pagamento</span><input id="f_ult" type="date" value="${esc(p.pagamento_ultimo)}"></label></div>
+        <label class="field"><span>Próximo vencimento</span><input id="f_venc" type="date" value="${esc(p.pagamento_proximo_vencimento)}"></label>
         <label class="check"><input type="checkbox" id="f_repolivre" ${p.reposicao_livre ? "checked" : ""}>Reposições sem limite (mantém os dias fixos)</label>
         <label class="check"><input type="checkbox" id="f_livre" ${p.plano === "livre" ? "checked" : ""}>Plano livre (sem dias fixos, marca as aulas que quiser)</label>
         <p class="label" style="margin-top:var(--s2)">Dias fixos no atelier${E.quinz && E.quinz[p.id] ? ", semana sim, semana não" : p.frequencia_semanal ? `, ${p.frequencia_semanal}x por semana` : ""}</p>
@@ -1723,6 +1823,7 @@ function sheetPessoaEq(id){
     </form>`);
   const vincSel = $("#f_vinc");
   vincSel.onchange = () => { $("#blocoAluno").hidden = !ehAluno(vincSel.value); $("#blocoSaida").hidden = vincSel.value !== "ex_aluno"; };
+  const fi = $("#f_isento"); if(fi) fi.onchange = () => { $("#f_isento_wrap").hidden = !fi.checked; };
   $("#pessoaForm").onsubmit = async ev => {
     ev.preventDefault(); const btn = $("#pessoaForm button[type=submit]"); busy(btn, true);
     const v = sel => { const el = $(sel); return el ? (el.value.trim() || null) : null; };
@@ -1733,11 +1834,14 @@ function sheetPessoaEq(id){
     row.acesso_app = aluno ? $("#f_app").checked : vinc === "ex_aluno" && !!($("#f_app_ex") || {}).checked;
     if(aluno){ row.plano = $("#f_livre").checked ? "livre" : "fixo"; row.reposicao_livre = $("#f_repolivre").checked; }
     if(aluno) Object.assign(row, { aluno_desde: v("#f_desde"), aulas_anteriores: +($("#f_ant").value || 0), pagamento_status: $("#f_pag").value,
-      pagamento_metodo: v("#f_metodo"), pagamento_ultimo: v("#f_ult"), pagamento_proximo_vencimento: v("#f_venc") });
+      pagamento_ultimo: v("#f_ult"), pagamento_proximo_vencimento: v("#f_venc"),
+      isento: $("#f_isento").checked, isento_motivo: $("#f_isento").checked ? v("#f_isento_m") : null,
+      vencimento_dia: v("#f_vdia") ? +v("#f_vdia") : null, forma_pagamento: v("#f_forma") });
     if(vinc === "ex_aluno") row.motivo_saida = v("#f_motivo");
     try{
       if(!row.nome && !(aluno && row.email)) throw new Error("Preencha o nome.");
-      if(!row.email && !row.whatsapp && !(["aluno","pausado"].includes(row.vinculo) && !row.acesso_app)) throw new Error("Informe e-mail ou WhatsApp.");
+      if(!row.email && !row.whatsapp && !(["aluno","pausado","ex_aluno"].includes(row.vinculo) && !row.acesso_app)) throw new Error("Informe e-mail ou WhatsApp.");
+      if(row.vencimento_dia != null && !(row.vencimento_dia >= 1 && row.vencimento_dia <= 28)) throw new Error("O dia de vencimento vai de 1 a 28.");
       if(row.acesso_app && !row.email) throw new Error("Para o aluno entrar no app, preencha o e-mail que ele vai usar.");
       let pid = p.id;
       if(id === "novo"){ const { data, error } = await sb.from("pessoas").insert(row).select("id").single(); if(error) throw error; pid = data.id; }
@@ -2661,6 +2765,7 @@ function bind(){
   const sair = $("#sair"); if(sair) sair.onclick = () => S.comoAluno ? trocarModoAluno(false) : sb.auth.signOut();
   const ts = $("#trocarSenha"); if(ts) ts.onclick = () => S.comoAluno ? toast("No modo aluno a senha não muda") : abrirTrocaSenha();
   const pm = $("#pedMudar"); if(pm) pm.onclick = sheetMudanca;
+  const mb = $("#mensBtn"); if(mb) mb.onclick = sheetMensalidade;
   const pc = $("#pedCancelar"); if(pc) pc.onclick = async () => { busy(pc, true); const { error } = await sb.rpc("cancelar_pedido_mudanca"); if(error){ busy(pc, false); return toast(errMsg(error)); } await loadAluno(); render(); toast("Pedido cancelado"); };
   const vp = $("#verPedidos"); if(vp) vp.onclick = sheetPedidosEq;
   const on = (id, fn) => { const el = $(id); if(el) el.onclick = fn; };
@@ -2761,6 +2866,10 @@ $("#sheetBody").addEventListener("click", async e => {
     if(error) return toast(errMsg(error));
     S.eq.pedidos = (S.eq.pedidos || []).filter(x => x.id !== t.dataset.aprovar); toast("Mudança aprovada. A agenda do aluno já foi ajustada."); sheetPedidosEq(); return S.tab === "painel" ? loadPainel() : eqLoad(); }
   if(t.dataset.recusar) return sheetRecusarEq(t.dataset.recusar);
+  if(t.dataset.vencok || t.dataset.vencno){ const pid = t.dataset.vencok || t.dataset.vencno, ok = !!t.dataset.vencok; busy(t, true);
+    const { error } = await sb.rpc("decidir_troca_vencimento", { p_pessoa: pid, p_aprovar: ok }); busy(t, false);
+    if(error) return toast(errMsg(error));
+    S.eq.pedidos = (S.eq.pedidos || []).filter(x => x.id !== "venc:" + pid); toast(ok ? "Dia de vencimento alterado" : "Pedido recusado"); sheetPedidosEq(); return S.tab === "painel" ? loadPainel() : eqLoad(); }
   if(t.dataset.recusarok){ busy(t, true); const msg = ($("#rMsg") || {}).value || null; const { error } = await sb.rpc("recusar_mudanca", { p_pedido: t.dataset.recusarok, p_resposta: msg }); busy(t, false);
     if(error) return toast(errMsg(error));
     S.eq.pedidos = (S.eq.pedidos || []).filter(x => x.id !== t.dataset.recusarok); toast("Pedido recusado"); sheetPedidosEq(); return S.tab === "painel" ? loadPainel() : eqLoad(); }
