@@ -705,6 +705,8 @@ function viewHoje(){
 }
 
 /* ---------- Aluno suspenso / ex-aluno (acesso reduzido) ---------- */
+/* ex-aluno com acesso ao app também se inscreve em eventos; aluno suspenso não */
+const podeInscrever = () => !!S.aluno || !!(S.visitante && !S.equipe && S.visitante.vinculo === "ex_aluno");
 const rotuloV = () => S.visitante && S.visitante.vinculo === "pausado" ? "Aluno suspenso" : "Ex-aluno";
 async function loadVisitante(){
   const de = addDays(new Date(), -60), ate = addDays(new Date(), 120);
@@ -724,7 +726,7 @@ function viewHojeV(){
   </header>
   <div class="live" aria-disabled="true">${!live && horaDoVinho() ? `<span class="brinde" aria-hidden="true">${ICO_BRINDE}</span>` : `<span class="dot"></span>`}<span>${live ? `${plural(live,"aluno","alunos")} no atelier agora` : horaDoVinho() ? "Provavelmente brindando" : "Ninguém no atelier agora"}</span></div>
   <section class="tile wide next v-aviso"><div class="tl"><h2 class="tt">${rotuloV()}</h2><span class="chip">Acesso reduzido</span></div>
-    <p class="sub">${S.visitante.vinculo === "pausado" ? "Sua matrícula está suspensa. Você acompanha a agenda do atelier e os eventos; marcar aulas, reposições e inscrições voltam quando a matrícula for reativada." : "Você acompanha a agenda do atelier e os eventos. Marcar aulas, reposições e inscrições ficam disponíveis quando você voltar às aulas."}</p></section>
+    <p class="sub">${S.visitante.vinculo === "pausado" ? "Sua matrícula está suspensa. Você acompanha a agenda do atelier e os eventos; marcar aulas, reposições e inscrições voltam quando a matrícula for reativada." : "Você acompanha a agenda do atelier e pode se inscrever nos eventos. Marcar aulas e reposições ficam disponíveis quando você voltar às aulas."}</p></section>
   <div class="list">
     ${evs.map(ev => `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${evs.length > 1 ? `, ${hh(ev.ini)}` : ""}</span></button>`).join("")}
   </div>`;
@@ -770,7 +772,7 @@ function viewVoceV(){
     <p class="sub"><span class="tag-ex">${rotuloV()}</span>${desde ? ` no atelier desde ${MES[desde.getMonth()]} de ${desde.getFullYear()}` : ""}</p>
   </header>
   <section class="tile wide v-aviso" style="margin-top:var(--s6)"><div class="tl"><h2 class="tt">Acesso reduzido</h2><span class="chip">${rotuloV()}</span></div>
-    <p class="sub">Você vê a agenda do atelier (quantos alunos vêm em cada dia) e os eventos. ${S.visitante.vinculo === "pausado" ? "Marcar aulas, ter reposições e se inscrever em eventos voltam quando a sua matrícula for reativada." : "Para marcar aulas, ter reposições e se inscrever em eventos, é só voltar às aulas."}</p></section>
+    <p class="sub">Você vê a agenda do atelier (quantos alunos vêm em cada dia) e os eventos. ${S.visitante.vinculo === "pausado" ? "Marcar aulas, ter reposições e se inscrever em eventos voltam quando a sua matrícula for reativada." : "Você também pode se inscrever nos eventos. Para marcar aulas e ter reposições, é só voltar às aulas."}</p></section>
   <div class="list ajustes">
     ${linhaTema()}
     <button class="li sairli" id="sair"><span class="ind n"></span>Sair da conta</button>
@@ -1148,9 +1150,10 @@ function viewEventoPag(){
   const vagasTxt = vag == null ? "" : vag === 0 ? "Esgotado" : plural(vag, "vaga livre", "vagas livres");
   const preco = `<span class="evbar-l"><span class="evbar-r">Valor</span><b>${esc(preco1 || "A definir")}</b>${precoResto.length ? `<span class="evbar-n">${esc(precoResto.join(", "))}</span>` : ""}</span>`;
   let barra = "";
-  if(S.visitante && !S.equipe) barra = `${preco}<span class="evbar-aviso">Inscrição para alunos ativos</span>`;
-  else if(S.aluno && e.inscrito) barra = `<span class="evbar-l"><span class="evbar-r">Inscrição</span><b class="evvai">Você vai</b></span><button class="btn evcta ghost-line" data-unev="${e.id}">Cancelar</button>`;
-  else if(S.aluno) barra = `${preco}<button class="btn pri evcta" data-inev="${e.id}" ${vag === 0 || passou || fechou ? "disabled" : ""}>${vag === 0 ? "Esgotado" : passou ? "Encerrado" : fechou ? "Inscrições encerradas" : "Quero ir"}</button>`;
+  const insc = podeInscrever();
+  if(S.visitante && !S.equipe && !insc) barra = `${preco}<span class="evbar-aviso">Inscrição para alunos ativos</span>`;
+  else if(insc && e.inscrito) barra = `<span class="evbar-l"><span class="evbar-r">Inscrição</span><b class="evvai">Você vai</b></span><button class="btn evcta ghost-line" data-unev="${e.id}">Cancelar</button>`;
+  else if(insc) barra = `${preco}<button class="btn pri evcta" data-inev="${e.id}" ${vag === 0 || passou || fechou ? "disabled" : ""}>${vag === 0 ? "Esgotado" : passou ? "Encerrado" : fechou ? "Inscrições encerradas" : "Quero ir"}</button>`;
   return `<header class="evhero${e.foto_url ? " comfoto" : ""}${EV.reac.length ? " comreac" : ""}">
       ${e.foto_url ? `<img class="evfoto" src="${esc(e.foto_url)}" alt="">` : ""}
       <div class="evhero-top"><button class="evround" data-evvoltar aria-label="Voltar">${EVI_TOPO.voltar}</button>
