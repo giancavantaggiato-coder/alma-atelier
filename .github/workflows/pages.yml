@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # empurrão temporário para apps presos numa versão de antes de 29/10 (recarregam quando o version.json muda)
+  schedule:
+    - cron: "7,22,37,52 * * * *"
 permissions:
   contents: read
   pages: write
@@ -17,14 +20,25 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Marcar versão
+      - name: Empurrão vencido?
+        id: prazo
         run: |
-          echo "{\"v\":\"${GITHUB_SHA::7}\"}" > site/version.json
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(date -u +%Y%m%d)" -gt 20261205 ]; then echo "parar=1" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.prazo.outputs.parar != '1'
+      - name: Marcar versão
+        if: steps.prazo.outputs.parar != '1'
+        run: |
+          V="${GITHUB_SHA::7}"
+          if [ "${{ github.event_name }}" = "schedule" ]; then V="$V-${{ github.run_number }}"; fi
+          echo "{\"v\":\"$V\"}" > site/version.json
           sed -i "s/?v=dev/?v=${GITHUB_SHA::7}/g; s/name=\"alma-versao\" content=\"dev\"/name=\"alma-versao\" content=\"${GITHUB_SHA::7}\"/" site/index.html
       - uses: actions/configure-pages@v5
+        if: steps.prazo.outputs.parar != '1'
       - uses: actions/upload-pages-artifact@v3
+        if: steps.prazo.outputs.parar != '1'
         with:
           path: site
       - id: deploy
+        if: steps.prazo.outputs.parar != '1'
         uses: actions/deploy-pages@v4

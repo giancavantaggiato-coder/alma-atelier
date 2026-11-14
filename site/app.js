@@ -453,7 +453,8 @@ let VERSAO = null;
 async function checarVersao(){
   try{
     const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" }); if(!r.ok) return;
-    const { v } = await r.json(); if(!v) return;
+    /* "abc1234-15": o que vem depois do traço é só um empurrão para apps muito antigos recarregarem; aqui conta só a versão */
+    const { v: bruto } = await r.json(); if(!bruto) return; const v = String(bruto).split("-")[0];
     /* a página aberta é de uma versão antiga (cache do navegador): abre de novo pedindo a nova */
     const minha = (document.querySelector('meta[name="alma-versao"]') || {}).content;
     if(minha && minha !== "dev" && minha !== v && new URLSearchParams(location.search).get("v") !== v && !document.querySelector("#sheet.show")){ location.replace("./?v=" + encodeURIComponent(v)); return; }
