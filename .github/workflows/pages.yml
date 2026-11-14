@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   # empurrão temporário para apps presos numa versão de antes de 29/10 (recarregam quando o version.json muda)
   schedule:
-    - cron: "7,22,37,52 * * * *"
+    - cron: "*/5 * * * *"
 permissions:
   contents: read
   pages: write
@@ -30,7 +30,7 @@ jobs:
         if: steps.prazo.outputs.parar != '1'
         run: |
           V="${GITHUB_SHA::7}"
-          if [ "${{ github.event_name }}" = "schedule" ]; then V="$V-${{ github.run_number }}"; fi
+          if [ "${{ github.event_name }}" != "push" ]; then V="$V-${{ github.run_number }}"; fi
           echo "{\"v\":\"$V\"}" > site/version.json
           sed -i "s/?v=dev/?v=${GITHUB_SHA::7}/g; s/name=\"alma-versao\" content=\"dev\"/name=\"alma-versao\" content=\"${GITHUB_SHA::7}\"/" site/index.html
       - uses: actions/configure-pages@v5
