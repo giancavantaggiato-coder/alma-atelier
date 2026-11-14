@@ -2884,7 +2884,17 @@ $("#sheetBody").addEventListener("click", async e => {
 });
 
 if(!CFG.url || CFG.url.includes("__")) { $("#view").innerHTML = `<div class="loading">App ainda não configurado.</div>`; }
-else boot();
+else receberPassagem().then(boot, boot);
+
+/* quem ainda abre o endereço antigo (alma-atelier.netlify.app) chega aqui com #passagem=… e entra já logado, sem pedir código */
+async function receberPassagem(){
+  const m = /[#&]passagem=([^&]+)/.exec(location.hash || ""); if(!m) return;
+  try{ history.replaceState(null, "", location.pathname + location.search); }catch(_){}
+  const { data } = await sb.auth.getSession(); if(data.session) return;
+  S.session = { passagem: true }; /* evita que o aviso de login abra o app duas vezes; o boot lê a sessão de verdade */
+  try{ await sb.auth.refreshSession({ refresh_token: decodeURIComponent(m[1]) }); }catch(_){}
+  S.session = null;
+}
 
 /* vibração curta: Android usa vibrate; no iPhone (iOS 18+) o toque num interruptor nativo escondido gera o "toc" */
 const vibrar = (() => {
