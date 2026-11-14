@@ -3,9 +3,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  # empurrão temporário para apps presos numa versão de antes de 29/10 (recarregam quando o version.json muda)
-  schedule:
-    - cron: "*/5 * * * *"
 permissions:
   contents: read
   pages: write
