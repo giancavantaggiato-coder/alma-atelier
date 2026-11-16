@@ -875,3 +875,38 @@ html.vinho[data-theme=dark] body.na-voce{--bg:#000000; --fg:#FEFCE6; --muted:#AB
 .diasgrid button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .diasgrid button:disabled{opacity:.35}
 .opt .sub{text-align:right}
+/* Quem leva o quê (eventos com divisão de comidas e bebidas) */
+.mesa{margin-top:var(--s2)}
+.mintro{margin:var(--s2) 0 0;font-size:var(--t-body-s);line-height:1.5;color:var(--muted)}
+.mcats{display:flex;flex-direction:column;gap:var(--s2);margin-top:var(--s4)}
+.mcat{display:flex;flex-direction:column;gap:var(--s2);width:100%;padding:var(--s3) var(--s4);border-radius:var(--s4);box-shadow:inset 0 0 0 1px var(--line);text-align:left;transition:transform .15s}
+.mcat:active:not([disabled]){transform:scale(.98)}
+.mcat.on{box-shadow:inset 0 0 0 1.5px var(--gold);background:var(--tile)}
+.mcat.cheia{opacity:.45}
+.mcat[disabled]{cursor:default}
+.mcat-l{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s3)}
+.mcat-l b{font-size:var(--t-body);font-weight:500}
+.mcat-l span{font-size:var(--t-body-s);color:var(--muted)}
+.mbar{display:block;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.mbar i{display:block;height:100%;background:var(--gold)}
+.mform{display:flex;flex-direction:column;gap:var(--s2);margin-top:var(--s4)}
+.mesain{font:inherit;font-size:var(--t-body);color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:24px;height:48px;padding:0 var(--s4);width:100%;min-width:0}
+.mform .textbtn{align-self:center}
+.mminha{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);margin-top:var(--s4);font-size:var(--t-body-s);line-height:1.5}
+.mminha b{font-weight:500}
+.mminha .textbtn{flex:none}
+.mlista{margin-top:var(--s5)}
+.mgrupo{margin:var(--s4) 0 var(--s1);font-size:var(--t-label);font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.mrow{display:flex;justify-content:space-between;gap:var(--s4);width:100%;padding:var(--s2) 0;border-bottom:1px solid var(--line);font-size:var(--t-body-s);text-align:left}
+.mrow span:last-child{color:var(--muted);text-align:right}
+.mvazio{margin:0;padding:var(--s2) 0;font-size:var(--t-body-s);color:var(--muted)}
+.mfaltam{display:flex;flex-wrap:wrap;gap:6px}
+/* aviso no Hoje */
+.mesaaviso{margin-top:var(--s5);padding:var(--s4);border-radius:var(--s4);background:var(--tile);box-shadow:inset 0 0 0 1.5px var(--gold);display:flex;flex-direction:column;gap:var(--s1)}
+.mesaaviso-top{display:flex;justify-content:space-between;align-items:center;gap:var(--s3)}
+.mesax{width:32px;height:32px;margin:-6px -6px 0 0;display:grid;place-items:center;color:var(--muted)}
+.mesax svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+.mesaaviso .sub{line-height:1.5}
+.mesapills{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--s2)}
+.mesapills span{font-size:var(--t-label);color:var(--strong);box-shadow:inset 0 0 0 1px var(--line);border-radius:12px;padding:3px 10px}
+.mesacta{width:auto;align-self:flex-start;padding:0 var(--s5);height:44px;margin-top:var(--s3)}

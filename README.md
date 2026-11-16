@@ -102,6 +102,13 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 ## Alertas da equipe
 - `equipe_alertas()`: 2+ aulas seguidas sem vir, 6+ reposições acumuladas, aulas com lista de espera. Aparecem no Hoje da equipe.
 
+## Quem leva o quê
+- Evento com **Dividir quem leva salgado, doce e vinho** ligado (formulário do evento) ganha a seção "Quem leva o quê" entre Sobre e Mural.
+- As vagas são os inscritos divididos por três; a sobra vai primeiro para salgado, depois doce (10 pessoas: 4, 3, 3). Categoria completa fica apagada.
+- Quem não se inscreveu só escolhe a categoria que está faltando (a de menos gente) e, ao escolher, já fica inscrito.
+- Inscritos sem escolha veem um aviso no Hoje; fechar no X esconde só naquele dia. A equipe toca num nome para definir ou tirar a escolha de alguém.
+- Banco: tabela `evento_mesa`, funções `mesa_evento`, `escolher_mesa`, `sair_mesa`, `equipe_definir_mesa`, `mesa_pendentes` (migração 40).
+
 ## Modo vinho
 - Sexta, das 22h à meia-noite (hora do aparelho), o app inteiro fica bordô (Cinzento 02 do brandbook), com detalhes em vermelho e creme. Vale para todos.
 - No Hoje da equipe, sem aula, aparece "Provavelmente brindando" com duas taças (o mesmo desenho da opção Vinho) se tocando. A página Você mantém as cores do tema escolhido (claro ou escuro), inclusive o menu de baixo e a barra do topo.

@@ -323,12 +323,13 @@ async function loadAluno(){
   loadDiario().then(() => { if(["voce","diario"].includes(S.tab) && !precisaCompletar() && !NS.ativo) render(); }).catch(() => {});
 }
 async function loadEventos(){
-  let [{ data }, { data: qv, error: qe }, { data: mc }, { data: fo }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("inscritos_eventos_perfil"), sb.rpc("mural_contagem"), sb.from("eventos").select("id,foto_url,inscricoes_ate")]);
+  let [{ data }, { data: qv, error: qe }, { data: mc }, { data: fo }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("inscritos_eventos_perfil"), sb.rpc("mural_contagem"), sb.from("eventos").select("id,foto_url,inscricoes_ate,divisao_mesa")]);
   if(qe) ({ data: qv } = await sb.rpc("inscritos_eventos"));
-  const foto = {}, insAte = {}; (fo || []).forEach(f => { foto[f.id] = f.foto_url; insAte[f.id] = f.inscricoes_ate ? new Date(f.inscricoes_ate) : null; });
+  const foto = {}, insAte = {}, mesa = {}; (fo || []).forEach(f => { foto[f.id] = f.foto_url; mesa[f.id] = !!f.divisao_mesa; insAte[f.id] = f.inscricoes_ate ? new Date(f.inscricoes_ate) : null; });
   const porEv = {}; (qv || []).forEach(q => (porEv[q.evento_id] ||= []).push(q));
   const nc = {}; (mc || []).forEach(m => nc[m.evento_id] = m.total);
-  S.eventos = (data || []).map(e => ({ ...e, ini: new Date(e.inicia_em), fim: new Date(e.termina_em), quem: porEv[e.id] || [], nc: nc[e.id] || 0, foto_url: foto[e.id] || null, insAte: insAte[e.id] || null }));
+  S.eventos = (data || []).map(e => ({ ...e, ini: new Date(e.inicia_em), fim: new Date(e.termina_em), quem: porEv[e.id] || [], nc: nc[e.id] || 0, foto_url: foto[e.id] || null, insAte: insAte[e.id] || null, divisao_mesa: !!mesa[e.id] }));
+  await loadMesaPend();
 }
 /* fotinhas de quem vai ao evento (foto ou iniciais) */
 const avatarMini = q => q.avatar_url
@@ -686,6 +687,7 @@ function viewHoje(){
     ${!live && horaDoVinho() ? `<span class="brinde" aria-hidden="true">${ICO_BRINDE}</span>` : `<span class="dot"></span>`}<u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : horaDoVinho() ? "Provavelmente brindando" : "Ninguém no atelier agora"}</u>
   </button>
   ${aniversarioAtelier()}
+  ${avisoMesa()}
   ${blocoRecados()}
   ${nx ? `<section class="tile wide next">
     <div class="tl"><h2 class="tt">Próxima aula</h2><span class="chip">${livre() ? "Aula marcada" : nx.reserva_tipo === "reposicao" ? "Reposição" : "Seu dia fixo"}</span></div>
@@ -725,6 +727,7 @@ function viewHojeV(){
     <h1 class="h4">${saudacao()}, ${esc(firstName(v.nome))}</h1>
     <p class="sub" style="font-size:var(--t-body)">${hoje.length ? `O atelier abre hoje às ${hh(hoje[0].ini)}.` : "Hoje o atelier não abre."}</p>
   </header>
+  ${avisoMesa()}
   <div class="live" aria-disabled="true">${!live && horaDoVinho() ? `<span class="brinde" aria-hidden="true">${ICO_BRINDE}</span>` : `<span class="dot"></span>`}<span>${live ? `${plural(live,"aluno","alunos")} no atelier agora` : horaDoVinho() ? "Provavelmente brindando" : "Ninguém no atelier agora"}</span></div>
   <section class="tile wide next v-aviso"><div class="tl"><h2 class="tt">${rotuloV()}</h2><span class="chip">Acesso reduzido</span></div>
     <p class="sub">${S.visitante.vinculo === "pausado" ? "Sua matrícula está suspensa. Você acompanha a agenda do atelier e pode se inscrever nos eventos; marcar aulas e reposições voltam quando a matrícula for reativada." : "Você acompanha a agenda do atelier e pode se inscrever nos eventos. Marcar aulas e reposições ficam disponíveis quando você voltar às aulas."}</p></section>
@@ -979,21 +982,113 @@ function cardEventoHTML(e, eq){
     <span class="evc-pe">${quem}${status}</span>
   </button>`;
 }
+/* ---------- Quem leva o quê (eventos com divisao_mesa) ---------- */
+const MESA_CAT = { salgado: "Salgado", doce: "Doce", vinho: "Vinho" };
+const MESA_EX = { salgado: "Ex.: torta de palmito", doce: "Ex.: bolo de laranja", vinho: "Ex.: 2 tintos" };
+const vagasTxtMesa = c => { const v = Math.max(0, c.limite - c.total); return v ? plural(v, "vaga", "vagas") : "Completo"; };
+async function loadMesaPend(){
+  S.mesaPend = null;
+  const { data, error } = await sb.rpc("mesa_pendentes"); if(error || !data || !data.length) return;
+  const ev = data[0], { data: m } = await sb.rpc("mesa_evento", { p_evento: ev.evento_id });
+  if(m) S.mesaPend = { id: ev.evento_id, titulo: ev.titulo, mesa: m };
+}
+function avisoMesa(){
+  const p = S.mesaPend; if(!p) return "";
+  try{ if(localStorage.getItem("mesa-x-" + p.id) === dkey(new Date())) return ""; }catch(_){}
+  return `<section class="mesaaviso">
+    <div class="mesaaviso-top"><p class="label">${esc(p.titulo)}</p><button class="mesax" id="mesaX" data-mesax="${p.id}" aria-label="Fechar aviso"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p class="title">Escolha o que você vai levar</p>
+    <p class="sub">As opções estão abertas. Para a mesa ficar equilibrada, as vagas estão divididas entre salgado, doce e vinho. Escolha a sua enquanto ainda há de tudo.</p>
+    <div class="mesapills">${(p.mesa.categorias || []).map(c => `<span>${MESA_CAT[c.k]}, ${vagasTxtMesa(c).toLowerCase()}</span>`).join("")}</div>
+    <button class="btn pri mesacta" data-ev="${p.id}">Escolher agora</button>
+  </section>`;
+}
+function mesaHTML(e){
+  const m = EV.mesa; if(!e.divisao_mesa || !m) return "";
+  const passou = e.ini <= now(), eu = m.minha, pode = podeInscrever() && !passou;
+  const editando = pode && (!eu || EV.mesaEdit), sel = EV.mesaSel || (eu && EV.mesaEdit ? eu.categoria : null);
+  const intro = !podeInscrever() ? `${plural(m.inscritos, "pessoa confirmada", "pessoas confirmadas")}. As vagas se dividem igualmente entre salgado, doce e vinho.`
+    : m.inscrito ? `${plural(m.inscritos, "pessoa confirmada", "pessoas confirmadas")}. As vagas se dividem igualmente entre salgado, doce e vinho.`
+    : "Você ainda não confirmou presença. Para a mesa ficar equilibrada, você entra no que está faltando, e ao escolher sua presença já fica confirmada.";
+  const cats = (m.categorias || []).map(c => {
+    const ok = editando && c.aberta, on = sel === c.k || (!editando && eu && eu.categoria === c.k);
+    const st = m.inscrito || !podeInscrever() ? vagasTxtMesa(c) : c.aberta ? "Está faltando" : `${c.total} ${c.total === 1 ? "leva" : "levam"}`;
+    return `<button class="mcat${on ? " on" : ""}${editando && !c.aberta ? " cheia" : ""}" data-mcat="${c.k}" ${ok ? "" : "disabled"} aria-pressed="${on}">
+      <span class="mcat-l"><b>${MESA_CAT[c.k]}</b><span>${st}</span></span>
+      <span class="mbar"><i style="width:${c.limite ? Math.min(100, Math.round(c.total / c.limite * 100)) : 0}%"></i></span></button>`;
+  }).join("");
+  let acao = "";
+  if(editando && sel) acao = `<div class="mform">
+      <input id="mesaItem" class="mesain" maxlength="120" placeholder="${MESA_EX[sel]}" value="${esc(EV.mesaTxt || (eu && eu.categoria === sel ? eu.item : ""))}" aria-label="O que vai levar">
+      <p class="err" id="mesaErr" hidden></p>
+      <button class="btn pri" id="mesaOk">${m.inscrito ? `Confirmar ${MESA_CAT[sel].toLowerCase()}` : "Confirmar presença"}</button>
+      ${eu ? `<button class="textbtn" id="mesaCanc">Cancelar</button>` : ""}</div>`;
+  else if(eu && !editando) acao = `<div class="mminha"><span>Você leva <b>${esc(eu.item)}</b>, em ${MESA_CAT[eu.categoria].toLowerCase()}.</span>${pode ? `<button class="textbtn" id="mesaAlt">Alterar</button>` : ""}</div>`;
+  const grupos = ["salgado", "doce", "vinho"].map(k => {
+    const l = (m.itens || []).filter(x => x.categoria === k);
+    return `<p class="mgrupo">${MESA_CAT[k]}</p>${l.length ? l.map(x => `<${S.equipe ? `button data-mesaeq="${x.pessoa_id}"` : "div"} class="mrow"><span>${x.sou_eu ? "Você" : esc(x.nome)}</span><span>${esc(x.item)}</span></${S.equipe ? "button" : "div"}>`).join("") : `<p class="mvazio">Ninguém ainda</p>`}`;
+  }).join("");
+  const faltam = S.equipe && m.faltam && m.faltam.length ? `<p class="mgrupo">Ainda sem escolha</p><div class="mfaltam">${m.faltam.map(x => `<button class="rchip" data-mesaeq="${x.pessoa_id}">${esc(x.nome)}</button>`).join("")}</div>` : "";
+  return `<section class="mesa"><h2 class="evsec">Quem leva o quê</h2><p class="mintro">${intro}</p>
+    <div class="mcats">${cats}</div>${acao}
+    <div class="mlista">${grupos}${faltam}</div></section>`;
+}
+function bindMesa(id){
+  $$("#view [data-mcat]").forEach(b => b.onclick = () => { if(EV.mesaSel !== b.dataset.mcat) EV.mesaTxt = ""; EV.mesaSel = b.dataset.mcat; render(); const i = $("#mesaItem"); i && i.focus(); });
+  const it = $("#mesaItem"); if(it) it.oninput = () => { EV.mesaTxt = it.value; const er = $("#mesaErr"); if(er) er.hidden = true; };
+  const ok = $("#mesaOk"); if(ok) ok.onclick = async () => {
+    const txt = (it && it.value || "").trim(), er = $("#mesaErr");
+    if(!txt){ er.textContent = "Diga o que vai levar."; er.hidden = false; return; }
+    busy(ok, true);
+    const { error } = await sb.rpc("escolher_mesa", { p_evento: id, p_categoria: EV.mesaSel || EV.mesa.minha.categoria, p_item: txt });
+    if(error){ busy(ok, false); await loadEventoPag(); render(); return toast(errMsg(error)); }
+    EV.mesaSel = null; EV.mesaTxt = ""; EV.mesaEdit = false; vibrar(); toast("Anotado");
+    avisarCanal("comentario", {}); await Promise.all([loadEventos(), loadEventoPag()]); if(S.tab === "evento") render();
+  };
+  const al = $("#mesaAlt"); if(al) al.onclick = () => { EV.mesaEdit = true; EV.mesaSel = EV.mesa.minha.categoria; EV.mesaTxt = EV.mesa.minha.item; render(); };
+  const ca = $("#mesaCanc"); if(ca) ca.onclick = () => { EV.mesaEdit = false; EV.mesaSel = null; EV.mesaTxt = ""; render(); };
+  $$("#view [data-mesaeq]").forEach(b => b.onclick = () => sheetMesaEq(id, b.dataset.mesaeq));
+}
+function sheetMesaEq(evId, pessoa){
+  const m = EV.mesa || {}, x = (m.itens || []).find(i => i.pessoa_id === pessoa), f = (m.faltam || []).find(i => i.pessoa_id === pessoa);
+  const nome = (x || f || {}).nome || "Inscrito";
+  sheet(`<p class="label">Quem leva o quê</p><h3 class="h5">${esc(nome)}</h3>
+    <form class="form" id="mesaEqForm">
+      <label class="field"><span>Categoria</span><select id="mq_cat">${Object.keys(MESA_CAT).map(k => `<option value="${k}" ${x && x.categoria === k ? "selected" : ""}>${MESA_CAT[k]}</option>`).join("")}</select></label>
+      <label class="field"><span>O que leva</span><input id="mq_item" maxlength="120" value="${esc(x ? x.item : "")}" required></label>
+      <p class="err" id="mqErr" hidden></p>
+      <div class="btns"><button class="btn pri" type="submit">Salvar</button>${x ? `<button class="btn ghost dperigo" type="button" id="mqTirar">Tirar escolha</button>` : ""}<button class="btn ghost" type="button" data-close>Cancelar</button></div>
+    </form>`);
+  const salvar = async (cat, item, btn) => {
+    busy(btn, true);
+    const { error } = await sb.rpc("equipe_definir_mesa", { p_evento: evId, p_pessoa: pessoa, p_categoria: cat, p_item: item });
+    if(error){ busy(btn, false); return toast(errMsg(error)); }
+    closeSheet(); toast(cat ? "Anotado" : "Escolha retirada"); avisarCanal("comentario", {}); await loadEventoPag(); if(S.tab === "evento") render();
+  };
+  $("#mesaEqForm").onsubmit = ev => { ev.preventDefault(); const it = $("#mq_item").value.trim();
+    if(!it){ const er = $("#mqErr"); er.textContent = "Diga o que a pessoa vai levar."; er.hidden = false; return; }
+    salvar($("#mq_cat").value, it, $("#mesaEqForm button[type=submit]")); };
+  const t = $("#mqTirar"); if(t) t.onclick = () => salvar(null, null, t);
+}
+
 /* ---------- Página do evento: detalhes, reações e mural ---------- */
 const EMOJIS = ["❤️","😍","👏","🎨","🔥","😂","🍷"];
 const EV = { id: null, volta: null, mural: null, reac: [], quem: [], rascunho: "", carregado: null };
 const muralContaHTML = e => e.nc ? `<span class="mcount">${plural(e.nc, "comentário", "comentários")}</span>` : "";
 const podeEscrever = () => !!(S.aluno || S.equipe) && !(S.visitante && !S.equipe);
 function abrirEvento(id){
-  if(EV.id !== id){ EV.mural = null; EV.reac = []; EV.quem = []; EV.rascunho = ""; } EV.tray = false;
+  if(EV.id !== id){ EV.mural = null; EV.reac = []; EV.quem = []; EV.rascunho = ""; EV.mesa = null; EV.mesaSel = null; EV.mesaTxt = ""; EV.mesaEdit = false; } EV.tray = false;
   EV.id = id; if(S.tab !== "evento") EV.volta = S.tab;
   go("evento");
   loadEventoPag().then(() => { if(S.tab === "evento" && EV.id === id) render(); });
 }
 async function loadEventoPag(){
   const id = EV.id; if(!id) return;
-  const [m, r, q] = await Promise.all([sb.rpc("mural_evento", { p_evento: id }), sb.rpc("reacoes_eventos"), sb.rpc("quem_reagiu", { p_evento: id })]);
+  const ev0 = S.eventos.find(x => x.id === id);
+  const [m, r, q, me] = await Promise.all([sb.rpc("mural_evento", { p_evento: id }), sb.rpc("reacoes_eventos"), sb.rpc("quem_reagiu", { p_evento: id }),
+    ev0 && ev0.divisao_mesa ? sb.rpc("mesa_evento", { p_evento: id }) : Promise.resolve({ data: null })]);
   if(EV.id !== id) return;
+  EV.mesa = me.data || null;
   EV.mural = (m.data || []).map(c => ({ ...c, quando: new Date(c.criado_em) })).sort((a, b) => b.quando - a.quando);
   EV.reac = (r.data || []).filter(x => x.evento_id === id);
   EV.quem = q.data || [];
@@ -1172,6 +1267,7 @@ function viewEventoPag(){
       </ul>
       <div class="evgente">${(e.quem || []).length ? `<button class="evquem" id="evQuem" aria-label="Ver quem vai">${quemVaiHTML(e, 5)}</button>` : `<span class="fpt">Ninguém inscrito ainda</span>`}${vagasTxt ? `<span class="evvag">${vagasTxt}</span>` : ""}</div>
       ${e.descricao ? `<h2 class="evsec">Sobre</h2><p class="evdesc">${esc(e.descricao)}</p>` : ""}
+      ${mesaHTML(e)}
       <section class="evmural">
         <div class="mtopo"><h2 class="evsec">Mural</h2>${aquiHTML()}</div>
         ${reacoesHTML()}
@@ -1207,6 +1303,7 @@ function bindEventoPag(){
   $$("#view [data-unev]").forEach(b => b.onclick = async () => { busy(b, true); const { error } = await sb.rpc("cancelar_inscricao", { p_evento: id });
     if(error){ busy(b, false); return toast(errMsg(error)); } toast("Inscrição cancelada"); await loadEventos(); render(); });
   const eq = $("#evQuem"); if(eq) eq.onclick = () => sheetQuemVai(id);
+  bindMesa(id);
   const ra = $("#rAdd"); if(ra) ra.onclick = () => { EV.tray = !EV.tray; render(); };
   $$("#view [data-reac]").forEach(b => b.onclick = async () => {
     EV.tray = false;
@@ -1920,6 +2017,7 @@ function sheetEventoEq(id){
       <div class="row2"><label class="field"><span>Vagas (vazio = sem limite)</span><input id="e_vagas" type="number" min="1" value="${esc(e.vagas)}"></label><label class="field"><span>Valor</span><input id="e_preco" value="${esc(e.preco_texto)}" placeholder="R$ 90 / alunos R$ 70"></label></div>
       <label class="field"><span>Inscrições até (vazio = até o início)</span><input id="e_insate" type="date" value="${e.insAte ? dkey(e.insAte) : ""}"></label>
       <label class="check"><input type="checkbox" id="e_pub" ${e.publicado ? "checked" : ""}>Visível para os alunos</label>
+      <label class="check"><input type="checkbox" id="e_mesa" ${e.divisao_mesa ? "checked" : ""}>Dividir quem leva salgado, doce e vinho</label>
       ${e.foto_url ? `<label class="check"><input type="checkbox" id="e_semfoto">Tirar a foto do topo</label>` : ""}
       <p class="err" id="fErr" hidden></p>
       <div class="btns"><button class="btn pri" type="submit">Salvar</button>${id !== "novo" ? `<button class="btn ghost dperigo" type="button" data-delevask="${id}">Excluir evento</button>` : ""}<button class="btn ghost" type="button" data-close>Cancelar</button></div>
@@ -1929,7 +2027,7 @@ function sheetEventoEq(id){
     const row = { tipo: $("#e_tipo").value.trim(), titulo: $("#e_tit").value.trim(), descricao: $("#e_desc").value.trim() || null,
       inicia_em: new Date($("#e_ini").value).toISOString(), termina_em: new Date($("#e_fim").value).toISOString(),
       local: $("#e_local").value.trim() || null, vagas: $("#e_vagas").value ? +$("#e_vagas").value : null, preco_texto: $("#e_preco").value.trim() || null, publicado: $("#e_pub").checked,
-      inscricoes_ate: $("#e_insate").value ? new Date($("#e_insate").value + "T23:59:59").toISOString() : null };
+      inscricoes_ate: $("#e_insate").value ? new Date($("#e_insate").value + "T23:59:59").toISOString() : null, divisao_mesa: $("#e_mesa").checked };
     if($("#e_semfoto") && $("#e_semfoto").checked) row.foto_url = null;
     try{
       if(!row.tipo || !row.titulo) throw new Error("Preencha tipo e título.");
@@ -2752,6 +2850,7 @@ function bind(){
   bindRecados();
   $$("#view [data-alerta-pessoa]").forEach(b => b.onclick = () => abrirPessoaAlerta(b.dataset.alertaPessoa));
   bindPush();
+  const mx = $("#mesaX"); if(mx) mx.onclick = () => { try{ localStorage.setItem("mesa-x-" + mx.dataset.mesax, dkey(new Date())); }catch(_){} render(); };
   $$("#view [data-abreaula]").forEach(b => b.onclick = () => { const a = S.agenda.find(x => x.aula_id === b.dataset.abreaula); a && sheetAula(a); });
   $$("#view [data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
   $$("#view [data-ev]").forEach(b => b.onclick = () => abrirEvento(b.dataset.ev));
