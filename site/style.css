@@ -898,7 +898,8 @@ html.vinho[data-theme=dark] body.na-voce{--bg:#000000; --fg:#FEFCE6; --muted:#AB
 .mlista{margin-top:var(--s5)}
 .mgrupo{margin:var(--s4) 0 var(--s1);font-size:var(--t-label);font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .mrow{display:flex;justify-content:space-between;gap:var(--s4);width:100%;padding:var(--s2) 0;border-bottom:1px solid var(--line);font-size:var(--t-body-s);text-align:left}
-.mrow span:last-child{color:var(--muted);text-align:right}
+.mrow span:first-child{flex:none}
+.mrow span:last-child{max-width:62%;color:var(--muted);text-align:right;text-wrap:pretty}
 .mvazio{margin:0;padding:var(--s2) 0;font-size:var(--t-body-s);color:var(--muted)}
 .mfaltam{display:flex;flex-wrap:wrap;gap:6px}
 /* aviso no Hoje */
