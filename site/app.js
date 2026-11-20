@@ -323,13 +323,13 @@ async function loadAluno(){
   loadDiario().then(() => { if(["voce","diario"].includes(S.tab) && !precisaCompletar() && !NS.ativo) render(); }).catch(() => {});
 }
 async function loadEventos(){
-  let [{ data }, { data: qv, error: qe }, { data: mc }, { data: fo }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("inscritos_eventos_perfil"), sb.rpc("mural_contagem"), sb.from("eventos").select("id,foto_url,inscricoes_ate,divisao_mesa")]);
+  let [{ data }, { data: qv, error: qe }, { data: mc }, { data: fo }] = await Promise.all([sb.rpc("eventos_lista"), sb.rpc("inscritos_eventos_perfil"), sb.rpc("mural_contagem"), sb.from("eventos").select("id,foto_url,inscricoes_ate,divisao_mesa,dicas_presente")]);
   if(qe) ({ data: qv } = await sb.rpc("inscritos_eventos"));
-  const foto = {}, insAte = {}, mesa = {}; (fo || []).forEach(f => { foto[f.id] = f.foto_url; mesa[f.id] = !!f.divisao_mesa; insAte[f.id] = f.inscricoes_ate ? new Date(f.inscricoes_ate) : null; });
+  const foto = {}, insAte = {}, mesa = {}, dicas = {}; (fo || []).forEach(f => { foto[f.id] = f.foto_url; mesa[f.id] = !!f.divisao_mesa; dicas[f.id] = !!f.dicas_presente; insAte[f.id] = f.inscricoes_ate ? new Date(f.inscricoes_ate) : null; });
   const porEv = {}; (qv || []).forEach(q => (porEv[q.evento_id] ||= []).push(q));
   const nc = {}; (mc || []).forEach(m => nc[m.evento_id] = m.total);
-  S.eventos = (data || []).map(e => ({ ...e, ini: new Date(e.inicia_em), fim: new Date(e.termina_em), quem: porEv[e.id] || [], nc: nc[e.id] || 0, foto_url: foto[e.id] || null, insAte: insAte[e.id] || null, divisao_mesa: !!mesa[e.id] }));
-  await loadMesaPend();
+  S.eventos = (data || []).map(e => ({ ...e, ini: new Date(e.inicia_em), fim: new Date(e.termina_em), quem: porEv[e.id] || [], nc: nc[e.id] || 0, foto_url: foto[e.id] || null, insAte: insAte[e.id] || null, divisao_mesa: !!mesa[e.id], dicas_presente: !!dicas[e.id] }));
+  await Promise.all([loadMesaPend(), loadDicasPend()]);
 }
 /* fotinhas de quem vai ao evento (foto ou iniciais) */
 const avatarMini = q => q.avatar_url
@@ -688,6 +688,7 @@ function viewHoje(){
   </button>
   ${aniversarioAtelier()}
   ${avisoMesa()}
+  ${avisoDicas()}
   ${blocoRecados()}
   ${nx ? `<section class="tile wide next">
     <div class="tl"><h2 class="tt">Próxima aula</h2><span class="chip">${livre() ? "Aula marcada" : nx.reserva_tipo === "reposicao" ? "Reposição" : "Seu dia fixo"}</span></div>
@@ -728,6 +729,7 @@ function viewHojeV(){
     <p class="sub" style="font-size:var(--t-body)">${hoje.length ? `O atelier abre hoje às ${hh(hoje[0].ini)}.` : "Hoje o atelier não abre."}</p>
   </header>
   ${avisoMesa()}
+  ${avisoDicas()}
   <div class="live" aria-disabled="true">${!live && horaDoVinho() ? `<span class="brinde" aria-hidden="true">${ICO_BRINDE}</span>` : `<span class="dot"></span>`}<span>${live ? `${plural(live,"aluno","alunos")} no atelier agora` : horaDoVinho() ? "Provavelmente brindando" : "Ninguém no atelier agora"}</span></div>
   <section class="tile wide next v-aviso"><div class="tl"><h2 class="tt">${rotuloV()}</h2><span class="chip">Acesso reduzido</span></div>
     <p class="sub">${S.visitante.vinculo === "pausado" ? "Sua matrícula está suspensa. Você acompanha a agenda do atelier e pode se inscrever nos eventos; marcar aulas e reposições voltam quando a matrícula for reativada." : "Você acompanha a agenda do atelier e pode se inscrever nos eventos. Marcar aulas e reposições ficam disponíveis quando você voltar às aulas."}</p></section>
@@ -1112,11 +1114,64 @@ function sheetMesaEq(evId, pessoa, cat, novoExtra){
 
 /* ---------- Página do evento: detalhes, reações e mural ---------- */
 const EMOJIS = ["❤️","😍","👏","🎨","🔥","😂","🍷"];
+/* ---------- Dicas para o presente (amigo secreto) ---------- */
+async function loadDicasPend(){
+  S.dicasPend = null;
+  const { data, error } = await sb.rpc("dicas_pendentes"); if(error || !data || !data.length) return;
+  S.dicasPend = { id: data[0].evento_id, titulo: data[0].titulo };
+}
+function avisoDicas(){
+  const p = S.dicasPend; if(!p) return "";
+  return `<section class="mesaaviso">
+    <p class="label">${esc(p.titulo)}</p>
+    <p class="title">Escreva as dicas do seu presente</p>
+    <p class="sub">Quem tirar você vai ler. Cores, tamanhos, materiais que você usa, o que já tem e o que não quer ganhar.</p>
+    <button class="btn pri mesacta" data-ev="${p.id}">Escrever agora</button>
+  </section>`;
+}
+function dicasHTML(e){
+  const d = EV.dicas; if(!e.dicas_presente || !d) return "";
+  const outros = (d.itens || []).filter(x => !x.sou_eu);
+  let acao = "";
+  if(d.inscrito){
+    if(!d.minha || EV.dicasEdit){
+      const v = EV.dicasTxt != null ? EV.dicasTxt : (d.minha || "");
+      acao = `<div class="dform"><textarea id="dicasTxt" class="mesain dicain" maxlength="500" rows="4" placeholder="Ex.: gosto de tons terrosos, uso aquarela, não preciso de pincéis" aria-label="Suas dicas">${esc(v)}</textarea>
+        <p class="err" id="dicasErr" hidden></p>
+        <button class="btn pri" id="dicasOk">Salvar dicas</button>
+        ${d.minha ? `<button class="textbtn" id="dicasCanc">Cancelar</button>` : ""}</div>`;
+    } else {
+      acao = `<div class="dminha"><p class="label">Suas dicas</p><p>${esc(d.minha)}</p><button class="textbtn" id="dicasAlt">Alterar</button></div>`;
+    }
+  }
+  const lista = outros.length ? outros.map(x => `<div class="drow"><b>${esc(x.nome)}</b><p>${esc(x.texto)}</p></div>`).join("") : `<p class="mvazio">Ninguém escreveu ainda.</p>`;
+  const faltam = (d.faltam || []).filter(x => !(S.aluno && x.pessoa_id === S.aluno.id));
+  return `<section class="mesa dicas"><h2 class="evsec">Dicas para o presente</h2>
+    <p class="mintro">${d.inscrito ? "Escreva o que você gostaria de ganhar. Todos os participantes veem as dicas, e quem tirar você usa as suas." : "Dicas dos participantes do amigo secreto."}</p>
+    ${acao}
+    <p class="mgrupo">Dicas de quem participa</p>${lista}
+    ${faltam.length ? `<p class="mgrupo">Ainda sem dicas</p><p class="mvazio">${faltam.map(x => esc(x.nome)).join(", ")}</p>` : ""}
+  </section>`;
+}
+function bindDicas(id){
+  const t = $("#dicasTxt"); if(t) t.oninput = () => { EV.dicasTxt = t.value; const er = $("#dicasErr"); if(er) er.hidden = true; };
+  const ok = $("#dicasOk"); if(ok) ok.onclick = async () => {
+    const txt = (t && t.value || "").trim(), er = $("#dicasErr");
+    if(!txt){ er.textContent = "Escreva pelo menos uma dica."; er.hidden = false; return; }
+    busy(ok, true);
+    const { error } = await sb.rpc("salvar_dicas", { p_evento: id, p_texto: txt });
+    if(error){ busy(ok, false); return toast(errMsg(error)); }
+    EV.dicasEdit = false; EV.dicasTxt = null; vibrar(); toast("Dicas salvas");
+    await Promise.all([loadDicasPend(), loadEventoPag()]); if(S.tab === "evento") render();
+  };
+  const al = $("#dicasAlt"); if(al) al.onclick = () => { EV.dicasEdit = true; EV.dicasTxt = EV.dicas.minha; render(); const x = $("#dicasTxt"); x && x.focus(); };
+  const ca = $("#dicasCanc"); if(ca) ca.onclick = () => { EV.dicasEdit = false; EV.dicasTxt = null; render(); };
+}
 const EV = { id: null, volta: null, mural: null, reac: [], quem: [], rascunho: "", carregado: null };
 const muralContaHTML = e => e.nc ? `<span class="mcount">${plural(e.nc, "comentário", "comentários")}</span>` : "";
 const podeEscrever = () => !!(S.aluno || S.equipe) && !(S.visitante && !S.equipe);
 function abrirEvento(id){
-  if(EV.id !== id){ EV.mural = null; EV.reac = []; EV.quem = []; EV.rascunho = ""; EV.mesa = null; EV.mesaSel = null; EV.mesaTxt = ""; EV.mesaEdit = false; EV.extraOn = false; EV.extraSel = null; EV.extraTxt = ""; } EV.tray = false;
+  if(EV.id !== id){ EV.mural = null; EV.reac = []; EV.quem = []; EV.rascunho = ""; EV.mesa = null; EV.mesaSel = null; EV.mesaTxt = ""; EV.mesaEdit = false; EV.extraOn = false; EV.extraSel = null; EV.extraTxt = ""; EV.dicas = null; EV.dicasEdit = false; EV.dicasTxt = null; } EV.tray = false;
   EV.id = id; if(S.tab !== "evento") EV.volta = S.tab;
   go("evento");
   loadEventoPag().then(() => { if(S.tab === "evento" && EV.id === id) render(); });
@@ -1124,10 +1179,12 @@ function abrirEvento(id){
 async function loadEventoPag(){
   const id = EV.id; if(!id) return;
   const ev0 = S.eventos.find(x => x.id === id);
-  const [m, r, q, me] = await Promise.all([sb.rpc("mural_evento", { p_evento: id }), sb.rpc("reacoes_eventos"), sb.rpc("quem_reagiu", { p_evento: id }),
-    ev0 && ev0.divisao_mesa ? sb.rpc("mesa_evento", { p_evento: id }) : Promise.resolve({ data: null })]);
+  const [m, r, q, me, di] = await Promise.all([sb.rpc("mural_evento", { p_evento: id }), sb.rpc("reacoes_eventos"), sb.rpc("quem_reagiu", { p_evento: id }),
+    ev0 && ev0.divisao_mesa ? sb.rpc("mesa_evento", { p_evento: id }) : Promise.resolve({ data: null }),
+    ev0 && ev0.dicas_presente ? sb.rpc("dicas_evento", { p_evento: id }) : Promise.resolve({ data: null })]);
   if(EV.id !== id) return;
   EV.mesa = me.data || null;
+  EV.dicas = di.data || null;
   EV.mural = (m.data || []).map(c => ({ ...c, quando: new Date(c.criado_em) })).sort((a, b) => b.quando - a.quando);
   EV.reac = (r.data || []).filter(x => x.evento_id === id);
   EV.quem = q.data || [];
@@ -1307,6 +1364,7 @@ function viewEventoPag(){
       <div class="evgente">${(e.quem || []).length ? `<button class="evquem" id="evQuem" aria-label="Ver quem vai">${quemVaiHTML(e, 5)}</button>` : `<span class="fpt">Ninguém inscrito ainda</span>`}${vagasTxt ? `<span class="evvag">${vagasTxt}</span>` : ""}</div>
       ${e.descricao ? `<h2 class="evsec">Sobre</h2><p class="evdesc">${esc(e.descricao)}</p>` : ""}
       ${mesaHTML(e)}
+      ${dicasHTML(e)}
       <section class="evmural">
         <div class="mtopo"><h2 class="evsec">Mural</h2>${aquiHTML()}</div>
         ${reacoesHTML()}
@@ -1343,6 +1401,7 @@ function bindEventoPag(){
     if(error){ busy(b, false); return toast(errMsg(error)); } toast("Inscrição cancelada"); await loadEventos(); render(); });
   const eq = $("#evQuem"); if(eq) eq.onclick = () => sheetQuemVai(id);
   bindMesa(id);
+  bindDicas(id);
   const ra = $("#rAdd"); if(ra) ra.onclick = () => { EV.tray = !EV.tray; render(); };
   $$("#view [data-reac]").forEach(b => b.onclick = async () => {
     EV.tray = false;
@@ -2057,6 +2116,7 @@ function sheetEventoEq(id){
       <label class="field"><span>Inscrições até (vazio = até o início)</span><input id="e_insate" type="date" value="${e.insAte ? dkey(e.insAte) : ""}"></label>
       <label class="check"><input type="checkbox" id="e_pub" ${e.publicado ? "checked" : ""}>Visível para os alunos</label>
       <label class="check"><input type="checkbox" id="e_mesa" ${e.divisao_mesa ? "checked" : ""}>Dividir quem leva salgado, doce e vinho</label>
+      <label class="check"><input type="checkbox" id="e_dicas" ${e.dicas_presente ? "checked" : ""}>Amigo secreto: cada um escreve dicas do presente</label>
       ${e.foto_url ? `<label class="check"><input type="checkbox" id="e_semfoto">Tirar a foto do topo</label>` : ""}
       <p class="err" id="fErr" hidden></p>
       <div class="btns"><button class="btn pri" type="submit">Salvar</button>${id !== "novo" ? `<button class="btn ghost dperigo" type="button" data-delevask="${id}">Excluir evento</button>` : ""}<button class="btn ghost" type="button" data-close>Cancelar</button></div>
@@ -2066,7 +2126,7 @@ function sheetEventoEq(id){
     const row = { tipo: $("#e_tipo").value.trim(), titulo: $("#e_tit").value.trim(), descricao: $("#e_desc").value.trim() || null,
       inicia_em: new Date($("#e_ini").value).toISOString(), termina_em: new Date($("#e_fim").value).toISOString(),
       local: $("#e_local").value.trim() || null, vagas: $("#e_vagas").value ? +$("#e_vagas").value : null, preco_texto: $("#e_preco").value.trim() || null, publicado: $("#e_pub").checked,
-      inscricoes_ate: $("#e_insate").value ? new Date($("#e_insate").value + "T23:59:59").toISOString() : null, divisao_mesa: $("#e_mesa").checked };
+      inscricoes_ate: $("#e_insate").value ? new Date($("#e_insate").value + "T23:59:59").toISOString() : null, divisao_mesa: $("#e_mesa").checked, dicas_presente: $("#e_dicas").checked };
     if($("#e_semfoto") && $("#e_semfoto").checked) row.foto_url = null;
     try{
       if(!row.tipo || !row.titulo) throw new Error("Preencha tipo e título.");
