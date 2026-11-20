@@ -15,8 +15,8 @@ Uma tabela só (`pessoas`) para todo mundo que se relaciona com o Alma. Cada pes
 - Consentimento para receber novidades (LGPD) fica registrado com data.
 
 ## Regras que o banco aplica
-- Desmarcar com 4h ou mais de antecedência gera 1 reposição. As reposições não vencem e não ficam presas a um dia: o aluno usa em qualquer aula com vaga, ou para remarcar uma aula que desmarcou.
-- Aviso com menos de 4h fica registrado como ausência, sem reposição.
+- Desmarcar com 1h ou mais de antecedência gera 1 reposição. As reposições não vencem e não ficam presas a um dia: o aluno usa em qualquer aula com vaga, ou para remarcar uma aula que desmarcou.
+- Aviso com menos de 1h fica registrado como ausência, sem reposição.
 - Máximo de 8 reposições acumuladas.
 - Reposição só em aula com vaga; desmarcar uma reposição devolve o crédito.
 - Aula cancelada pelo atelier: quem estava confirmado ganha reposição (ou recebe o crédito de volta).

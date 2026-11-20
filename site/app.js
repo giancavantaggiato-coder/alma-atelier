@@ -843,7 +843,7 @@ function viewAgenda(){
   ${!livre() && mudancas().total ? `<button class="textbtn voltar" id="voltarFixos">Reverter para meus dias fixos</button>` : ""}`;
 }
 function mudancas(){
-  const lim = new Date(+now() + 4*36e5);
+  const lim = new Date(+now() + 1*36e5);
   const fut = S.agenda.filter(a => isMine(a) && !a.cancelada && a.ini > lim);
   const rep = fut.filter(a => a.reserva_tipo === "reposicao" && a.reserva_status === "confirmada").length;
   const fix = fut.filter(a => a.reserva_tipo === "fixa" && a.reserva_status === "desmarcada").length;
@@ -854,7 +854,7 @@ function sheetVoltar(){
   const partes = [m.rep ? `${m.rep === 1 ? "a reposição marcada é desfeita e o crédito volta para você" : `as ${m.rep} reposições marcadas são desfeitas e os créditos voltam para você`}` : "",
     m.fix ? `${m.fix === 1 ? "a aula desmarcada volta para a sua agenda" : `as ${m.fix} aulas desmarcadas voltam para a sua agenda`}` : ""].filter(Boolean);
   sheet(`<p class="label">Agenda</p><h3 class="h5">Reverter para seus dias fixos?</h3>
-    <p class="sub">${cap1(partes.join(" e "))}. Vale para as aulas que começam daqui a mais de 4 horas.</p>
+    <p class="sub">${cap1(partes.join(" e "))}. Vale para as aulas que começam daqui a mais de 1 hora.</p>
     <div class="btns"><button class="btn pri" id="voltarOk">Reverter</button><button class="btn ghost" data-close>Agora não</button></div>`);
   $("#voltarOk").onclick = async ev => {
     const btn = ev.currentTarget; busy(btn, true);
@@ -890,7 +890,7 @@ function sheetAula(a){
         <div class="btns"><button class="btn pri" data-remarcar="${a.reserva_id}" ${lotado ? "disabled" : ""}>Remarcar aula</button><button class="btn ghost" data-close>Agora não</button></div>`);
     }
     const txt = { confirmada: a.fim <= n ? "Presença registrada." : "Você está em aula agora.", presente: "Presença registrada.", falta: "Falta registrada.",
-      desmarcada: "Desmarcada com aviso.", ausencia_tardia: "Avisada com menos de 4h. Não gerou reposição.", aula_cancelada: "Aula cancelada pelo atelier." }[a.reserva_status] || "";
+      desmarcada: "Desmarcada com aviso.", ausencia_tardia: "Avisada com menos de 1h. Não gerou reposição.", aula_cancelada: "Aula cancelada pelo atelier." }[a.reserva_status] || "";
     return sheet(`<p class="label">${a.reserva_tipo === "reposicao" ? "Reposição" : "Sua aula"}</p><h3 class="h5">${nome}</h3><p class="sub">${hr}. ${txt}</p>${quem}${close}`);
   }
   if(emAndamento) return sheet(`<p class="label">Agora no atelier</p><h3 class="h5">${nome}</h3><p class="sub">${hr}. Aula acontecendo agora.</p>${quem}${close}`);
@@ -909,9 +909,9 @@ function sheetAula(a){
     ${v <= 0 ? blocoEspera(a, (ac > 0 || repoLivre()) && S.aluno.vinculo === "aluno") : `<div class="btns"><button class="btn pri" data-book="${a.aula_id}" ${pode ? "" : "disabled"}>Marcar reposição</button><button class="btn ghost" data-close>Agora não</button></div>`}`);
 }
 function sheetDesmarcar(a){
-  const horas = (a.ini - now()) / 36e5, ok = horas >= 4, ac = nCred();
+  const horas = (a.ini - now()) / 36e5, ok = horas >= 1, ac = nCred();
   const fim = new Date(a.ini); fim.setFullYear(fim.getFullYear()+1);
-  const msg = !ok ? "Faltam menos de 4h. A ausência fica registrada, mas não gera reposição."
+  const msg = !ok ? "Falta menos de 1h. A ausência fica registrada, mas não gera reposição."
     : livre() ? "A vaga fica livre para outra pessoa."
     : a.reserva_tipo === "reposicao" ? "O crédito usado nesta reposição volta para você."
     : ac >= MAX_CRED ? `Você já tem ${MAX_CRED} reposições, o limite. A ausência fica registrada sem novo crédito.`
@@ -3101,7 +3101,7 @@ const TOUR_ICO = {
   sino: '<svg viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>'
 };
 const TOUR = [
-  { ico: "agenda", t: "Sua agenda no atelier", d: "Seus dias fixos já estão marcados. Se não puder ir, desmarque até 4 horas antes e ganhe uma reposição para usar em outro dia." },
+  { ico: "agenda", t: "Sua agenda no atelier", d: "Seus dias fixos já estão marcados. Se não puder ir, desmarque até 1 hora antes e ganhe uma reposição para usar em outro dia." },
   { ico: "fila", t: "Dia lotado? Entre na fila", d: "Na lista de espera, você recebe um aviso assim que alguém desmarcar. Quem marcar primeiro fica com a vaga." },
   { ico: "diario", t: "Seu diário de atelier", d: "Guarde processos, notas e referências. Com o tempo, ele vira o mapa do seu percurso." },
   { ico: "sino", t: "Lembretes no celular", d: "Avisamos na véspera da aula, se ela for cancelada e quando abrir vaga na sua lista de espera." }
