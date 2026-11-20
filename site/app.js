@@ -1023,10 +1023,23 @@ function mesaHTML(e){
       <p class="err" id="mesaErr" hidden></p>
       <button class="btn pri" id="mesaOk">${m.inscrito ? `Confirmar ${MESA_CAT[sel].toLowerCase()}` : "Confirmar presença"}</button>
       ${eu ? `<button class="textbtn" id="mesaCanc">Cancelar</button>` : ""}</div>`;
-  else if(eu && !editando) acao = `<div class="mminha"><span>Você leva <b>${esc(eu.item)}</b>, em ${MESA_CAT[eu.categoria].toLowerCase()}.</span>${pode ? `<button class="textbtn" id="mesaAlt">Alterar</button>` : ""}</div>`;
+  else if(eu && !editando){
+    const ext = m.extras || [], livres = Object.keys(MESA_CAT).filter(k => k !== eu.categoria && !ext.some(x => x.categoria === k));
+    acao = `<div class="mminha"><span>Você leva <b>${esc(eu.item)}</b>, em ${MESA_CAT[eu.categoria].toLowerCase()}.</span>${pode ? `<button class="textbtn" id="mesaAlt">Alterar</button>` : ""}</div>`
+      + ext.map(x => `<div class="mminha"><span>Também leva <b>${esc(x.item)}</b>, em ${MESA_CAT[x.categoria].toLowerCase()}.</span>${pode ? `<button class="textbtn" data-mxtira="${x.categoria}">Tirar</button>` : ""}</div>`).join("");
+    const xs = EV.extraSel && livres.includes(EV.extraSel) ? EV.extraSel : null;
+    if(pode && EV.extraOn && livres.length) acao += `<div class="mform">
+      <p class="mintro">Algo a mais não ocupa vaga. Escolha em qual categoria.</p>
+      <div class="mfaltam">${livres.map(k => `<button class="rchip" data-mxcat="${k}" aria-pressed="${xs === k}">${MESA_CAT[k]}</button>`).join("")}</div>
+      ${xs ? `<input id="mxItem" class="mesain" maxlength="120" placeholder="${MESA_EX[xs]}" value="${esc(EV.extraTxt || "")}" aria-label="O que mais vai levar">
+      <p class="err" id="mxErr" hidden></p>
+      <button class="btn pri" id="mxOk">Confirmar ${MESA_CAT[xs].toLowerCase()}</button>` : ""}
+      <button class="textbtn" id="mxCanc">Cancelar</button></div>`;
+    else if(pode && livres.length) acao += `<div class="mminha"><button class="textbtn" id="mesaMais">Levar mais alguma coisa</button></div>`;
+  }
   const grupos = ["salgado", "doce", "vinho"].map(k => {
     const l = (m.itens || []).filter(x => x.categoria === k);
-    return `<p class="mgrupo">${MESA_CAT[k]}</p>${l.length ? l.map(x => `<${S.equipe ? `button data-mesaeq="${x.pessoa_id}"` : "div"} class="mrow"><span>${x.sou_eu ? "Você" : esc(x.nome)}</span><span>${esc(x.item)}</span></${S.equipe ? "button" : "div"}>`).join("") : `<p class="mvazio">Ninguém ainda</p>`}`;
+    return `<p class="mgrupo">${MESA_CAT[k]}</p>${l.length ? l.map(x => `<${S.equipe ? `button data-mesaeq="${x.pessoa_id}" data-mesacat="${x.categoria}"` : "div"} class="mrow"><span>${x.sou_eu ? "Você" : esc(x.nome)}</span><span>${esc(x.item)}</span></${S.equipe ? "button" : "div"}>`).join("") : `<p class="mvazio">Ninguém ainda</p>`}`;
   }).join("");
   const faltam = S.equipe && m.faltam && m.faltam.length ? `<p class="mgrupo">Ainda sem escolha</p><div class="mfaltam">${m.faltam.map(x => `<button class="rchip" data-mesaeq="${x.pessoa_id}">${esc(x.nome)}</button>`).join("")}</div>` : "";
   return `<section class="mesa"><h2 class="evsec">Quem leva o quê</h2><p class="mintro">${intro}</p>
@@ -1045,30 +1058,56 @@ function bindMesa(id){
     EV.mesaSel = null; EV.mesaTxt = ""; EV.mesaEdit = false; vibrar(); toast("Anotado");
     avisarCanal("comentario", {}); await Promise.all([loadEventos(), loadEventoPag()]); if(S.tab === "evento") render();
   };
-  const al = $("#mesaAlt"); if(al) al.onclick = () => { EV.mesaEdit = true; EV.mesaSel = EV.mesa.minha.categoria; EV.mesaTxt = EV.mesa.minha.item; render(); };
+  const al = $("#mesaAlt"); if(al) al.onclick = () => { EV.extraOn = false; EV.mesaEdit = true; EV.mesaSel = EV.mesa.minha.categoria; EV.mesaTxt = EV.mesa.minha.item; render(); };
   const ca = $("#mesaCanc"); if(ca) ca.onclick = () => { EV.mesaEdit = false; EV.mesaSel = null; EV.mesaTxt = ""; render(); };
-  $$("#view [data-mesaeq]").forEach(b => b.onclick = () => sheetMesaEq(id, b.dataset.mesaeq));
+  const fimExtra = () => { EV.extraOn = false; EV.extraSel = null; EV.extraTxt = ""; };
+  const mm = $("#mesaMais"); if(mm) mm.onclick = () => { EV.extraOn = true; EV.extraSel = null; EV.extraTxt = ""; render(); };
+  const mc = $("#mxCanc"); if(mc) mc.onclick = () => { fimExtra(); render(); };
+  $$("#view [data-mxcat]").forEach(b => b.onclick = () => { if(EV.extraSel !== b.dataset.mxcat) EV.extraTxt = ""; EV.extraSel = b.dataset.mxcat; render(); const i = $("#mxItem"); i && i.focus(); });
+  const xi = $("#mxItem"); if(xi) xi.oninput = () => { EV.extraTxt = xi.value; const er = $("#mxErr"); if(er) er.hidden = true; };
+  const salvarExtra = async (cat, item, btn) => {
+    busy(btn, true);
+    const { error } = await sb.rpc("mesa_extra", { p_evento: id, p_categoria: cat, p_item: item });
+    if(error){ busy(btn, false); await loadEventoPag(); render(); return toast(errMsg(error)); }
+    fimExtra(); vibrar(); toast(item ? "Anotado" : "Retirado");
+    avisarCanal("comentario", {}); await loadEventoPag(); if(S.tab === "evento") render();
+  };
+  const xo = $("#mxOk"); if(xo) xo.onclick = () => {
+    const txt = (xi && xi.value || "").trim(), er = $("#mxErr");
+    if(!txt){ er.textContent = "Diga o que mais vai levar."; er.hidden = false; return; }
+    salvarExtra(EV.extraSel, txt, xo);
+  };
+  $$("#view [data-mxtira]").forEach(b => b.onclick = () => salvarExtra(b.dataset.mxtira, null, b));
+  $$("#view [data-mesaeq]").forEach(b => b.onclick = () => sheetMesaEq(id, b.dataset.mesaeq, b.dataset.mesacat || null));
 }
-function sheetMesaEq(evId, pessoa){
-  const m = EV.mesa || {}, x = (m.itens || []).find(i => i.pessoa_id === pessoa), f = (m.faltam || []).find(i => i.pessoa_id === pessoa);
-  const nome = (x || f || {}).nome || "Inscrito";
-  sheet(`<p class="label">Quem leva o quê</p><h3 class="h5">${esc(nome)}</h3>
+function sheetMesaEq(evId, pessoa, cat, novoExtra){
+  const m = EV.mesa || {}, dela = (m.itens || []).filter(i => i.pessoa_id === pessoa), f = (m.faltam || []).find(i => i.pessoa_id === pessoa);
+  const principal = dela.find(i => !i.extra), x = novoExtra ? null : (cat ? dela.find(i => i.categoria === cat) : principal) || principal;
+  const extra = !!(novoExtra || (x && x.extra));
+  const nome = (x || principal || f || {}).nome || "Inscrito";
+  const opcoes = Object.keys(MESA_CAT).filter(k => !extra || (k !== (principal && principal.categoria) && !dela.some(i => i.extra && i.categoria === k && i !== x)));
+  const maisPossivel = !extra && principal && Object.keys(MESA_CAT).some(k => !dela.some(i => i.categoria === k));
+  sheet(`<p class="label">${extra ? "Algo a mais, sem ocupar vaga" : "Quem leva o quê"}</p><h3 class="h5">${esc(nome)}</h3>
     <form class="form" id="mesaEqForm">
-      <label class="field"><span>Categoria</span><select id="mq_cat">${Object.keys(MESA_CAT).map(k => `<option value="${k}" ${x && x.categoria === k ? "selected" : ""}>${MESA_CAT[k]}</option>`).join("")}</select></label>
+      <label class="field"><span>Categoria</span><select id="mq_cat">${opcoes.map(k => `<option value="${k}" ${x && x.categoria === k ? "selected" : ""}>${MESA_CAT[k]}</option>`).join("")}</select></label>
       <label class="field"><span>O que leva</span><input id="mq_item" maxlength="120" value="${esc(x ? x.item : "")}" required></label>
       <p class="err" id="mqErr" hidden></p>
-      <div class="btns"><button class="btn pri" type="submit">Salvar</button>${x ? `<button class="btn ghost dperigo" type="button" id="mqTirar">Tirar escolha</button>` : ""}<button class="btn ghost" type="button" data-close>Cancelar</button></div>
+      <div class="btns"><button class="btn pri" type="submit">Salvar</button>${maisPossivel ? `<button class="btn ghost" type="button" id="mqMais">Adicionar algo a mais</button>` : ""}${x ? `<button class="btn ghost dperigo" type="button" id="mqTirar">${extra ? "Tirar" : "Tirar escolha"}</button>` : ""}<button class="btn ghost" type="button" data-close>Cancelar</button></div>
     </form>`);
-  const salvar = async (cat, item, btn) => {
+  const rpc = (c, item) => sb.rpc("equipe_definir_mesa", { p_evento: evId, p_pessoa: pessoa, p_categoria: c, p_item: item, p_extra: extra });
+  const salvar = async (c, item, btn) => {
     busy(btn, true);
-    const { error } = await sb.rpc("equipe_definir_mesa", { p_evento: evId, p_pessoa: pessoa, p_categoria: cat, p_item: item });
-    if(error){ busy(btn, false); return toast(errMsg(error)); }
-    closeSheet(); toast(cat ? "Anotado" : "Escolha retirada"); avisarCanal("comentario", {}); await loadEventoPag(); if(S.tab === "evento") render();
+    let r = { error: null };
+    if(extra && x && item && c !== x.categoria) r = await rpc(x.categoria, null);
+    if(!r.error) r = await rpc(extra && !item ? x.categoria : c, item);
+    if(r.error){ busy(btn, false); return toast(errMsg(r.error)); }
+    closeSheet(); toast(item ? "Anotado" : "Escolha retirada"); avisarCanal("comentario", {}); await loadEventoPag(); if(S.tab === "evento") render();
   };
   $("#mesaEqForm").onsubmit = ev => { ev.preventDefault(); const it = $("#mq_item").value.trim();
     if(!it){ const er = $("#mqErr"); er.textContent = "Diga o que a pessoa vai levar."; er.hidden = false; return; }
     salvar($("#mq_cat").value, it, $("#mesaEqForm button[type=submit]")); };
   const t = $("#mqTirar"); if(t) t.onclick = () => salvar(null, null, t);
+  const mq = $("#mqMais"); if(mq) mq.onclick = () => sheetMesaEq(evId, pessoa, null, true);
 }
 
 /* ---------- Página do evento: detalhes, reações e mural ---------- */
@@ -1077,7 +1116,7 @@ const EV = { id: null, volta: null, mural: null, reac: [], quem: [], rascunho: "
 const muralContaHTML = e => e.nc ? `<span class="mcount">${plural(e.nc, "comentário", "comentários")}</span>` : "";
 const podeEscrever = () => !!(S.aluno || S.equipe) && !(S.visitante && !S.equipe);
 function abrirEvento(id){
-  if(EV.id !== id){ EV.mural = null; EV.reac = []; EV.quem = []; EV.rascunho = ""; EV.mesa = null; EV.mesaSel = null; EV.mesaTxt = ""; EV.mesaEdit = false; } EV.tray = false;
+  if(EV.id !== id){ EV.mural = null; EV.reac = []; EV.quem = []; EV.rascunho = ""; EV.mesa = null; EV.mesaSel = null; EV.mesaTxt = ""; EV.mesaEdit = false; EV.extraOn = false; EV.extraSel = null; EV.extraTxt = ""; } EV.tray = false;
   EV.id = id; if(S.tab !== "evento") EV.volta = S.tab;
   go("evento");
   loadEventoPag().then(() => { if(S.tab === "evento" && EV.id === id) render(); });

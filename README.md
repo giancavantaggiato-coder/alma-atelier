@@ -108,6 +108,7 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 - Quem não se inscreveu só escolhe a categoria que está faltando (a de menos gente) e, ao escolher, já fica inscrito.
 - Inscritos sem escolha veem um aviso no Hoje; fechar no X esconde só naquele dia. A equipe toca num nome para definir ou tirar a escolha de alguém.
 - Banco: tabela `evento_mesa`, funções `mesa_evento`, `escolher_mesa`, `sair_mesa`, `equipe_definir_mesa`, `mesa_pendentes` (migração 40).
+- Mais de uma opção: depois da escolha principal, a pessoa pode tocar em "Levar mais alguma coisa" e somar algo em outra categoria (ex.: doce e também vinho). O que é a mais não ocupa vaga. A equipe faz o mesmo pela ficha da pessoa (Adicionar algo a mais). Banco: coluna `extra`, função `mesa_extra` e `equipe_definir_mesa(..., p_extra)` (migração 41).
 
 ## Modo vinho
 - Sexta, das 22h à meia-noite (hora do aparelho), o app inteiro fica bordô (Cinzento 02 do brandbook), com detalhes em vermelho e creme. Vale para todos.
