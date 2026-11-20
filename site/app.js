@@ -1120,37 +1120,43 @@ async function loadDicasPend(){
   const { data, error } = await sb.rpc("dicas_pendentes"); if(error || !data || !data.length) return;
   S.dicasPend = { id: data[0].evento_id, titulo: data[0].titulo };
 }
+const DICAS_GUIA = "O presente é sempre ligado ao atelier: um material, um livro, algo de Arte ou de cultura.";
+const DICAS_EX = "Ex.: um livro sobre Rembrandt, lápis de grafite 4B e 6B, um caderno de esboços A4, ingresso para uma exposição. Não preciso de pincéis.";
 function avisoDicas(){
   const p = S.dicasPend; if(!p) return "";
   return `<section class="mesaaviso">
     <p class="label">${esc(p.titulo)}</p>
     <p class="title">Escreva as dicas do seu presente</p>
-    <p class="sub">Quem tirar você vai ler. Cores, tamanhos, materiais que você usa, o que já tem e o que não quer ganhar.</p>
+    <p class="sub">${DICAS_GUIA} Quem tirar você vai ler as suas dicas.</p>
     <button class="btn pri mesacta" data-ev="${p.id}">Escrever agora</button>
   </section>`;
 }
 function dicasHTML(e){
   const d = EV.dicas; if(!e.dicas_presente || !d) return "";
-  const outros = (d.itens || []).filter(x => !x.sou_eu);
+  const itens = d.itens || [], outros = itens.filter(x => !x.sou_eu), feitos = itens.length, total = d.total || 0;
   let acao = "";
   if(d.inscrito){
     if(!d.minha || EV.dicasEdit){
       const v = EV.dicasTxt != null ? EV.dicasTxt : (d.minha || "");
-      acao = `<div class="dform"><textarea id="dicasTxt" class="mesain dicain" maxlength="500" rows="4" placeholder="Ex.: gosto de tons terrosos, uso aquarela, não preciso de pincéis" aria-label="Suas dicas">${esc(v)}</textarea>
+      acao = `<div class="dcard${d.minha ? "" : " pend"}">
+        <p class="label">${d.minha ? "Alterar suas dicas" : "Suas dicas"}</p>
+        <textarea id="dicasTxt" class="dicain" maxlength="500" rows="4" placeholder="${esc(DICAS_EX)}" aria-label="Suas dicas">${esc(v)}</textarea>
         <p class="err" id="dicasErr" hidden></p>
-        <button class="btn pri" id="dicasOk">Salvar dicas</button>
-        ${d.minha ? `<button class="textbtn" id="dicasCanc">Cancelar</button>` : ""}</div>`;
+        <div class="dbtns"><button class="btn pri" id="dicasOk">Salvar dicas</button>${d.minha ? `<button class="textbtn" id="dicasCanc">Cancelar</button>` : ""}</div>
+      </div>`;
     } else {
-      acao = `<div class="dminha"><p class="label">Suas dicas</p><p>${esc(d.minha)}</p><button class="textbtn" id="dicasAlt">Alterar</button></div>`;
+      acao = `<div class="dcard"><div class="dtopo"><p class="label">Suas dicas</p><button class="textbtn" id="dicasAlt">Alterar</button></div><p class="dtxt">${esc(d.minha)}</p></div>`;
     }
   }
-  const lista = outros.length ? outros.map(x => `<div class="drow"><b>${esc(x.nome)}</b><p>${esc(x.texto)}</p></div>`).join("") : `<p class="mvazio">Ninguém escreveu ainda.</p>`;
-  const faltam = (d.faltam || []).filter(x => !(S.aluno && x.pessoa_id === S.aluno.id));
+  const lista = outros.length ? `<div class="dlista">${outros.map(x => `<div class="drow"><b>${esc(x.nome)}</b><p>${esc(x.texto)}</p></div>`).join("")}</div>`
+    : `<p class="mvazio">As dicas aparecem aqui conforme os participantes escrevem.</p>`;
+  const faltam = d.faltam || [];
   return `<section class="mesa dicas"><h2 class="evsec">Dicas para o presente</h2>
-    <p class="mintro">${d.inscrito ? "Escreva o que você gostaria de ganhar. Todos os participantes veem as dicas, e quem tirar você usa as suas." : "Dicas dos participantes do amigo secreto."}</p>
+    <p class="mintro">${DICAS_GUIA} Todos os participantes veem as dicas${d.inscrito ? ", e quem tirar você usa as suas" : ""}.</p>
     ${acao}
-    <p class="mgrupo">Dicas de quem participa</p>${lista}
-    ${faltam.length ? `<p class="mgrupo">Ainda sem dicas</p><p class="mvazio">${faltam.map(x => esc(x.nome)).join(", ")}</p>` : ""}
+    <div class="dprog"><span class="tnum">${feitos} de ${total}</span> já escreveram</div>
+    ${lista}
+    ${faltam.length ? `<p class="mgrupo">Ainda sem dicas</p><div class="mesapills">${faltam.map(x => `<span>${esc(x.nome)}</span>`).join("")}</div>` : ""}
   </section>`;
 }
 function bindDicas(id){
@@ -1471,6 +1477,7 @@ function viewHojeEq(){
   <button class="live" id="liveBtn" ${live ? "" : "disabled"}>
     ${!live && !agora && horaDoVinho() ? `<span class="brinde" aria-hidden="true">${ICO_BRINDE}</span>` : `<span class="dot"></span>`}<u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : agora ? "Aula agora, ninguém confirmado" : horaDoVinho() ? "Provavelmente brindando" : "Sem aula no momento"}</u>
   </button>
+  ${avisoDicas()}
   ${blocoRecados()}
   ${nx ? `<section class="tile wide next">
     <div class="tl"><h2 class="tt">Próxima aula</h2><span class="chip tnum">${plural(nx.ocupadas, "aluno", "alunos")} de ${nx.capacidade}</span></div>
