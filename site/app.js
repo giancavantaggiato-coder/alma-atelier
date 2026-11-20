@@ -2979,6 +2979,7 @@ async function sheetPerfil(id, evId){
       ${tempo ? `<p class="sub">${esc(tempo)}</p>` : ""}
     </div>
     ${p.dias ? `<div class="pinfo"><p class="label">No atelier</p><p>${esc(p.dias)}</p></div>` : ""}
+    ${p.semanas_ritmo != null ? `<div class="pinfo"><p class="label">Frequência</p><div class="ritmo-row"><span class="ritmo-n tnum">${p.semanas_ritmo}</span><span class="ritmo-t">${p.semanas_ritmo === 1 ? "semana" : "semanas"}<br>mantendo o ritmo</span></div></div>` : ""}
     <div class="btns">${voltar}</div>`);
 }
 function sheetPessoas(){
