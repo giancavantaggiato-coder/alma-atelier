@@ -915,11 +915,12 @@ html.vinho[data-theme=dark] body.na-voce{--bg:#000000; --fg:#FEFCE6; --muted:#AB
 .mesacta{width:auto;align-self:flex-start;padding:0 var(--s5);height:44px;margin-top:var(--s3)}
 
 /* dicas para o presente */
-.dcard{margin-top:var(--s4);padding:var(--s4);border-radius:var(--s4);background:var(--tile);display:flex;flex-direction:column;gap:var(--s2)}
-.dcard.pend{box-shadow:inset 0 0 0 1.5px var(--gold)}
-.dtopo{display:flex;justify-content:space-between;align-items:center;gap:var(--s3)}
-.dtxt{margin:0;font-size:var(--t-body);line-height:1.5;white-space:pre-line;text-wrap:pretty}
-.dicain{font:inherit;font-size:var(--t-body);line-height:1.5;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:var(--s3);min-height:120px;padding:var(--s3);width:100%;resize:vertical}
+.dicacard{margin-top:var(--s4);padding:var(--s4);border-radius:var(--s4);background:var(--tile);display:flex;flex-direction:column;gap:var(--s2)}
+.dicacard.pend{box-shadow:inset 0 0 0 1.5px var(--gold)}
+.dicatopo{display:flex;justify-content:space-between;align-items:center;gap:var(--s3)}
+.dicatxt{margin:0;font-size:var(--t-body);line-height:1.5;white-space:pre-line;text-wrap:pretty;overflow-wrap:anywhere}
+.dicaconta{margin:0;font-size:var(--t-body-s);color:var(--muted);text-align:right}
+.dicain{font:inherit;font-size:var(--t-body);line-height:1.5;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:var(--s3);min-height:160px;max-height:60vh;padding:var(--s3);width:100%;resize:none;overflow-y:auto}
 .dicain::placeholder{color:var(--muted)}
 .dbtns{display:flex;align-items:center;gap:var(--s4)}
 .dbtns .btn{width:auto;padding:0 var(--s5);height:44px}

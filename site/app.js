@@ -1138,14 +1138,15 @@ function dicasHTML(e){
   if(d.inscrito){
     if(!d.minha || EV.dicasEdit){
       const v = EV.dicasTxt != null ? EV.dicasTxt : (d.minha || "");
-      acao = `<div class="dcard${d.minha ? "" : " pend"}">
+      acao = `<div class="dicacard${d.minha ? "" : " pend"}">
         <p class="label">${d.minha ? "Alterar suas dicas" : "Suas dicas"}</p>
-        <textarea id="dicasTxt" class="dicain" maxlength="500" rows="4" placeholder="${esc(DICAS_EX)}" aria-label="Suas dicas">${esc(v)}</textarea>
+        <textarea id="dicasTxt" class="dicain" maxlength="1500" rows="6" placeholder="${esc(DICAS_EX)}" aria-label="Suas dicas">${esc(v)}</textarea>
+        <p class="dicaconta tnum" id="dicasConta">${v.length} de 1500</p>
         <p class="err" id="dicasErr" hidden></p>
         <div class="dbtns"><button class="btn pri" id="dicasOk">Salvar dicas</button>${d.minha ? `<button class="textbtn" id="dicasCanc">Cancelar</button>` : ""}</div>
       </div>`;
     } else {
-      acao = `<div class="dcard"><div class="dtopo"><p class="label">Suas dicas</p><button class="textbtn" id="dicasAlt">Alterar</button></div><p class="dtxt">${esc(d.minha)}</p></div>`;
+      acao = `<div class="dicacard"><div class="dicatopo"><p class="label">Suas dicas</p><button class="textbtn" id="dicasAlt">Alterar</button></div><p class="dicatxt">${esc(d.minha)}</p></div>`;
     }
   }
   const lista = outros.length ? `<div class="dlista">${outros.map(x => `<div class="drow"><b>${esc(x.nome)}</b><p>${esc(x.texto)}</p></div>`).join("")}</div>`
@@ -1160,7 +1161,8 @@ function dicasHTML(e){
   </section>`;
 }
 function bindDicas(id){
-  const t = $("#dicasTxt"); if(t) t.oninput = () => { EV.dicasTxt = t.value; const er = $("#dicasErr"); if(er) er.hidden = true; };
+  const t = $("#dicasTxt"); const cresce = () => { t.style.height = "auto"; t.style.height = t.scrollHeight + 2 + "px"; };
+  if(t){ cresce(); t.oninput = () => { EV.dicasTxt = t.value; cresce(); const c = $("#dicasConta"); if(c) c.textContent = `${t.value.length} de 1500`; const er = $("#dicasErr"); if(er) er.hidden = true; }; }
   const ok = $("#dicasOk"); if(ok) ok.onclick = async () => {
     const txt = (t && t.value || "").trim(), er = $("#dicasErr");
     if(!txt){ er.textContent = "Escreva pelo menos uma dica."; er.hidden = false; return; }
