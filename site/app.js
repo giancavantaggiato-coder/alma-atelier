@@ -3137,7 +3137,14 @@ const vibrar = (() => {
   };
   const volta = () => { const vw = $("#view"); el.classList.add("volta"); vw.classList.add("volta");
     setTimeout(() => { el.classList.remove("volta"); vw.classList.remove("volta"); }, 300); };
-  document.addEventListener("touchstart", e => { if(ocupado || window.scrollY > 0 || !pode() || e.touches.length !== 1) { y0 = null; return; } y0 = e.touches[0].clientY; d = 0; }, { passive: true });
+  const emTexto = t => { const a = document.activeElement;
+    if(a && a.matches && a.matches("textarea, input, [contenteditable]")) return true;
+    for(let n = t; n && n !== document.body; n = n.parentElement){
+      if(n.matches && n.matches("textarea, input, select, [contenteditable]")) return true;
+      if(n.scrollTop > 0) return true;
+    }
+    return false; };
+  document.addEventListener("touchstart", e => { if(ocupado || window.scrollY > 0 || !pode() || e.touches.length !== 1 || emTexto(e.target)) { y0 = null; return; } y0 = e.touches[0].clientY; d = 0; }, { passive: true });
   document.addEventListener("touchmove", e => {
     if(y0 === null) return;
     const dy = e.touches[0].clientY - y0;

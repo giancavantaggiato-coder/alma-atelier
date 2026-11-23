@@ -920,7 +920,7 @@ html.vinho[data-theme=dark] body.na-voce{--bg:#000000; --fg:#FEFCE6; --muted:#AB
 .dicatopo{display:flex;justify-content:space-between;align-items:center;gap:var(--s3)}
 .dicatxt{margin:0;font-size:var(--t-body);line-height:1.5;white-space:pre-line;text-wrap:pretty;overflow-wrap:anywhere}
 .dicaconta{margin:0;font-size:var(--t-body-s);color:var(--muted);text-align:right}
-.dicain{font:inherit;font-size:var(--t-body);line-height:1.5;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:var(--s3);min-height:160px;max-height:60vh;padding:var(--s3);width:100%;resize:none;overflow-y:auto}
+.dicain{font:inherit;font-size:var(--t-body);line-height:1.5;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:var(--s3);min-height:160px;max-height:60vh;padding:var(--s3);width:100%;resize:none;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;-webkit-user-select:text;user-select:text}
 .dicain::placeholder{color:var(--muted)}
 .dbtns{display:flex;align-items:center;gap:var(--s4)}
 .dbtns .btn{width:auto;padding:0 var(--s5);height:44px}
