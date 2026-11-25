@@ -448,7 +448,7 @@ async function bootDentro(){
 }
 sb.auth.onAuthStateChange((ev, session) => {
   if(ev === "SIGNED_IN" && !S.session){ S.session = session; boot(); }
-  if(ev === "SIGNED_OUT"){ D.itens = null; if(D.ed) fecharEditor(); Object.assign(S, { session:null, aluno:null, equipe:false, direcao:false, tab:"hoje" }); Object.assign(C, { pronto:false, pecas:[], contas:[], forn:[], sec:"resumo" }); NS.ativo = false; loginEmail = emailLembrado() || loginEmail; renderLogin(loginEmail && emailLembrado() ? "email" : "inicio"); }
+  if(ev === "SIGNED_OUT"){ D.itens = null; if(D.ed) fecharEditor(); Object.assign(S, { session:null, aluno:null, equipe:false, direcao:false, tab:"hoje" }); Object.assign(C, { pronto:false, pecas:[], contas:[], forn:[], emails:[], sec:"resumo" }); NS.ativo = false; loginEmail = emailLembrado() || loginEmail; renderLogin(loginEmail && emailLembrado() ? "email" : "inicio"); }
   if(ev === "TOKEN_REFRESHED") S.session = session;
 });
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao();

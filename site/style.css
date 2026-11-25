@@ -955,3 +955,20 @@ body.nav6 nav button{font-size:11px;letter-spacing:-.01em}
 .tile .tv.c-tv{font-size:clamp(18px,7.2vw,26px);line-height:32px;letter-spacing:-.02em;white-space:nowrap}
 .c-stats .stat b.c-stat{font-size:clamp(15px,4.8vw,20px);line-height:28px;white-space:nowrap}
 .c-link{display:flex;align-items:center;justify-content:center;text-decoration:none}
+.c-intro{margin-top:var(--s4)}
+.c-resumo{color:var(--strong);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.c-peca-t{margin:0;font-size:var(--t-body-s);color:var(--strong)}
+.c-vis{margin-top:var(--s3)}
+.c-de{margin-top:var(--s1)}
+.c-texto{margin:var(--s4) 0 0;font-size:var(--t-body);line-height:1.5}
+.c-li-conta{margin-top:var(--s3);border-top:1px solid var(--line)}
+.c-linha{list-style:none;margin:var(--s4) 0 0;padding:0;border-top:1px solid var(--line)}
+.c-linha li{display:flex;align-items:center;gap:var(--s3);min-height:40px;border-bottom:1px solid var(--line);font-size:var(--t-body-s);color:var(--muted)}
+.c-linha .c-marca{width:10px;height:10px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--past-ink);flex:none}
+.c-linha .c-data{margin-left:auto}
+.c-linha li.feito .c-marca{background:var(--past-ink);box-shadow:none}
+.c-linha li.feito .c-etapa{text-decoration:line-through;text-decoration-color:var(--past-ink)}
+.c-linha li.agora{color:var(--fg);font-weight:500}
+.c-linha li.agora .c-marca{background:var(--accent);box-shadow:inset 0 0 0 1.5px var(--gold)}
+.c-linha li.atras .c-marca{background:var(--danger);box-shadow:none}
+.c-seg button{padding:0 var(--s3)}
