@@ -2,7 +2,7 @@
    Conteúdo, Financeiro e Loja. Carrega antes do app.js e usa as utilidades dele só dentro das funções.
    As tabelas (cont_pecas, fin_contas, loja_fornecedores) só respondem para quem é direção. */
 "use strict";
-const C = { sec: "resumo", pronto: false, erro: false, pecas: [], contas: [], forn: [], emails: [], conta: "todas", fin: "pagar", cv: "etapas", ler: null, editar: false };
+const C = { sec: "resumo", pronto: false, erro: false, pecas: [], contas: [], forn: [], emails: [], conta: "todas", fin: "pagar", cv: "calendario", mesC: null, ler: null, editar: false };
 
 const C_SECOES = [["resumo","Resumo"],["emails","E-mails"],["conteudo","Conteúdo"],["financeiro","Financeiro"],["loja","Loja"]];
 const C_ESTADOS = [["ideia","Ideia"],["pauta","Pauta para aprovar"],["texto","Texto"],["revisao_texto","Revisão do texto"],["design","Design"],["revisao_design","Revisão do design"],["agendar","Pronto para agendar"],["agendado","Agendado"],["publicado","Publicado"]];
@@ -166,8 +166,9 @@ function cConteudo(){
   const nPautas = base.filter(p => p.estado === "pauta").length;
   const topo = `<div class="chips">${[["todas","Todas"],["atelier","Atelier"],["loja","Loja"],["blog","Blog"]].map(([k, l]) =>
       `<button data-cconta-f="${k}" aria-pressed="${C.conta === k}">${l} <span class="tnum">${conta(k)}</span></button>`).join("")}</div>
-    <div class="seg c-vis" role="group" aria-label="Ver">${[["pautas",`Pautas${nPautas ? ` ${nPautas}` : ""}`],["etapas","Etapas"],["calendario","Calendário"]].map(([k, l]) => `<button data-ccv="${k}" aria-pressed="${C.cv === k}">${l}</button>`).join("")}</div>`;
+    <div class="seg c-vis" role="group" aria-label="Ver">${[["calendario","Calendário"],["pautas",`Pautas${nPautas ? ` ${nPautas}` : ""}`],["etapas","Etapas"]].map(([k, l]) => `<button data-ccv="${k}" aria-pressed="${C.cv === k}">${l}</button>`).join("")}</div>`;
   if(C.cv === "pautas") return topo + cPautas(base);
+  if(C.cv === "calendario") return topo + cCalendario(base);
   if(C.cv === "etapas"){
     const ativas = base.filter(p => cPrazo(p) && p.estado !== "pauta").sort((a, b) => cPrazo(a).localeCompare(cPrazo(b)) || a.dia.localeCompare(b.dia));
     const sem = dkey(addDays(new Date(), 7));
@@ -251,6 +252,35 @@ function sheetPeca(id, diaPadrao){
   const ap = $("#cpApagar"); if(ap) ap.onclick = () => cConfirmarApagar("cont_pecas", id, "esta publicação", "Publicação apagada");
 }
 
+
+
+/* ---------- Calendário: visão do mês inteiro ---------- */
+const C_LETRA = { atelier: "A", loja: "L", blog: "B" };
+const cFase = p => p.estado === "publicado" ? "pub" : cPronta(p) ? "pronto" : p.estado === "pauta" ? "pauta" : "anda";
+function cCalendario(base){
+  if(!C.mesC){ const prox = base.filter(p => p.dia && p.dia >= cHoje()).map(p => p.dia).sort()[0]; const d = prox ? fromKey(prox) : new Date(); C.mesC = new Date(d.getFullYear(), d.getMonth(), 1); }
+  const y = C.mesC.getFullYear(), m = C.mesC.getMonth(), off = (new Date(y, m, 1).getDay() + 6) % 7, dias = new Date(y, m + 1, 0).getDate(), h = cHoje();
+  const doMes = base.filter(p => p.dia && p.dia.startsWith(`${y}-${pad(m + 1)}`)).sort((a, b) => a.dia.localeCompare(b.dia) || a.conta.localeCompare(b.conta));
+  const porDia = {}; doMes.forEach(p => (porDia[p.dia] ||= []).push(p));
+  let cells = ""; for(let i = 0; i < off; i++) cells += "<div></div>";
+  for(let d = 1; d <= dias; d++){
+    const k = `${y}-${pad(m + 1)}-${pad(d)}`, l = porDia[k] || [];
+    cells += `<div class="c-cel${k === h ? " hoje" : ""}${k < h ? " past" : ""}"><span class="n tnum">${d}</span><span class="c-marcas">${l.map(p => `<span class="c-mk ${cFase(p)}" title="${esc(p.titulo)}">${C_LETRA[p.conta]}</span>`).join("")}</span></div>`;
+  }
+  const semanas = {}; doMes.forEach(p => { const d = fromKey(p.dia), seg = dkey(addDays(d, -((d.getDay() + 6) % 7))); (semanas[seg] ||= []).push(p); });
+  const nPautas = doMes.filter(p => p.estado === "pauta").length;
+  const linhas = Object.keys(semanas).sort().map(s => `<p class="c-sem">Semana de ${dm(fromKey(s))}</p>${semanas[s].map(p => {
+    const d = fromKey(p.dia);
+    return `<button class="c-row" data-cpeca="${p.id}"><span class="c-row-d tnum">${cap1(WDS[d.getDay()])} ${pad(d.getDate())}</span><span class="c-mk ${cFase(p)}">${C_LETRA[p.conta]}</span><span class="c-row-t">${esc(p.titulo)}</span><span class="c-row-e">${esc(cEstadoCurto(p))}</span></button>`; }).join("")}`).join("");
+  return `<div class="monthbar"><button class="iconbtn" id="cMesAnt" aria-label="Mês anterior">${CHEV_L}</button><div class="title">${cap1(MES[m])} ${y}</div><button class="iconbtn" id="cMesProx" aria-label="Próximo mês">${CHEV_R}</button></div>
+    <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
+    <div class="grid c-grid">${cells}</div>
+    <div class="c-leg"><span><span class="c-mk pauta">A</span>Atelier</span><span><span class="c-mk pauta">L</span>Loja</span><span><span class="c-mk pauta">B</span>Blog</span></div>
+    <div class="c-leg"><span><span class="c-mk pauta"></span>pauta</span><span><span class="c-mk anda"></span>em produção</span><span><span class="c-mk pronto"></span>pronto</span><span><span class="c-mk pub"></span>publicado</span></div>
+    <div class="daybar"><p class="sub">${doMes.length ? plural(doMes.length, "publicação no mês", "publicações no mês") : "Nada neste mês"}</p>${nPautas ? `<button class="addbtn" id="cAprovarMes">Aprovar ${plural(nPautas, "pauta", "pautas")}</button>` : `<button class="addbtn" data-cpeca="novo">Nova</button>`}</div>
+    <div class="c-lista">${linhas}</div>`;
+}
+const cEstadoCurto = p => ({ pauta: "pauta", texto: "escrevendo", revisao_texto: "revisar texto", design: "design", revisao_design: "revisar design", agendar: "agendar", agendado: "agendado", publicado: "publicado", ideia: "ideia" })[p.estado] || p.estado;
 
 /* ---------- Pautas para aprovar ---------- */
 function cPautas(base){
@@ -511,6 +541,11 @@ function bindCentral(){
   v.querySelectorAll("[data-ctira]").forEach(b => b.onclick = () => cConfirmarApagar("cont_pecas", b.dataset.ctira, "esta pauta", "Pauta retirada"));
   const at = document.getElementById("cAprovarTodas"); if(at) at.onclick = () => cAprovar(C.pecas.filter(p => p.estado === "pauta" && (C.conta === "todas" || p.conta === C.conta)).map(p => p.id), at);
   if(C.ler) bindLeitura();
+  const ma = document.getElementById("cMesAnt"), mp = document.getElementById("cMesProx");
+  if(ma) ma.onclick = () => { C.mesC = new Date(C.mesC.getFullYear(), C.mesC.getMonth() - 1, 1); render(); };
+  if(mp) mp.onclick = () => { C.mesC = new Date(C.mesC.getFullYear(), C.mesC.getMonth() + 1, 1); render(); };
+  const am = document.getElementById("cAprovarMes"); if(am) am.onclick = () => { const pref = `${C.mesC.getFullYear()}-${pad(C.mesC.getMonth() + 1)}`;
+    cAprovar(C.pecas.filter(p => p.estado === "pauta" && p.dia && p.dia.startsWith(pref) && (C.conta === "todas" || p.conta === C.conta)).map(p => p.id), am); };
   v.querySelectorAll("[data-cconta]").forEach(b => b.onclick = () => sheetConta(b.dataset.cconta));
   v.querySelectorAll("[data-cforn]").forEach(b => b.onclick = () => sheetFornecedor(b.dataset.cforn));
   v.querySelectorAll("[data-cemail]").forEach(b => b.onclick = () => sheetEmail(b.dataset.cemail));
