@@ -2,13 +2,13 @@
    Conteúdo, Financeiro e Loja. Carrega antes do app.js e usa as utilidades dele só dentro das funções.
    As tabelas (cont_pecas, fin_contas, loja_fornecedores) só respondem para quem é direção. */
 "use strict";
-const C = { sec: "resumo", pronto: false, erro: false, pecas: [], contas: [], forn: [], emails: [], conta: "todas", fin: "pagar", cv: "etapas" };
+const C = { sec: "resumo", pronto: false, erro: false, pecas: [], contas: [], forn: [], emails: [], conta: "todas", fin: "pagar", cv: "etapas", ler: null, editar: false };
 
 const C_SECOES = [["resumo","Resumo"],["emails","E-mails"],["conteudo","Conteúdo"],["financeiro","Financeiro"],["loja","Loja"]];
-const C_ESTADOS = [["ideia","Ideia"],["texto","Texto"],["revisao_texto","Revisão do texto"],["design","Design"],["revisao_design","Revisão do design"],["agendar","Pronto para agendar"],["agendado","Agendado"],["publicado","Publicado"]];
+const C_ESTADOS = [["ideia","Ideia"],["pauta","Pauta para aprovar"],["texto","Texto"],["revisao_texto","Revisão do texto"],["design","Design"],["revisao_design","Revisão do design"],["agendar","Pronto para agendar"],["agendado","Agendado"],["publicado","Publicado"]];
 /* o que fazer em cada etapa e quantos dias antes da publicação precisa estar feito (igual a cont_prazo no banco) */
-const C_TAREFA = { texto: "Escrever o texto", revisao_texto: "Revisar o texto", design: "Fazer o design", revisao_design: "Revisar o design", agendar: "Agendar a publicação", agendado: "Conferir se publicou" };
-const C_PRAZO = { post: { texto: 7, revisao_texto: 5, design: 4, revisao_design: 2, agendar: 1, agendado: 0 }, blog: { texto: 14, revisao_texto: 10, design: 6, revisao_design: 3, agendar: 1, agendado: 0 } };
+const C_TAREFA = { pauta: "Aprovar a pauta", texto: "Escrever o texto", revisao_texto: "Revisar o texto", design: "Fazer o design", revisao_design: "Revisar o design", agendar: "Agendar a publicação", agendado: "Conferir se publicou" };
+const C_PRAZO = { post: { pauta: 8, texto: 7, revisao_texto: 5, design: 4, revisao_design: 2, agendar: 1, agendado: 0 }, blog: { pauta: 15, texto: 14, revisao_texto: 10, design: 6, revisao_design: 3, agendar: 1, agendado: 0 } };
 const cPrazoDe = (p, estado) => { const t = C_PRAZO[p.formato === "blog" ? "blog" : "post"][estado]; return !p.dia || t == null ? null : dkey(addDays(fromKey(p.dia), -t)); };
 const cPrazo = p => cPrazoDe(p, p.estado);
 const C_TIPOS_EMAIL = { conta: "Conta", fornecedor: "Fornecedor", aluno: "Aluno", interessado: "Interessado", loja: "Loja", parceria: "Parceria", sistema: "Sistema", outro: "Outro" };
@@ -41,7 +41,7 @@ async function loadCentral(){
   C.erro = !!(pc.error || ct.error || fo.error);
   C.pecas = pc.data || []; C.contas = ct.data || []; C.forn = fo.data || []; C.emails = em.data || [];
   C.pronto = true;
-  if(S.tab === "central" || S.tab === "eqhoje") render();
+  if((S.tab === "central" && !C.editar) || S.tab === "eqhoje") render();
 }
 
 /* ---------- tela ---------- */
@@ -50,6 +50,7 @@ function viewCentral(){
   const head = `<header class="hello"><p class="label">${cap1(WD[n.getDay()])}, ${dm(n)}</p><h1 class="h4">Central</h1></header>
     <div class="seg c-seg" role="group" aria-label="Seção">${C_SECOES.map(([k, l]) => `<button data-csec="${k}" aria-pressed="${C.sec === k}">${l}</button>`).join("")}</div>`;
   if(!C.pronto) return head + esqueleto();
+  if(C.ler && !C.erro) return cLeitura();
   if(C.erro) return head + `<p class="empty">A Central ainda está sendo preparada no banco. Assim que as tabelas forem criadas, tudo aparece aqui.</p>`;
   const corpo = { resumo: cResumo, emails: cEmails, conteudo: cConteudo, financeiro: cFinanceiro, loja: cLoja }[C.sec] || cResumo;
   return head + corpo();
@@ -162,11 +163,13 @@ function cConteudo(){
   const base = C.pecas.filter(p => C.conta === "todas" || p.conta === C.conta);
   const conta = k => C.pecas.filter(p => (k === "todas" || p.conta === k) && p.estado !== "publicado").length;
   const grupo = (titulo, lista, tarefa) => lista.length ? `<p class="c-grupo">${titulo}</p><div class="cards c-cards">${lista.map(p => cCartaoPeca(p, tarefa)).join("")}</div>` : "";
+  const nPautas = base.filter(p => p.estado === "pauta").length;
   const topo = `<div class="chips">${[["todas","Todas"],["atelier","Atelier"],["loja","Loja"],["blog","Blog"]].map(([k, l]) =>
       `<button data-cconta-f="${k}" aria-pressed="${C.conta === k}">${l} <span class="tnum">${conta(k)}</span></button>`).join("")}</div>
-    <div class="seg c-vis" role="group" aria-label="Ver">${[["etapas","Etapas"],["calendario","Calendário"]].map(([k, l]) => `<button data-ccv="${k}" aria-pressed="${C.cv === k}">${l}</button>`).join("")}</div>`;
+    <div class="seg c-vis" role="group" aria-label="Ver">${[["pautas",`Pautas${nPautas ? ` ${nPautas}` : ""}`],["etapas","Etapas"],["calendario","Calendário"]].map(([k, l]) => `<button data-ccv="${k}" aria-pressed="${C.cv === k}">${l}</button>`).join("")}</div>`;
+  if(C.cv === "pautas") return topo + cPautas(base);
   if(C.cv === "etapas"){
-    const ativas = base.filter(p => cPrazo(p)).sort((a, b) => cPrazo(a).localeCompare(cPrazo(b)) || a.dia.localeCompare(b.dia));
+    const ativas = base.filter(p => cPrazo(p) && p.estado !== "pauta").sort((a, b) => cPrazo(a).localeCompare(cPrazo(b)) || a.dia.localeCompare(b.dia));
     const sem = dkey(addDays(new Date(), 7));
     const atras = ativas.filter(p => cPrazo(p) < h), hoje = ativas.filter(p => cPrazo(p) === h);
     const semana = ativas.filter(p => cPrazo(p) > h && cPrazo(p) <= sem), depois = ativas.filter(p => cPrazo(p) > sem);
@@ -203,7 +206,7 @@ function cLinhaEtapas(p){
 }
 function sheetPeca(id, diaPadrao){
   const novo = id === "novo";
-  const p = novo ? { titulo: "", conta: C.conta !== "todas" ? C.conta : "atelier", formato: C.conta === "blog" ? "blog" : "feed", dia: diaPadrao || "", hora: "", estado: "texto", texto: "", link_figma: "", link_publicado: "", notas: "" } : C.pecas.find(x => x.id === id);
+  const p = novo ? { titulo: "", conta: C.conta !== "todas" ? C.conta : "atelier", formato: C.conta === "blog" ? "blog" : "feed", dia: diaPadrao || "", hora: "", estado: "pauta", pauta: "", texto: "", link_figma: "", link_publicado: "", notas: "" } : C.pecas.find(x => x.id === id);
   if(!p) return;
   const opts = (l, v) => l.map(([k, t]) => `<option value="${k}" ${v === k ? "selected" : ""}>${t}</option>`).join("");
   const i = C_ESTADOS.findIndex(e => e[0] === p.estado), prox = !novo && p.estado !== "ideia" && i >= 0 && i < C_ESTADOS.length - 1 ? C_ESTADOS[i + 1] : null;
@@ -215,6 +218,7 @@ function sheetPeca(id, diaPadrao){
         <label class="field"><span>Formato</span><select id="cp_form">${opts(C_FORMATOS, p.formato)}</select></label></div>
       <div class="row2"><label class="field"><span>Publica em</span><input id="cp_dia" type="date" value="${esc(p.dia || "")}"></label>
         <label class="field"><span>Horário</span><input id="cp_hora" type="time" value="${esc(String(p.hora || "").slice(0, 5))}"></label></div>
+      <label class="field"><span>Pauta (o ângulo do post)</span><textarea id="cp_pauta" rows="3">${esc(p.pauta || "")}</textarea></label>
       <label class="field"><span>Etapa atual</span><select id="cp_est">${opts(C_ESTADOS, p.estado)}</select></label>
       <label class="field"><span>Texto ou legenda</span><textarea id="cp_txt" rows="6">${esc(p.texto || "")}</textarea></label>
       <label class="field"><span>Página no Figma</span><input id="cp_fig" type="url" value="${esc(p.link_figma || "")}" placeholder="https://www.figma.com/…"></label>
@@ -229,13 +233,13 @@ function sheetPeca(id, diaPadrao){
     </form>`);
   const ler = () => ({ titulo: $("#cp_tit").value.trim(), conta: $("#cp_conta").value, formato: $("#cp_form").value, dia: $("#cp_dia").value || null,
     hora: $("#cp_hora").value || null, estado: $("#cp_est").value, texto: $("#cp_txt").value.trim() || null, link_figma: $("#cp_fig").value.trim() || null,
-    link_publicado: $("#cp_pub").value.trim() || null, notas: $("#cp_notas").value.trim() || null });
+    link_publicado: $("#cp_pub").value.trim() || null, notas: $("#cp_notas").value.trim() || null, pauta: $("#cp_pauta").value.trim() || null });
   const gravar = async (row, btn, msg) => {
     busy(btn, true);
     try{
       if(!row.titulo) throw new Error("Dê um título à publicação.");
       if(!row.dia && row.estado !== "ideia") row.estado = row.estado === "publicado" ? row.estado : "ideia";
-      if(row.dia && row.estado === "ideia") row.estado = "texto";
+      if(row.dia && row.estado === "ideia") row.estado = "pauta";
       const { error } = novo ? await sb.from("cont_pecas").insert(row) : await sb.from("cont_pecas").update(row).eq("id", id);
       if(error) throw error;
       closeSheet(); toast(msg); loadCentral();
@@ -245,6 +249,95 @@ function sheetPeca(id, diaPadrao){
   $("#cpForm").onsubmit = ev => { ev.preventDefault(); gravar(ler(), $("#cpForm button[type=submit]"), novo ? "Publicação criada" : "Publicação salva"); };
   const av = $("#cpAvanca"); if(av) av.onclick = () => gravar({ ...ler(), estado: prox[0] }, av, prox[0] === "publicado" ? "Publicada" : `Próxima etapa: ${(C_TAREFA[prox[0]] || prox[1]).toLowerCase()}`);
   const ap = $("#cpApagar"); if(ap) ap.onclick = () => cConfirmarApagar("cont_pecas", id, "esta publicação", "Publicação apagada");
+}
+
+
+/* ---------- Pautas para aprovar ---------- */
+function cPautas(base){
+  const pautas = base.filter(p => p.estado === "pauta").sort((a, b) => String(a.dia || "9").localeCompare(String(b.dia || "9")));
+  if(!pautas.length) return `<p class="empty">Nenhuma pauta esperando aprovação.</p>`;
+  const meses = {}; pautas.forEach(p => { const k = p.dia ? p.dia.slice(0, 7) : "sem"; (meses[k] ||= []).push(p); });
+  return `<div class="daybar"><p class="sub">${plural(pautas.length, "pauta para aprovar", "pautas para aprovar")}</p><button class="addbtn" id="cAprovarTodas">Aprovar todas</button></div>
+    ${Object.keys(meses).sort().map(k => `<p class="c-grupo">${k === "sem" ? "Sem data" : cap1(MES[+k.slice(5, 7) - 1]) + " de " + k.slice(0, 4)}<span class="tnum">${meses[k].length}</span></p>
+      <div class="cards c-cards">${meses[k].map(p => `<div class="card c-card c-pauta">
+        <div class="row"><span class="title">${esc(p.titulo)}</span></div>
+        <p class="sub">${esc([p.dia ? cDia(p.dia) : "", C_CONTA_CURTA[p.conta], cFormato(p.formato)].filter(Boolean).join(", "))}</p>
+        ${p.pauta ? `<p class="c-pauta-t">${esc(p.pauta)}</p>` : ""}
+        <div class="c-pauta-b"><button class="btn pri" data-capr="${p.id}">Aprovar</button><button class="btn ghost" data-cdet="${p.id}">Ajustar</button><button class="btn ghost" data-ctira="${p.id}">Tirar</button></div>
+      </div>`).join("")}</div>`).join("")}`;
+}
+async function cAprovar(ids, btn){
+  busy(btn, true);
+  const { error } = await sb.from("cont_pecas").update({ estado: "texto" }).in("id", ids).eq("estado", "pauta");
+  if(error){ busy(btn, false); return toast(errMsg(error)); }
+  toast(ids.length > 1 ? `${ids.length} pautas aprovadas. O Claude começa a escrever` : "Pauta aprovada. O Claude escreve o texto"); loadCentral();
+}
+
+/* ---------- Tela de leitura e revisão do texto ---------- */
+const cSlides = t => String(t || "").split(/\n\s*-{3,}\s*\n/).map(x => x.trim()).filter(Boolean);
+function cLeitura(){
+  const p = C.pecas.find(x => x.id === C.ler);
+  if(!p){ C.ler = null; return viewCentral(); }
+  const z = cPrazo(p), h = cHoje();
+  const meta = [C_CONTA_CURTA[p.conta], cFormato(p.formato), p.dia ? `publica ${cDia(p.dia).toLowerCase()}` : "sem data"].join(", ");
+  const cabeca = `<div class="c-ler-top"><button class="iconbtn" id="cLerVoltar" aria-label="Voltar">${CHEV_L}</button><span class="label">${esc(meta)}</span></div>
+    <h1 class="h4 c-ler-t">${esc(p.titulo)}</h1>
+    <p class="c-ler-etapa"><span class="pill ${cPronta(p) ? "ok" : z && z < h ? "warn" : ["revisao_texto","revisao_design"].includes(p.estado) ? "wait" : ""}">${cEstado(p.estado)}</span>${z ? `<span class="sub">${C_TAREFA[p.estado]} até ${z === h ? "hoje" : dm(fromKey(z))}</span>` : ""}</p>
+    ${p.pauta ? `<p class="c-ler-pauta"><span class="label">Pauta</span>${esc(p.pauta)}</p>` : ""}
+    ${p.ajuste && p.estado === "texto" ? `<p class="c-ler-pauta c-ler-ajuste"><span class="label">Seu pedido de ajuste</span>${esc(p.ajuste)}</p>` : ""}`;
+  if(C.editar){
+    return cabeca + `<form id="cEdForm" class="form c-ed">
+      ${p.formato === "carrossel" ? `<p class="sub">Cada slide fica entre linhas com três hifens (---).</p>` : ""}<label class="field"><span>${p.formato === "carrossel" ? "Slides" : p.formato === "blog" ? "Texto do blog" : "Texto"}</span><textarea id="cEdTexto" class="c-ed-area">${esc(p.texto || "")}</textarea></label>
+      ${p.formato !== "blog" ? `<label class="field"><span>Legenda</span><textarea id="cEdLeg" class="c-ed-area c-ed-leg">${esc(p.legenda || "")}</textarea></label>` : ""}
+      <p class="err" id="cEdErr" hidden></p>
+      <div class="btns"><button class="btn pri" type="submit">Salvar texto</button><button class="btn ghost" type="button" id="cEdCancela">Cancelar</button></div>
+    </form>`;
+  }
+  const slides = p.formato === "carrossel" ? cSlides(p.texto) : [];
+  const corpo = !p.texto && !p.legenda
+    ? `<p class="empty">${p.estado === "pauta" ? "Aprove a pauta e o Claude escreve o texto." : p.estado === "texto" ? "O Claude está escrevendo. Você recebe um aviso quando o texto estiver pronto." : "Sem texto ainda."}</p>`
+    : (slides.length > 1 ? slides.map((t, i) => `<section class="c-slide"><p class="c-slide-n tnum">${i + 1} / ${slides.length}</p><div class="c-ler-txt">${esc(t)}</div></section>`).join("")
+      : p.texto ? `<section class="c-slide c-slide-u"><div class="c-ler-txt">${esc(p.texto)}</div></section>` : "")
+      + (p.legenda ? `<section class="c-legenda"><p class="label">Legenda</p><div class="c-ler-txt c-ler-leg">${esc(p.legenda)}</div></section>` : "");
+  const acoes = p.estado === "pauta" ? `<button class="btn pri" data-capr="${p.id}">Aprovar pauta</button><button class="btn ghost" data-cdet="${p.id}">Ajustar</button>`
+    : p.estado === "revisao_texto" ? `<button class="btn pri" id="cAprTexto">Aprovar texto</button><button class="btn ghost" id="cAjuste">Pedir ajuste</button><button class="btn ghost" id="cEditar">Editar</button>`
+    : p.estado === "revisao_design" ? `${p.link_figma ? `<a class="btn ghost c-link" href="${esc(p.link_figma)}" target="_blank" rel="noopener">Ver no Figma</a>` : ""}<button class="btn pri" id="cAprDesign">Aprovar design</button><button class="btn ghost" id="cAjuste">Pedir ajuste</button>`
+    : `${p.texto || p.legenda ? `<button class="btn ghost" id="cEditar">Editar texto</button>` : ""}<button class="btn ghost" data-cdet="${p.id}">Detalhes</button>`;
+  return cabeca + `<div class="c-ler">${corpo}</div><div class="c-acoes-esp"></div><div class="c-acoes"><div class="in">${acoes}</div></div>`;
+}
+function sheetAjuste(p){
+  const design = p.estado === "revisao_design";
+  sheet(`<p class="label">Pedir ajuste</p><h3 class="h5">${esc(p.titulo)}</h3>
+    <form class="form" id="cAjForm"><label class="field"><span>O que mudar${design ? " no design" : " no texto"}</span><textarea id="cAjTxt" rows="6" placeholder="${design ? "Trocar a obra do slide 3, aumentar o título" : "Abrir pela etimologia, cortar o último parágrafo, citar Arnheim"}"></textarea></label>
+      <p class="err" id="cAjErr" hidden></p>
+      <div class="btns"><button class="btn pri" type="submit">Enviar para o Claude</button><button class="btn ghost" type="button" data-close>Cancelar</button></div></form>`);
+  $("#cAjForm").onsubmit = async ev => { ev.preventDefault(); const t = $("#cAjTxt").value.trim(), b = $("#cAjForm button[type=submit]");
+    if(!t){ const x = $("#cAjErr"); x.textContent = "Escreva o que precisa mudar."; x.hidden = false; return; }
+    busy(b, true);
+    const { error } = await sb.from("cont_pecas").update({ ajuste: t, estado: design ? "design" : "texto" }).eq("id", p.id);
+    if(error){ busy(b, false); return toast(errMsg(error)); }
+    closeSheet(); toast("Pedido enviado. O Claude refaz e te avisa"); loadCentral(); };
+}
+function bindLeitura(){
+  const p = C.pecas.find(x => x.id === C.ler); if(!p) return;
+  const on = (id, fn) => { const el = document.getElementById(id); if(el) el.onclick = () => fn(el); };
+  const muda = async (row, el, msg) => { busy(el, true); const { error } = await sb.from("cont_pecas").update(row).eq("id", p.id);
+    if(error){ busy(el, false); return toast(errMsg(error)); } toast(msg); loadCentral(); };
+  on("cLerVoltar", () => { C.ler = null; C.editar = false; render(); window.scrollTo(0, 0); });
+  on("cAprTexto", el => muda({ estado: "design", ajuste: null }, el, "Texto aprovado. Segue para o design"));
+  on("cAprDesign", el => muda({ estado: "agendar", ajuste: null }, el, "Design aprovado. Pronto para agendar"));
+  on("cAjuste", () => sheetAjuste(p));
+  on("cEditar", () => { C.editar = true; render(); });
+  on("cEdCancela", () => { C.editar = false; render(); });
+  const f = document.getElementById("cEdForm");
+  if(f){
+    $$("#view .c-ed-area").forEach(t => { const ajusta = () => { t.style.height = "auto"; t.style.height = (t.scrollHeight + 4) + "px"; }; t.oninput = ajusta; ajusta(); });
+    f.onsubmit = async ev => { ev.preventDefault(); const b = f.querySelector("button[type=submit]"); busy(b, true);
+      const leg = document.getElementById("cEdLeg");
+      const { error } = await sb.from("cont_pecas").update({ texto: $("#cEdTexto").value.trim() || null, ...(leg ? { legenda: leg.value.trim() || null } : {}) }).eq("id", p.id);
+      if(error){ busy(b, false); const x = $("#cEdErr"); x.textContent = errMsg(error); x.hidden = false; return; }
+      C.editar = false; toast("Texto salvo"); loadCentral(); };
+  }
 }
 
 /* ---------- Financeiro ---------- */
@@ -408,11 +501,16 @@ function blocoCentralHoje(){
 
 function bindCentral(){
   const v = document.getElementById("view"); if(!v) return;
-  v.querySelectorAll("[data-csec]").forEach(b => b.onclick = () => { C.sec = b.dataset.csec; window.scrollTo(0, 0); render(); });
+  v.querySelectorAll("[data-csec]").forEach(b => b.onclick = () => { C.sec = b.dataset.csec; C.ler = null; window.scrollTo(0, 0); render(); });
   v.querySelectorAll("[data-cir]").forEach(b => b.onclick = () => { C.sec = b.dataset.cir; go("central"); });
   v.querySelectorAll("[data-cconta-f]").forEach(b => b.onclick = () => { C.conta = b.dataset.ccontaF; render(); });
   v.querySelectorAll("[data-cfin]").forEach(b => b.onclick = () => { C.fin = b.dataset.cfin; render(); });
-  v.querySelectorAll("[data-cpeca]").forEach(b => b.onclick = () => sheetPeca(b.dataset.cpeca));
+  v.querySelectorAll("[data-cpeca]").forEach(b => b.onclick = () => { if(b.dataset.cpeca === "novo") return sheetPeca("novo"); C.ler = b.dataset.cpeca; C.editar = false; C.sec = "conteudo"; if(S.tab !== "central") go("central"); else render(); window.scrollTo(0, 0); });
+  v.querySelectorAll("[data-capr]").forEach(b => b.onclick = () => cAprovar([b.dataset.capr], b));
+  v.querySelectorAll("[data-cdet]").forEach(b => b.onclick = () => sheetPeca(b.dataset.cdet));
+  v.querySelectorAll("[data-ctira]").forEach(b => b.onclick = () => cConfirmarApagar("cont_pecas", b.dataset.ctira, "esta pauta", "Pauta retirada"));
+  const at = document.getElementById("cAprovarTodas"); if(at) at.onclick = () => cAprovar(C.pecas.filter(p => p.estado === "pauta" && (C.conta === "todas" || p.conta === C.conta)).map(p => p.id), at);
+  if(C.ler) bindLeitura();
   v.querySelectorAll("[data-cconta]").forEach(b => b.onclick = () => sheetConta(b.dataset.cconta));
   v.querySelectorAll("[data-cforn]").forEach(b => b.onclick = () => sheetFornecedor(b.dataset.cforn));
   v.querySelectorAll("[data-cemail]").forEach(b => b.onclick = () => sheetEmail(b.dataset.cemail));
