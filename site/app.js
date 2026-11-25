@@ -1131,6 +1131,17 @@ function avisoDicas(){
     <button class="btn pri mesacta" data-ev="${p.id}">Escrever agora</button>
   </section>`;
 }
+function dicaReacHTML(x, pode){
+  const rs = x.reacoes || [], aberto = pode && EV.dicaTray === x.pessoa_id, minha = (rs.find(r => r.minha) || {}).emoji;
+  if(!rs.length && !pode) return "";
+  const quem = rs.flatMap(r => r.nomes || []), txt = !quem.length ? "" : quem.length <= 2 ? cap1(quem.join(" e ")) : `${cap1(quem.slice(0, 2).join(", "))} e mais ${quem.length - 2}`;
+  return `<div class="rbar dreac">
+    ${rs.map(r => `<button class="rchip" ${pode ? `data-dreac="${x.pessoa_id}" data-em="${r.emoji}"` : "disabled"} aria-pressed="${!!r.minha}"><span>${r.emoji}</span><span class="tnum">${r.total}</span></button>`).join("")}
+    ${pode ? `<button class="rchip radd" data-dtray="${x.pessoa_id}" aria-expanded="${aberto}" aria-label="Reagir às dicas de ${esc(x.nome)}">${EVI.reagir}${rs.length ? "" : "<span>Reagir</span>"}</button>` : ""}
+    ${txt && !pode ? `<span class="rquem">${esc(txt)}</span>` : ""}
+  </div>
+  ${aberto ? `<div class="rtray" role="group" aria-label="Escolha uma reação">${EMOJIS.map(em => `<button data-dreac="${x.pessoa_id}" data-em="${em}" aria-pressed="${minha === em}" aria-label="Reagir com ${em}">${em}</button>`).join("")}</div>` : ""}`;
+}
 function dicasHTML(e){
   const d = EV.dicas; if(!e.dicas_presente || !d) return "";
   const itens = d.itens || [], outros = itens.filter(x => !x.sou_eu), feitos = itens.length, total = d.total || 0;
@@ -1146,10 +1157,11 @@ function dicasHTML(e){
         <div class="dbtns"><button class="btn pri" id="dicasOk">Salvar dicas</button>${d.minha ? `<button class="textbtn" id="dicasCanc">Cancelar</button>` : ""}</div>
       </div>`;
     } else {
-      acao = `<div class="dicacard"><div class="dicatopo"><p class="label">Suas dicas</p><button class="textbtn" id="dicasAlt">Alterar</button></div><p class="dicatxt">${esc(d.minha)}</p></div>`;
+      const eu = itens.find(x => x.sou_eu);
+      acao = `<div class="dicacard"><div class="dicatopo"><p class="label">Suas dicas</p><button class="textbtn" id="dicasAlt">Alterar</button></div><p class="dicatxt">${esc(d.minha)}</p>${eu ? dicaReacHTML(eu, false) : ""}</div>`;
     }
   }
-  const lista = outros.length ? `<div class="dlista">${outros.map(x => `<div class="drow"><b>${esc(x.nome)}</b><p>${esc(x.texto)}</p></div>`).join("")}</div>`
+  const lista = outros.length ? `<div class="dlista">${outros.map(x => `<div class="drow"><b>${esc(x.nome)}</b><p>${esc(x.texto)}</p>${dicaReacHTML(x, !!d.inscrito)}</div>`).join("")}</div>`
     : `<p class="mvazio">As dicas aparecem aqui conforme os participantes escrevem.</p>`;
   const faltam = d.faltam || [];
   return `<section class="mesa dicas"><h2 class="evsec">Dicas para o presente</h2>
@@ -1174,12 +1186,27 @@ function bindDicas(id){
   };
   const al = $("#dicasAlt"); if(al) al.onclick = () => { EV.dicasEdit = true; EV.dicasTxt = EV.dicas.minha; render(); const x = $("#dicasTxt"); x && x.focus(); };
   const ca = $("#dicasCanc"); if(ca) ca.onclick = () => { EV.dicasEdit = false; EV.dicasTxt = null; render(); };
+  $$("#view [data-dtray]").forEach(b => b.onclick = () => { EV.dicaTray = EV.dicaTray === b.dataset.dtray ? null : b.dataset.dtray; render(); });
+  $$("#view [data-dreac]").forEach(b => b.onclick = async () => {
+    const dono = b.dataset.dreac, em = b.dataset.em; EV.dicaTray = null;
+    const it = (EV.dicas.itens || []).find(x => x.pessoa_id === dono); if(!it) return;
+    const antes = JSON.parse(JSON.stringify(it.reacoes || [])), minha = (it.reacoes || []).find(r => r.minha);
+    let rs = (it.reacoes || []).map(r => r.minha ? { ...r, total: r.total - 1, minha: false, nomes: (r.nomes || []).filter(n => n !== "você") } : r).filter(r => r.total > 0);
+    if(!minha || minha.emoji !== em){
+      const r = rs.find(r => r.emoji === em);
+      if(r){ r.total++; r.minha = true; r.nomes = [...(r.nomes || []), "você"]; } else rs.push({ emoji: em, total: 1, minha: true, nomes: ["você"] });
+      vibrar(); soltarEmojis(em, b);
+    }
+    it.reacoes = rs; render();
+    const { error } = await sb.rpc("reagir_dica", { p_evento: id, p_dono: dono, p_emoji: em });
+    if(error){ it.reacoes = antes; render(); return toast(errMsg(error)); }
+  });
 }
 const EV = { id: null, volta: null, mural: null, reac: [], quem: [], rascunho: "", carregado: null };
 const muralContaHTML = e => e.nc ? `<span class="mcount">${plural(e.nc, "comentário", "comentários")}</span>` : "";
 const podeEscrever = () => !!(S.aluno || S.equipe) && !(S.visitante && !S.equipe);
 function abrirEvento(id){
-  if(EV.id !== id){ EV.mural = null; EV.reac = []; EV.quem = []; EV.rascunho = ""; EV.mesa = null; EV.mesaSel = null; EV.mesaTxt = ""; EV.mesaEdit = false; EV.extraOn = false; EV.extraSel = null; EV.extraTxt = ""; EV.dicas = null; EV.dicasEdit = false; EV.dicasTxt = null; } EV.tray = false;
+  if(EV.id !== id){ EV.mural = null; EV.reac = []; EV.quem = []; EV.rascunho = ""; EV.mesa = null; EV.mesaSel = null; EV.mesaTxt = ""; EV.mesaEdit = false; EV.extraOn = false; EV.extraSel = null; EV.extraTxt = ""; EV.dicas = null; EV.dicasEdit = false; EV.dicasTxt = null; EV.dicaTray = null; } EV.tray = false;
   EV.id = id; if(S.tab !== "evento") EV.volta = S.tab;
   go("evento");
   loadEventoPag().then(() => { if(S.tab === "evento" && EV.id === id) render(); });
@@ -1352,7 +1379,7 @@ function viewEventoPag(){
   let barra = "";
   const insc = podeInscrever();
   if(S.visitante && !S.equipe && !insc) barra = `${preco}<span class="evbar-aviso">Inscrição para alunos ativos</span>`;
-  else if(insc && e.inscrito) barra = `<span class="evbar-l"><span class="evbar-r">Inscrição</span><b class="evvai">Você vai</b></span><button class="btn evcta ghost-line" data-unev="${e.id}">Cancelar</button>`;
+  else if(insc && e.inscrito) barra = `<span class="evbar-l"><span class="evbar-r">Inscrição</span><b class="evvai">Você vai</b></span>${passou || fechou ? `<span class="evbar-aviso">Inscrições encerradas</span>` : `<button class="btn evcta ghost-line" data-unev="${e.id}">Cancelar</button>`}`;
   else if(insc) barra = `${preco}<button class="btn pri evcta" data-inev="${e.id}" ${vag === 0 || passou || fechou ? "disabled" : ""}>${vag === 0 ? "Esgotado" : passou ? "Encerrado" : fechou ? "Inscrições encerradas" : "Quero ir"}</button>`;
   return `<header class="evhero${e.foto_url ? " comfoto" : ""}${EV.reac.length ? " comreac" : ""}">
       ${e.foto_url ? `<img class="evfoto" src="${esc(e.foto_url)}" alt="">` : ""}

@@ -931,3 +931,7 @@ html.vinho[data-theme=dark] body.na-voce{--bg:#000000; --fg:#FEFCE6; --muted:#AB
 .drow:last-child{border-bottom:0}
 .drow b{font-weight:500;font-size:var(--t-body)}
 .drow p{margin:var(--s1) 0 0;font-size:var(--t-body-s);line-height:1.5;color:var(--muted);white-space:pre-line;text-wrap:pretty}
+/* reações nas dicas do presente */
+.dreac{margin-top:var(--s2)}
+.drow .rtray,.dicacard .rtray{margin-top:var(--s2)}
+.dicacard .dreac{margin-top:var(--s1)}
