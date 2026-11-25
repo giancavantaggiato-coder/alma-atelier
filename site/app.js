@@ -448,7 +448,8 @@ sb.auth.onAuthStateChange((ev, session) => {
   if(ev === "SIGNED_OUT"){ D.itens = null; if(D.ed) fecharEditor(); Object.assign(S, { session:null, aluno:null, equipe:false, tab:"hoje" }); NS.ativo = false; loginEmail = emailLembrado() || loginEmail; renderLogin(loginEmail && emailLembrado() ? "email" : "inicio"); }
   if(ev === "TOKEN_REFRESHED") S.session = session;
 });
-document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao(); if(NS.ativo) return; if(adminOnly() && S.tab === "eqhoje") loadHojeEq(); if(S.aluno && !precisaCompletar()) refresh(); else if(S.visitante) loadVisitante().then(render); } });
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao();
+    if(["bloqueado","desligado"].includes(P.estado)) estadoPush().then(() => { if(P.estado === "ativo" && S.tab === "hoje" && !document.querySelector("#sheet.show")) render(); }).catch(() => {}); if(NS.ativo) return; if(adminOnly() && S.tab === "eqhoje") loadHojeEq(); if(S.aluno && !precisaCompletar()) refresh(); else if(S.visitante) loadVisitante().then(render); } });
 /* Atualiza o app sozinho quando sai uma versão nova (sem precisar sair e entrar) */
 let VERSAO = null;
 async function checarVersao(){
@@ -686,6 +687,7 @@ function viewHoje(){
   <button class="live" id="liveBtn" ${live ? "" : "disabled"}>
     ${!live && horaDoVinho() ? `<span class="brinde" aria-hidden="true">${ICO_BRINDE}</span>` : `<span class="dot"></span>`}<u>${live ? `${plural(live,"aluno","alunos")} em aula agora` : horaDoVinho() ? "Provavelmente brindando" : "Ninguém no atelier agora"}</u>
   </button>
+  ${cartaoPush()}
   ${aniversarioAtelier()}
   ${avisoMesa()}
   ${avisoDicas()}
@@ -704,7 +706,6 @@ function viewHoje(){
     <button class="li" data-go="agenda"><span class="ind"></span><span class="tnum">${livre() ? "Plano livre: marque as aulas que quiser" : repoLivre() ? "Reposições sem limite" : ac === 1 ? "1 reposição disponível" : `${ac} reposições disponíveis`}</span></button>
     ${evs.map(ev => `<button class="li" data-ev="${ev.id}"><span class="ind n"></span><span>${esc(ev.titulo)}</span><span class="end tnum">${WDS[ev.ini.getDay()]} ${dm(ev.ini)}${evs.length > 1 ? `, ${hh(ev.ini)}` : ""}</span></button>`).join("")}
   </div>
-  ${cartaoPush()}
   ${botaoRecado()}`;
 }
 
@@ -728,6 +729,7 @@ function viewHojeV(){
     <h1 class="h4">${saudacao()}, ${esc(firstName(v.nome))}</h1>
     <p class="sub" style="font-size:var(--t-body)">${hoje.length ? `O atelier abre hoje às ${hh(hoje[0].ini)}.` : "Hoje o atelier não abre."}</p>
   </header>
+  ${cartaoPush()}
   ${avisoMesa()}
   ${avisoDicas()}
   <div class="live" aria-disabled="true">${!live && horaDoVinho() ? `<span class="brinde" aria-hidden="true">${ICO_BRINDE}</span>` : `<span class="dot"></span>`}<span>${live ? `${plural(live,"aluno","alunos")} no atelier agora` : horaDoVinho() ? "Provavelmente brindando" : "Ninguém no atelier agora"}</span></div>
@@ -2444,7 +2446,9 @@ const pushSuportado = () => "serviceWorker" in navigator && "PushManager" in win
 const ehIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const instalado = () => (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
 const pushDesligado = v => { try{ if(v === undefined) return localStorage.getItem("alma-push-off") === "1"; v ? localStorage.setItem("alma-push-off", "1") : localStorage.removeItem("alma-push-off"); }catch(_){ } return !!v; };
-const pushDispensado = v => { try{ if(v === undefined) return localStorage.getItem("alma-push-depois") === "1"; localStorage.setItem("alma-push-depois", "1"); }catch(_){ } return !!v; };
+/* "Agora não" no aviso da tela Hoje esconde por 3 dias; depois o aviso volta até a pessoa ativar */
+const PUSH_PAUSA = 3 * 864e5;
+const pushDispensado = v => { try{ if(v === undefined) return Date.now() - (+localStorage.getItem("alma-push-depois-em") || 0) < PUSH_PAUSA; localStorage.setItem("alma-push-depois-em", String(Date.now())); }catch(_){ } return !!v; };
 let swReg = null;
 async function registrarSW(){
   if(!("serviceWorker" in navigator)) return null;
@@ -2477,8 +2481,8 @@ async function estadoPush(){
 async function ativarPush(btn){
   if(S.comoAluno) return toast("Saia do modo aluno para ativar os lembretes neste aparelho");
   if(P.estado === "instalar") return sheetInstalarApp();
-  if(P.estado === "bloqueado") return sheet(`<p class="label">Lembretes no celular</p><h3 class="h5">Notificações bloqueadas</h3>
-    <p class="sub">As notificações do Alma estão desligadas neste aparelho. Ative nos ajustes do celular (Ajustes → Notificações → Alma) e volte aqui.</p>
+  if(P.estado === "bloqueado") return sheet(`<p class="label">Notificações</p><h3 class="h5">Notificações bloqueadas</h3>
+    <p class="sub">As notificações do Alma estão desligadas neste celular. ${ehIOS() ? "Para liberar, abra Ajustes, toque em Notificações, depois em Alma, e ligue Permitir Notificações." : "Para liberar, abra as configurações do celular, toque em Apps, depois em Alma (ou no navegador), e ligue as notificações."} Depois volte aqui.</p>
     <div class="btns"><button class="btn ghost" data-close>Fechar</button></div>`);
   if(P.estado === "indisponivel") return toast("Este navegador não recebe lembretes. Tente pelo app instalado na tela de início.");
   pushDesligado(false);
@@ -2505,7 +2509,7 @@ async function desativarPush(btn){
 }
 const PUSH_O_QUE = () => S.equipe && !S.aluno
   ? ["Quando chega um pedido de mudança de frequência ou dias", "Quando um aluno marca uma reposição", "Os lembretes da sua agenda"]
-  : ["Na véspera de cada aula, às 19h", "Se o atelier cancelar uma aula sua", "Quando abrir vaga numa aula da sua lista de espera", "Quando seu pedido de mudança for respondido"];
+  : ["Quando sai um evento novo", "Na véspera dos eventos em que você se inscreveu", "Quando chega um recado para você", "Se o atelier cancelar uma aula sua", "Quando abrir vaga numa aula da sua lista de espera", "Quando seu pedido de mudança for respondido"];
 function sheetPush(){
   if(P.estado !== "ativo") return ativarPush($("#pushBtn"));
   sheet(`<p class="label">Lembretes no celular</p><h3 class="h5">Lembretes ativados</h3>
@@ -2519,7 +2523,7 @@ function sheetInstalarApp(){
     <p class="sub">No iPhone, os lembretes só chegam pelo app instalado na tela de início. Leva meio minuto:</p>
     <ol class="pushlista passos"><li>No Safari, toque em <b>Compartilhar</b> (o quadrado com a seta para cima).</li>
       <li>Escolha <b>Adicionar à Tela de Início</b> e confirme.</li>
-      <li>Abra o Alma pelo ícone novo e toque em <b>Ativar lembretes</b>.</li></ol>
+      <li>Abra o Alma pelo ícone novo e toque em <b>Ativar notificações</b>, na tela Hoje.</li></ol>
     <div class="btns"><button class="btn ghost" data-close>Entendi</button></div>`);
 }
 function linhaPush(){
@@ -2551,11 +2555,18 @@ function pushPadrao(){
   };
   document.addEventListener("click", pedir, true);
 }
+/* aviso na tela Hoje para quem ainda não ativou as notificações neste celular */
 function cartaoPush(){
-  if(S.comoAluno || P.estado !== "instalar" || pushDispensado()) return "";
-  return `<section class="pushcard"><p class="title">Receba lembretes das aulas</p>
-    <p class="sub">Um aviso na véspera, se a aula for cancelada e quando abrir vaga na sua lista de espera.</p>
-    <div class="pushcard-acoes"><button class="btn pri" id="pushAtivar">${P.estado === "instalar" ? "Como ativar" : "Ativar lembretes"}</button><button class="textbtn" id="pushDepois">Agora não</button></div></section>`;
+  if(S.comoAluno || !["instalar","desligado","bloqueado"].includes(P.estado) || pushDispensado()) return "";
+  const txt = {
+    desligado: "Assim você fica sabendo de eventos novos, recados, aula cancelada e vaga aberta na sua lista de espera.",
+    instalar: "No iPhone, as notificações chegam pelo app instalado na tela de início. Leva meio minuto.",
+    bloqueado: "As notificações do Alma estão bloqueadas neste celular. Dá para liberar nos ajustes."
+  }[P.estado];
+  const bt = { desligado: "Ativar notificações", instalar: "Como ativar", bloqueado: "Como liberar" }[P.estado];
+  return `<section class="pushcard"><p class="title">Ative as notificações</p>
+    <p class="sub">${txt}</p>
+    <div class="pushcard-acoes"><button class="btn pri" id="pushAtivar">${bt}</button><button class="textbtn" id="pushDepois">Agora não</button></div></section>`;
 }
 function bindPush(){
   const pb = $("#pushBtn"); if(pb) pb.onclick = () => sheetPush();
