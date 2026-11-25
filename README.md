@@ -114,3 +114,11 @@ O login é por código de 6 dígitos (e não por link) justamente para funcionar
 - Sexta, das 22h à meia-noite (hora do aparelho), o app inteiro fica bordô (Cinzento 02 do brandbook), com detalhes em vermelho e creme. Vale para todos.
 - No Hoje da equipe, sem aula, aparece "Provavelmente brindando" com duas taças (o mesmo desenho da opção Vinho) se tocando. A página Você mantém as cores do tema escolhido (claro ou escuro), inclusive o menu de baixo e a barra do topo.
 - Para ver fora do horário: no app da equipe, Você → Luminosidade (Automático, Valor alto, Valor baixo, Vinho). Alunos não têm a opção Vinho. Também dá para abrir `app.almaestudosvisuais.com.br/?vinho=1`.
+
+## Central (gestão, só a direção)
+- Aba **Central** no menu do admin, visível só para quem tem `equipe.direcao = true` (hoje, só giancarlo@almaestudosvisuais.com.br). O resto da equipe e os alunos não veem a aba nem os dados.
+- Seções: **Resumo** (pendências do dia, a pagar em 7 dias, publicações da semana), **Conteúdo** (calendário das contas do atelier, da loja e do blog, com as etapas ideia, texto, arte, em revisão, aprovado, agendado e publicado), **Financeiro** (lançamentos a pagar e a receber, contas mensais que se renovam ao pagar) e **Loja** (fornecedores com prazo de entrega, pedido mínimo e condição de pagamento).
+- O **Hoje** da direção ganha o bloco "Central" quando há conta em atraso, conta a vencer em 3 dias ou publicação do dia.
+- Avisos no celular: 7h, resumo do dia (aulas, publicações, contas); 18h, publicação de amanhã ainda não aprovada. Função `avisos_central`, pg_cron `alma-central-manha` e `alma-central-tarde`.
+- Banco: tabelas `cont_pecas`, `fin_contas`, `loja_fornecedores` e função `sou_direcao()` (migração 47). A coluna `fin_contas.origem` já prevê o Asaas, a Shopify, o Bling, o Inter e a Ton.
+- Código: `site/central.js`.

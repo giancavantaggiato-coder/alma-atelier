@@ -31,7 +31,7 @@ const ICO = {
   pessoas:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.9-3.4 3.2-5.2 6-5.2s5.1 1.8 6 5.2"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.6 14.6c1.6.7 2.8 2.3 3.4 4.9"/></svg>',
   horarios:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>'
 };
-const NAV_ICO = { eqhoje: ICO.hoje, "eq:dia": ICO.agenda, "eq:pessoas": ICO.pessoas, "eq:turmas": ICO.horarios, "eq:eventos": ICO.eventos, painel: ICO.voce };
+const NAV_ICO = { central: (typeof C_ICO !== "undefined" ? C_ICO : ICO.equipe), eqhoje: ICO.hoje, "eq:dia": ICO.agenda, "eq:pessoas": ICO.pessoas, "eq:turmas": ICO.horarios, "eq:eventos": ICO.eventos, painel: ICO.voce };
 const adminOnly = () => S.equipe && !S.aluno;
 const isEqTab = () => S.tab === "equipe" || String(S.tab).startsWith("eq:");
 const CAM = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
@@ -93,10 +93,11 @@ document.addEventListener("keydown", e => { if(e.key === "Escape") closeSheet();
 function renderNav(){
   const tabs = [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]];
   if(S.equipe) tabs.push(["equipe","Equipe"]);
-  const lista = S.visitante && !S.equipe ? [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]] : adminOnly() ? [["eqhoje","Hoje"],["eq:dia","Calendário"],["eq:pessoas","Alunos"],["eq:eventos","Eventos"],["painel","Você"]] : tabs;
+  const lista = S.visitante && !S.equipe ? [["hoje","Hoje"],["agenda","Agenda"],["eventos","Eventos"],["voce","Você"]] : adminOnly() ? [["eqhoje","Hoje"],["eq:dia","Calendário"],["eq:pessoas","Alunos"],["eq:eventos","Eventos"], ...(S.direcao ? [["central","Central"]] : []),["painel","Você"]] : tabs;
   $("#nav").innerHTML = `<div class="in" role="tablist">${lista.map(([k,l]) =>
     `<button role="tab" data-tab="${k}" aria-selected="${S.tab===k || (k === "voce" && S.tab === "diario") || ((k === "eventos" || k === "eq:eventos") && S.tab === "evento")}"><span class="pillbg">${NAV_ICO[k] || ICO[k]}</span>${l}</button>`).join("")}</div>`;
   $("#nav").hidden = false;
+  document.body.classList.toggle("nav6", lista.length > 5);
 }
 $("#nav").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if(b) go(b.dataset.tab); });
 function go(t){
@@ -107,6 +108,7 @@ function go(t){
   if(t === "painel") loadPainel();
   if(t === "diario" && S.aluno) loadDiario().then(() => { if(S.tab === "diario") render(); });
   if(t === "eqhoje") loadHojeEq();
+  if(t === "central") loadCentral();
 }
 
 function render(){
@@ -117,7 +119,7 @@ function render(){
   const naVoce = ["painel","voce"].includes(S.tab);
   if(naVoce !== document.body.classList.contains("na-voce")){ document.body.classList.toggle("na-voce", naVoce); if(horaDoVinho()) aplicarTema(temaAtual()); }
   const v = S.visitante && !isEqTab() ? ({ hoje: viewHojeV, agenda: viewAgendaV, eventos: viewEventos, evento: viewEventoPag, voce: viewVoceV }[S.tab] || viewHojeV)
-    : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, evento: viewEventoPag, voce: viewVoce, diario: viewDiario, painel: viewPainel, eqhoje: viewHojeEq }[S.tab] || (adminOnly() ? viewHojeEq : viewHoje));
+    : isEqTab() ? viewEquipe : ({ hoje: viewHoje, agenda: viewAgenda, eventos: viewEventos, evento: viewEventoPag, voce: viewVoce, diario: viewDiario, painel: viewPainel, eqhoje: viewHojeEq, central: viewCentral }[S.tab] || (adminOnly() ? viewHojeEq : viewHoje));
   try{ $("#view").innerHTML = v(); }
   catch(ex){ console.error(ex); $("#view").innerHTML = `<div class="loading">Não foi possível abrir esta tela. Feche e abra o app de novo.</div>`; return; }
   bind();
@@ -276,7 +278,8 @@ async function loadMe(){
   S.aluno = aluno && aluno.vinculo === "aluno" && aluno.acesso_app ? aluno : null;
   S.visitante = !S.aluno && aluno && ["ex_aluno","pausado"].includes(aluno.vinculo) && aluno.acesso_app ? aluno : null;
   document.body.classList.toggle("limitado", !!S.visitante);
-  S.equipe = !!eq; S.comoAluno = false;
+  S.equipe = !!eq; S.comoAluno = false; S.direcao = false;
+  if(S.equipe && !verAluno()){ const { data: dr } = await sb.rpc("sou_direcao"); S.direcao = dr === true; }
   if(S.equipe && verAluno()){
     const { data: e } = await sb.from("equipe").select("fantasma_id").eq("auth_user_id", uid).maybeSingle();
     const { data: f } = e && e.fantasma_id ? await sb.from("pessoas").select("*").eq("id", e.fantasma_id).maybeSingle() : { data: null };
@@ -382,7 +385,7 @@ function abrirLinkDireto(){
   if(evento){ try{ history.replaceState(null, "", location.pathname); }catch(_){} if(S.eventos.some(x => x.id === evento)) abrirEvento(evento); return; }
   if(!aula && !ir) return;
   try{ history.replaceState(null, "", location.pathname); }catch(_){}
-  if(ir && ["hoje","agenda","eventos","voce","diario","painel","eqhoje"].includes(ir)) go(ir);
+  if(ir && ["hoje","agenda","eventos","voce","diario","painel","eqhoje"].includes(ir) || (ir === "central" && S.direcao)) go(ir);
   if(aula && S.aluno){ const a = S.agenda.find(x => x.aula_id === aula); if(a) sheetAula(a); }
 }
 /* se a abertura travar, em vez de carregar para sempre mostra um botão para tentar de novo */
@@ -429,7 +432,7 @@ async function bootDentro(){
     if(precisaCompletar()) return await primeiroAcesso();
     if(S.equipe && !S.comoAluno){ if(await pedirSenha()) return; }
     else if(!S.comoAluno) registrarAparelho().catch(() => {});
-    if(!S.aluno){ if(!["eqhoje","painel"].includes(S.tab) && !isEqTab()) S.tab = "eqhoje"; if(S.tab === "eqhoje") loadHojeEq(); }
+    if(!S.aluno){ if(!["eqhoje","painel"].includes(S.tab) && !isEqTab() && !(S.tab === "central" && S.direcao)) S.tab = "eqhoje"; if(S.tab === "central") loadCentral(); if(S.tab === "eqhoje") loadHojeEq(); }
     await Promise.all([loadAluno(), loadEventos()]);
     render();
     marcarOnline(); guardarCache();
@@ -445,11 +448,11 @@ async function bootDentro(){
 }
 sb.auth.onAuthStateChange((ev, session) => {
   if(ev === "SIGNED_IN" && !S.session){ S.session = session; boot(); }
-  if(ev === "SIGNED_OUT"){ D.itens = null; if(D.ed) fecharEditor(); Object.assign(S, { session:null, aluno:null, equipe:false, tab:"hoje" }); NS.ativo = false; loginEmail = emailLembrado() || loginEmail; renderLogin(loginEmail && emailLembrado() ? "email" : "inicio"); }
+  if(ev === "SIGNED_OUT"){ D.itens = null; if(D.ed) fecharEditor(); Object.assign(S, { session:null, aluno:null, equipe:false, direcao:false, tab:"hoje" }); Object.assign(C, { pronto:false, pecas:[], contas:[], forn:[], sec:"resumo" }); NS.ativo = false; loginEmail = emailLembrado() || loginEmail; renderLogin(loginEmail && emailLembrado() ? "email" : "inicio"); }
   if(ev === "TOKEN_REFRESHED") S.session = session;
 });
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible"){ checarVersao();
-    if(["bloqueado","desligado"].includes(P.estado)) estadoPush().then(() => { if(P.estado === "ativo" && S.tab === "hoje" && !document.querySelector("#sheet.show")) render(); }).catch(() => {}); if(NS.ativo) return; if(adminOnly() && S.tab === "eqhoje") loadHojeEq(); if(S.aluno && !precisaCompletar()) refresh(); else if(S.visitante) loadVisitante().then(render); } });
+    if(["bloqueado","desligado"].includes(P.estado)) estadoPush().then(() => { if(P.estado === "ativo" && S.tab === "hoje" && !document.querySelector("#sheet.show")) render(); }).catch(() => {}); if(NS.ativo) return; if(adminOnly() && S.tab === "eqhoje") loadHojeEq(); if(S.tab === "central") loadCentral(); if(S.aluno && !precisaCompletar()) refresh(); else if(S.visitante) loadVisitante().then(render); } });
 /* Atualiza o app sozinho quando sai uma versão nova (sem precisar sair e entrar) */
 let VERSAO = null;
 async function checarVersao(){
@@ -1481,7 +1484,7 @@ async function loadHojeEq(){
   const [ms, live, pd, pn, , al] = await Promise.all([
     sb.rpc("equipe_mes", { p_de: dkey(de), p_ate: dkey(ate) }), sb.rpc("em_aula_agora"),
     pedidosEq(), S.painel ? Promise.resolve({ data: S.painel }) : sb.rpc("meu_painel_equipe"), loadEventos(),
-    sb.rpc("equipe_alertas"), loadRecados(), loadAgenda()
+    sb.rpc("equipe_alertas"), loadRecados(), loadAgenda(), S.direcao ? loadCentral() : null
   ]);
   const ordem = { faltas: 0, reposicoes: 1, espera: 2 };
   S.eq.alertas = (al.data || []).sort((a, b) => (ordem[a.tipo] ?? 9) - (ordem[b.tipo] ?? 9) || b.valor - a.valor);
@@ -1518,6 +1521,7 @@ function viewHojeEq(){
   </section>` : `<section class="tile wide next"><div class="tl"><h2 class="tt">Próxima aula</h2></div><p class="sub">Nenhuma aula nas próximas semanas. Confira os horários do atelier.</p></section>`}
   ${np ? `<div class="list"><button class="li" id="pnPedidos"><span class="ind"></span>Pedidos de mudança<span class="end tnum">${np} aguardando</span></button></div>` : ""}
   ${blocoAgenda()}
+  ${blocoCentralHoje()}
   ${blocoAlertas()}
   ${botaoRecado()}`;
 }
@@ -2993,6 +2997,7 @@ $("#sheetBody").addEventListener("click", e => {
 
 function bind(){
   bindDiario();
+  bindCentral();
   bindRecados();
   $$("#view [data-alerta-pessoa]").forEach(b => b.onclick = () => abrirPessoaAlerta(b.dataset.alertaPessoa));
   bindPush();
