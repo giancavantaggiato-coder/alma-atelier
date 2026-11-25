@@ -11,6 +11,7 @@ create or replace function public.sou_direcao() returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.equipe where auth_user_id = auth.uid() and direcao)
 $$;
+revoke execute on function public.sou_direcao() from public, anon;
 grant execute on function public.sou_direcao() to authenticated;
 
 -- ---------------- Conteúdo ----------------
@@ -101,6 +102,7 @@ end $$;
 drop trigger if exists fin_contas_mensal on public.fin_contas;
 create trigger fin_contas_mensal after insert or update of pago_em on public.fin_contas
   for each row execute function public.fin_contas_mensal();
+revoke execute on function public.fin_contas_mensal() from public, anon, authenticated;
 
 -- ---------------- acesso: só direção ----------------
 alter table public.cont_pecas enable row level security;
