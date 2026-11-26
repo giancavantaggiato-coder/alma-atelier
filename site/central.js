@@ -2,14 +2,36 @@
    Conteúdo, Financeiro e Loja. Carrega antes do app.js e usa as utilidades dele só dentro das funções.
    As tabelas (cont_pecas, fin_contas, loja_fornecedores) só respondem para quem é direção. */
 "use strict";
-const C = { sec: "resumo", pronto: false, erro: false, pecas: [], contas: [], forn: [], emails: [], conta: "todas", fin: "pagar", cv: "calendario", mesC: null, ler: null, editar: false };
+const C = { sec: "resumo", pronto: false, erro: false, pecas: [], contas: [], forn: [], emails: [], conta: "todas", fin: "pagar", cv: "producao", mesC: null, ler: null, editar: false };
 
-const C_SECOES = [["resumo","Resumo"],["emails","E-mails"],["conteudo","Conteúdo"],["financeiro","Financeiro"],["loja","Loja"]];
-const C_ESTADOS = [["ideia","Ideia"],["pauta","Pauta para aprovar"],["texto","Texto"],["revisao_texto","Revisão do texto"],["design","Design"],["revisao_design","Revisão do design"],["agendar","Pronto para agendar"],["agendado","Agendado"],["publicado","Publicado"]];
-/* o que fazer em cada etapa e quantos dias antes da publicação precisa estar feito (igual a cont_prazo no banco) */
-const C_TAREFA = { pauta: "Aprovar a pauta", texto: "Escrever o texto", revisao_texto: "Revisar o texto", design: "Fazer o design", revisao_design: "Revisar o design", agendar: "Agendar a publicação", agendado: "Conferir se publicou" };
-const C_PRAZO = { post: { pauta: 8, texto: 7, revisao_texto: 5, design: 4, revisao_design: 2, agendar: 1, agendado: 0 }, blog: { pauta: 15, texto: 14, revisao_texto: 10, design: 6, revisao_design: 3, agendar: 1, agendado: 0 } };
-const cPrazoDe = (p, estado) => { const t = C_PRAZO[p.formato === "blog" ? "blog" : "post"][estado]; return !p.dia || t == null ? null : dkey(addDays(fromKey(p.dia), -t)); };
+const C_SECOES = [["resumo","Para você"],["emails","E-mails"],["conteudo","Conteúdo"],["financeiro","Financeiro"],["loja","Loja"]];
+/* Etapas do conteúdo: a fonte é a tabela cont_etapas no banco (ordem, nome, quem faz, prazo).
+   Esta lista é só o padrão, usado enquanto o banco não responde. */
+let C_ETAPAS = [
+  ["ideia","Ideia","ideia",null,"ninguem",null,null],
+  ["pauta","Pauta para aprovar","pauta","Aprovar a pauta","voce",8,15],
+  ["texto","Texto","escrevendo","Escrever o texto","claude",7,14],
+  ["revisao_texto","Revisão do texto","revisar texto","Revisar o texto","voce",5,10],
+  ["design","Design","design","Fazer o design","claude",4,6],
+  ["revisao_design","Revisão do design","revisar design","Revisar o design","voce",2,3],
+  ["agendar","Pronto para agendar","agendar","Agendar a publicação","voce",1,1],
+  ["agendado","Agendado","agendado","Conferir se publicou","voce",0,0],
+  ["publicado","Publicado","publicado",null,"ninguem",null,null]
+].map(([estado, rotulo, curto, tarefa, quem, dias_post, dias_blog], ordem) => ({ estado, ordem, rotulo, curto, tarefa, quem, dias_post, dias_blog }));
+let C_ESTADOS, C_TAREFA, C_QUEM, C_CURTO;
+function cUsarEtapas(rows){
+  if(rows && rows.length) C_ETAPAS = rows.slice().sort((a, b) => a.ordem - b.ordem);
+  C_ESTADOS = C_ETAPAS.map(e => [e.estado, e.rotulo]);
+  C_TAREFA = {}; C_QUEM = {}; C_CURTO = {};
+  C_ETAPAS.forEach(e => { if(e.tarefa) C_TAREFA[e.estado] = e.tarefa; C_QUEM[e.estado] = e.quem; C_CURTO[e.estado] = e.curto; });
+}
+cUsarEtapas();
+const cPrazoDe = (p, estado) => { const e = C_ETAPAS.find(x => x.estado === estado), t = e ? (p.formato === "blog" ? e.dias_blog : e.dias_post) : null;
+  return !p.dia || t == null ? null : dkey(addDays(fromKey(p.dia), -t)); };
+const cComClaude = p => C_QUEM[p.estado] === "claude";
+const cRevisao = p => ["revisao_texto","revisao_design"].includes(p.estado);
+/* trechos entre colchetes que o Claude deixa para a direção completar */
+const cLacunas = t => (String(t || "").match(/\[[^\]\n]{1,80}\]/g) || []);
 const cPrazo = p => cPrazoDe(p, p.estado);
 const C_TIPOS_EMAIL = { conta: "Conta", fornecedor: "Fornecedor", aluno: "Aluno", interessado: "Interessado", loja: "Loja", parceria: "Parceria", sistema: "Sistema", outro: "Outro" };
 const C_CONTAS = [["atelier","Atelier"],["loja","Loja"],["blog","Blog"]];
@@ -32,12 +54,14 @@ const cPronta = p => ["agendar","agendado","publicado"].includes(p.estado);
 async function loadCentral(){
   if(!S.direcao) return;
   const hoje = new Date(), desde = dkey(addDays(hoje, -45)), mesPassado = dkey(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1));
-  const [pc, ct, fo, em] = await Promise.all([
+  const [pc, ct, fo, em, et] = await Promise.all([
     sb.from("cont_pecas").select("*").or(`dia.is.null,dia.gte.${desde}`).order("dia", { ascending: true, nullsFirst: false }).order("hora", { ascending: true, nullsFirst: true }),
     sb.from("fin_contas").select("*").or(`pago_em.is.null,pago_em.gte.${mesPassado}`).order("vencimento", { ascending: true }),
     sb.from("loja_fornecedores").select("*").order("nome", { ascending: true }),
-    sb.from("central_emails").select("*").or(`estado.in.(aberto,enviar,erro),criado_em.gte.${dkey(addDays(hoje, -21))}`).order("recebido_em", { ascending: false, nullsFirst: false })
+    sb.from("central_emails").select("*").or(`estado.in.(aberto,enviar,erro),criado_em.gte.${dkey(addDays(hoje, -21))}`).order("recebido_em", { ascending: false, nullsFirst: false }),
+    sb.from("cont_etapas").select("*").order("ordem", { ascending: true })
   ]);
+  if(!et.error) cUsarEtapas(et.data);
   C.erro = !!(pc.error || ct.error || fo.error);
   C.pecas = pc.data || []; C.contas = ct.data || []; C.forn = fo.data || []; C.emails = em.data || [];
   C.pronto = true;
@@ -61,29 +85,50 @@ function cEmBreve(itens){
     `<div class="li c-breve"><span class="ind n"></span><span class="al-t"><span>${t}</span><span class="sub">${d}</span></span></div>`).join("")}</div></section>`;
 }
 
+/* Tudo o que depende da direção, em grupos fixos. A mesma conta alimenta o Hoje da equipe. */
+function cParaVoce(){
+  const h = cHoje(), tres = dkey(addDays(new Date(), 3));
+  const quando = z => !z ? "" : z < h ? `era para ${dm(fromKey(z))}` : z === h ? "até hoje" : `até ${cDia(z).toLowerCase()}`;
+  const g = { emails: [], conteudo: [], pautas: [], contas: [], claude: [] };
+  C.emails.filter(e => e.decisao === "pendente" || (e.decisao === "eu" && e.estado === "aberto") || e.estado === "erro")
+    .sort((a, b) => (a.prioridade === "alta" ? 0 : 1) - (b.prioridade === "alta" ? 0 : 1))
+    .forEach(e => g.emails.push({ a: `data-cemail="${e.id}"`, t: e.assunto || "(sem assunto)", w: e.prioridade === "alta" || e.estado === "erro" ? "warn" : "",
+      d: `${e.estado === "erro" ? "Não enviou, conferir" : e.decisao === "eu" ? "Você ficou de responder" : "Decidir quem responde"}, ${e.remetente_nome || e.remetente || ""}` }));
+  C.pecas.filter(p => C_QUEM[p.estado] === "voce" && p.estado !== "pauta" && (cRevisao(p) || (cPrazo(p) && cPrazo(p) <= h)))
+    .sort((a, b) => String(cPrazo(a)).localeCompare(String(cPrazo(b))))
+    .forEach(p => g.conteudo.push({ a: `data-cpeca="${p.id}"`, t: p.titulo, w: cPrazo(p) && cPrazo(p) < h ? "warn" : "",
+      d: `${C_TAREFA[p.estado]} ${quando(cPrazo(p))}, ${C_CONTA_CURTA[p.conta]}` }));
+  const pautas = C.pecas.filter(p => p.estado === "pauta");
+  if(pautas.length){ const atras = pautas.filter(p => cPrazo(p) && cPrazo(p) < h).length, prox = pautas.map(p => p.dia).filter(Boolean).sort()[0];
+    g.pautas.push({ a: `data-cir="conteudo" data-cirv="producao"`, t: `Aprovar ${plural(pautas.length, "pauta", "pautas")}`, w: atras ? "warn" : "",
+      d: atras ? `${atras} já passou do prazo de aprovação` : prox ? `a primeira publica ${cDia(prox).toLowerCase()}` : "sem data" }); }
+  C.contas.filter(c => c.tipo === "pagar" && !c.pago_em && c.vencimento <= tres).sort((a, b) => a.vencimento.localeCompare(b.vencimento))
+    .forEach(c => g.contas.push({ a: `data-cconta="${c.id}"`, t: c.descricao, w: c.vencimento < h ? "warn" : "", v: cBrl(c.valor),
+      d: c.vencimento < h ? `venceu ${dm(fromKey(c.vencimento))}` : c.vencimento === h ? "vence hoje" : `vence ${cDia(c.vencimento).toLowerCase()}` }));
+  C.pecas.filter(p => cComClaude(p) && cPrazo(p) && cPrazo(p) < h)
+    .forEach(p => g.claude.push({ a: `data-cpeca="${p.id}"`, t: p.titulo, w: "", d: `${C_TAREFA[p.estado]}, ${quando(cPrazo(p))}` }));
+  return g;
+}
+
 function cResumo(){
   const h = cHoje(), sem = dkey(addDays(new Date(), 7));
   const abertas = C.contas.filter(c => c.tipo === "pagar" && !c.pago_em);
   const atraso = abertas.filter(c => c.vencimento < h), semana = abertas.filter(c => c.vencimento >= h && c.vencimento <= sem);
   const pecasSem = C.pecas.filter(p => p.dia && p.dia >= h && p.dia <= sem);
   const prontas = pecasSem.filter(cPronta).length;
-  const etapas = C.pecas.filter(p => { const z = cPrazo(p); return z && z <= h; }).sort((a, b) => cPrazo(a).localeCompare(cPrazo(b)));
-  const emails = C.emails.filter(e => e.decisao === "pendente");
-  const linhas = [
-    ...emails.map(e => [`data-cemail="${e.id}"`, e.assunto || "(sem assunto)", `E-mail de ${e.remetente_nome || e.remetente || "remetente"}, decidir quem responde`, e.prioridade === "alta" ? "warn" : ""]),
-    ...atraso.map(c => [`data-cconta="${c.id}"`, c.descricao, `venceu ${dm(fromKey(c.vencimento))}, ${cBrl(c.valor)}`, "warn"]),
-    ...etapas.map(p => [`data-cpeca="${p.id}"`, `${C_TAREFA[p.estado]}: ${p.titulo}`, `${cPrazo(p) < h ? `era para ${dm(fromKey(cPrazo(p)))}` : "para hoje"}, publica ${dm(fromKey(p.dia))}`, cPrazo(p) < h ? "warn" : ""]),
-    ...abertas.filter(c => c.vencimento === h).map(c => [`data-cconta="${c.id}"`, c.descricao, `vence hoje, ${cBrl(c.valor)}`, ""])
-  ];
+  const g = cParaVoce();
+  const bloco = (titulo, l) => l.length ? `${titulo ? `<p class="c-grupo">${titulo}<span class="tnum">${l.length}</span></p>` : ""}<div class="list c-list">${l.map(x =>
+    `<button class="li al" ${x.a}><span class="ind ${x.w}"></span><span class="al-t"><span>${esc(x.t)}</span><span class="sub">${esc(x.d)}</span></span>${x.v ? `<span class="end tnum">${esc(x.v)}</span>` : ""}</button>`).join("")}</div>` : "";
+  const vazio = !g.emails.length && !g.conteudo.length && !g.pautas.length && !g.contas.length;
   return `<div class="tiles">
       <button class="tile" data-csec="financeiro"><div class="tl"><h2 class="tt">A pagar em 7 dias</h2>${atraso.length ? `<span class="chip warn">${plural(atraso.length, "atrasada", "atrasadas")}</span>` : ""}</div>
         <div class="tv tnum c-tv">${cBrl(cSoma(semana))}</div><p class="ts">${semana.length ? plural(semana.length, "conta", "contas") : "Nenhuma conta"}</p></button>
       <button class="tile" data-csec="conteudo"><div class="tl"><h2 class="tt">Publicações na semana</h2></div>
         <div class="tv tnum">${prontas}<small> de ${pecasSem.length}</small></div><p class="ts">prontas</p></button>
     </div>
-    <section class="c-bloco"><p class="label">Hoje</p>${linhas.length ? `<div class="list c-list">${linhas.map(([a, t, d, w]) =>
-      `<button class="li al" ${a}><span class="ind ${w}"></span><span class="al-t"><span>${esc(t)}</span><span class="sub">${esc(d)}</span></span></button>`).join("")}</div>`
-      : `<p class="sub c-ok">Nada pendente na Central hoje.</p>`}</section>
+    <section class="c-bloco">${vazio ? `<p class="sub c-ok">Nada esperando você na Central.</p>` : ""}
+      ${bloco("E-mails", g.emails)}${bloco("Conteúdo para revisar", g.conteudo)}${bloco("Pautas", g.pautas)}${bloco("Contas até " + dm(addDays(new Date(), 3)), g.contas)}
+      ${g.claude.length ? `<p class="c-grupo">Com o Claude, em atraso<span class="tnum">${g.claude.length}</span></p><p class="sub c-nota">Etapas que o Claude ainda não entregou. Não dependem de você.</p>${bloco("", g.claude)}` : ""}</section>
     ${cEmBreve([["Mensalidades do atelier","Entram sozinhas quando o Asaas for ligado"],["Pedidos da loja","Vindos da Shopify, com o que separar e as retiradas no atelier"],["Estoque e compras","Saldo do Bling, itens perto do mínimo e pedidos de compra"],["Extrato do Inter","Entradas e saídas conferidas com o previsto"]])}`;
 }
 
@@ -93,8 +138,10 @@ function cCartaoEmail(e){
   const det = [C_TIPOS_EMAIL[e.tipo], e.remetente_nome || e.remetente, q ? `${dm(q)} às ${hh(q)}` : ""].filter(Boolean).join(", ");
   const pill = e.estado === "enviar" ? `<span class="pill wait">enviando</span>` : e.estado === "enviado" ? `<span class="pill mute">respondido</span>` : e.estado === "erro" ? `<span class="pill warn">não enviou</span>`
     : e.decisao === "arquivado" ? `<span class="pill mute">arquivado</span>` : e.decisao === "eu" && e.estado === "feito" ? `<span class="pill mute">resolvido</span>` : e.prioridade === "alta" ? `<span class="pill ok">importante</span>` : "";
+  const lac = e.decisao === "pendente" ? cLacunas(e.resposta || e.sugestao).length : 0;
   return `<button class="card c-card" data-cemail="${e.id}"><div class="row"><span class="title">${esc(e.assunto || "(sem assunto)")}</span>${pill}</div>
-    <p class="sub">${esc(det)}</p>${e.resumo ? `<p class="sub c-resumo">${esc(e.resumo)}</p>` : ""}</button>`;
+    <p class="sub">${esc(det)}</p>${e.resumo ? `<p class="sub c-resumo">${esc(e.resumo)}</p>` : ""}
+    ${e.decisao === "pendente" ? `<p class="sub c-sug">${!(e.resposta || e.sugestao) ? "Sem resposta sugerida" : lac ? `Resposta sugerida, ${plural(lac, "trecho", "trechos")} para você completar` : "Resposta sugerida pronta"}</p>` : ""}</button>`;
 }
 function cEmails(){
   const pend = C.emails.filter(e => e.decisao === "pendente").sort((a, b) => (a.prioridade === "alta" ? 0 : 1) - (b.prioridade === "alta" ? 0 : 1));
@@ -119,17 +166,24 @@ function sheetEmail(id){
     ${e.estado === "erro" && e.erro ? `<p class="err">${esc(e.erro)}</p>` : ""}
     <form class="form" id="ceForm">
       ${e.estado === "enviado" ? `<label class="field"><span>Resposta enviada</span><textarea rows="6" readonly>${esc(e.resposta || "")}</textarea></label>`
-        : aberto ? `<label class="field"><span>Resposta (o Claude envia este texto, do jeito que estiver aqui)</span><textarea id="ce_resp" rows="8" placeholder="Escreva ou ajuste a resposta">${esc(e.resposta || e.sugestao || "")}</textarea></label>` : ""}
+        : e.estado === "enviar" ? `<label class="field"><span>Resposta aprovada, sai na próxima leitura do e-mail</span><textarea rows="6" readonly>${esc(e.resposta || "")}</textarea></label>`
+        : aberto ? `<label class="field"><span>Resposta que o Claude envia, exatamente como estiver aqui</span><textarea id="ce_resp" class="c-resp" rows="10" placeholder="Escreva ou ajuste a resposta">${esc(e.resposta || e.sugestao || "")}</textarea></label>
+          <p class="sub c-lac" id="ceLac" hidden></p>` : ""}
       <p class="err" id="ceErr" hidden></p>
       <div class="btns">
-        ${aberto ? `<button class="btn pri" type="submit">Aprovar e o Claude envia</button>` : ""}
-        ${e.decisao === "pendente" ? `<button class="btn ghost" type="button" id="ceEu">Eu respondo</button>` : ""}
+        ${aberto ? `<button class="btn pri" type="submit">Aprovar, o Claude envia</button>` : ""}
+        ${e.decisao === "pendente" ? `<button class="btn ghost" type="button" id="ceEu">Eu mesmo respondo</button>` : ""}
         ${e.decisao === "eu" && e.estado === "aberto" ? `<button class="btn ghost" type="button" id="ceFeito">Já respondi</button>` : ""}
         ${e.estado === "enviar" ? `<button class="btn ghost" type="button" id="ceCancela">Não enviar</button>` : ""}
         ${e.link ? `<a class="btn ghost c-link" href="${esc(e.link)}" target="_blank" rel="noopener">Abrir no Gmail</a>` : ""}
         ${aberto ? `<button class="btn ghost dperigo" type="button" id="ceArq">Arquivar sem responder</button>` : ""}
         <button class="btn ghost" type="button" data-close>Fechar</button></div>
     </form>`);
+  const resp = $("#ce_resp");
+  if(resp){ const marca = () => { const l = cLacunas(resp.value), x = $("#ceLac");
+      x.hidden = !l.length; x.textContent = l.length ? `Falta completar: ${[...new Set(l)].join(", ")}` : "";
+      resp.style.height = "auto"; resp.style.height = (resp.scrollHeight + 4) + "px"; };
+    resp.oninput = marca; requestAnimationFrame(marca); }
   const salvar = async (row, btn, msg) => {
     busy(btn, true);
     const { error } = await sb.from("central_emails").update({ ...row, decidido_em: new Date().toISOString() }).eq("id", id);
@@ -139,6 +193,7 @@ function sheetEmail(id){
   const f = $("#ceForm");
   f.onsubmit = ev => { ev.preventDefault(); const t = ($("#ce_resp") || {}).value || "";
     if(!t.trim()){ const x = $("#ceErr"); x.textContent = "Escreva a resposta antes de aprovar."; x.hidden = false; return; }
+    if(cLacunas(t).length){ const x = $("#ceErr"); x.textContent = "Complete ou apague os trechos entre colchetes antes de aprovar. O Claude envia o texto exatamente como está."; x.hidden = false; return; }
     salvar({ decisao: "claude", estado: "enviar", resposta: t.trim(), erro: null }, f.querySelector("button[type=submit]"), "Aprovado. O Claude envia na próxima leitura"); };
   const on = (sel, fn) => { const b = $(sel); if(b) b.onclick = () => fn(b); };
   on("#ceEu", b => salvar({ decisao: "eu", estado: "aberto" }, b, "Fica com você"));
@@ -149,51 +204,43 @@ function sheetEmail(id){
 }
 
 /* ---------- Conteúdo ---------- */
-function cCartaoPeca(p, comTarefa){
+/* cartão de uma publicação: o título é sempre o da publicação; embaixo, o que falta e até quando */
+function cCartaoPeca(p){
   const h = cHoje(), z = cPrazo(p), atras = z && z < h;
-  const det = comTarefa ? [C_CONTA_CURTA[p.conta], cFormato(p.formato), `publica ${cDia(p.dia).toLowerCase()}`].join(", ")
-    : [C_CONTA_CURTA[p.conta], cFormato(p.formato), p.hora ? hm(p.hora) : ""].filter(Boolean).join(", ");
-  const cls = p.estado === "publicado" ? "mute" : cPronta(p) ? "ok" : atras ? "warn" : ["revisao_texto","revisao_design"].includes(p.estado) ? "wait" : "";
-  const titulo = comTarefa ? `${C_TAREFA[p.estado]}` : p.titulo;
-  return `<button class="card c-card" data-cpeca="${p.id}"><div class="row"><span class="title">${esc(titulo)}</span><span class="pill ${cls}">${comTarefa ? (atras ? "atrasada" : cEstado(p.estado)) : cEstado(p.estado)}</span></div>
-    ${comTarefa ? `<p class="c-peca-t">${esc(p.titulo)}</p>` : ""}<p class="sub">${esc(det)}</p></button>`;
+  const cls = p.estado === "publicado" ? "mute" : atras ? "warn" : cPronta(p) ? "ok" : cRevisao(p) ? "wait" : "";
+  const pill = p.estado === "publicado" ? "publicado" : atras ? "atrasada" : cComClaude(p) ? "com o Claude" : cRevisao(p) ? "para você" : C_CURTO[p.estado] || cEstado(p.estado);
+  const tarefa = C_TAREFA[p.estado] && z ? `${C_TAREFA[p.estado]} ${z < h ? `era para ${dm(fromKey(z))}` : z === h ? "até hoje" : `até ${dm(fromKey(z))}`}` : "";
+  const det = [C_CONTA_CURTA[p.conta], cFormato(p.formato), p.dia ? `publica ${cDia(p.dia).toLowerCase()}` : "sem data"].join(", ");
+  return `<button class="card c-card" data-cpeca="${p.id}"><div class="row"><span class="title">${esc(p.titulo)}</span><span class="pill ${cls}">${esc(pill)}</span></div>
+    ${tarefa ? `<p class="c-peca-t">${esc(tarefa)}</p>` : ""}<p class="sub">${esc(det)}</p></button>`;
 }
 function cConteudo(){
-  const h = cHoje(), lim = dkey(addDays(new Date(), 14));
+  if(!["producao","calendario"].includes(C.cv)) C.cv = "producao";
   const base = C.pecas.filter(p => C.conta === "todas" || p.conta === C.conta);
   const conta = k => C.pecas.filter(p => (k === "todas" || p.conta === k) && p.estado !== "publicado").length;
-  const grupo = (titulo, lista, tarefa) => lista.length ? `<p class="c-grupo">${titulo}</p><div class="cards c-cards">${lista.map(p => cCartaoPeca(p, tarefa)).join("")}</div>` : "";
+  const topo = `<div class="seg c-vis" role="group" aria-label="Ver">${[["producao","Produção"],["calendario","Calendário"]].map(([k, l]) => `<button data-ccv="${k}" aria-pressed="${C.cv === k}">${l}</button>`).join("")}</div>
+    <div class="chips">${[["todas","Todas"],["atelier","Atelier"],["loja","Loja"],["blog","Blog"]].map(([k, l]) =>
+      `<button data-cconta-f="${k}" aria-pressed="${C.conta === k}">${l} <span class="tnum">${conta(k)}</span></button>`).join("")}</div>`;
+  return topo + (C.cv === "calendario" ? cCalendario(base) : cProducao(base));
+}
+/* Produção: o que está com você primeiro, depois as pautas, depois o que está com o Claude */
+function cProducao(base){
+  const h = cHoje(), porPrazo = (a, b) => String(cPrazo(a) || "9").localeCompare(String(cPrazo(b) || "9")) || String(a.dia || "9").localeCompare(String(b.dia || "9"));
+  const grupo = (titulo, lista, nota) => lista.length ? `<p class="c-grupo">${titulo}<span class="tnum">${lista.length}</span></p>${nota ? `<p class="sub c-nota">${nota}</p>` : ""}<div class="cards c-cards">${lista.map(cCartaoPeca).join("")}</div>` : "";
+  const revisar = base.filter(cRevisao).sort(porPrazo);
+  const agendar = base.filter(p => ["agendar","agendado"].includes(p.estado)).sort(porPrazo);
+  const claude = base.filter(cComClaude).sort(porPrazo);
+  const ideias = base.filter(p => p.estado === "ideia");
+  const publicadas = base.filter(p => p.estado === "publicado").sort((a, b) => String(b.dia).localeCompare(String(a.dia))).slice(0, 6);
   const nPautas = base.filter(p => p.estado === "pauta").length;
-  const topo = `<div class="chips">${[["todas","Todas"],["atelier","Atelier"],["loja","Loja"],["blog","Blog"]].map(([k, l]) =>
-      `<button data-cconta-f="${k}" aria-pressed="${C.conta === k}">${l} <span class="tnum">${conta(k)}</span></button>`).join("")}</div>
-    <div class="seg c-vis" role="group" aria-label="Ver">${[["calendario","Calendário"],["pautas",`Pautas${nPautas ? ` ${nPautas}` : ""}`],["etapas","Etapas"]].map(([k, l]) => `<button data-ccv="${k}" aria-pressed="${C.cv === k}">${l}</button>`).join("")}</div>`;
-  if(C.cv === "pautas") return topo + cPautas(base);
-  if(C.cv === "calendario") return topo + cCalendario(base);
-  if(C.cv === "etapas"){
-    const ativas = base.filter(p => cPrazo(p) && p.estado !== "pauta").sort((a, b) => cPrazo(a).localeCompare(cPrazo(b)) || a.dia.localeCompare(b.dia));
-    const sem = dkey(addDays(new Date(), 7));
-    const atras = ativas.filter(p => cPrazo(p) < h), hoje = ativas.filter(p => cPrazo(p) === h);
-    const semana = ativas.filter(p => cPrazo(p) > h && cPrazo(p) <= sem), depois = ativas.filter(p => cPrazo(p) > sem);
-    const porDia = {}; semana.forEach(p => (porDia[cPrazo(p)] ||= []).push(p));
-    return topo + `<div class="daybar"><p class="sub">${ativas.length ? plural(ativas.length, "etapa em andamento", "etapas em andamento") : "Nenhuma etapa em andamento"}</p><button class="addbtn" data-cpeca="novo">Nova</button></div>
-      ${grupo("Atrasadas", atras, true)}${grupo("Para hoje", hoje, true)}
-      ${Object.keys(porDia).sort().map(k => grupo(`Até ${cDia(k).toLowerCase()}`, porDia[k], true)).join("")}
-      ${grupo("Mais adiante", depois, true)}
-      ${!ativas.length ? `<p class="empty">Quando uma publicação tem data, cada etapa ganha um prazo e aparece aqui.</p>` : ""}`;
-  }
-  const atras = base.filter(p => p.dia && p.dia < h && p.estado !== "publicado");
-  const prox = base.filter(p => p.dia && p.dia >= h && p.dia <= lim);
-  const depois = base.filter(p => p.dia && p.dia > lim);
-  const ideias = base.filter(p => !p.dia);
-  const publicadas = base.filter(p => p.dia && p.dia < h && p.estado === "publicado").reverse().slice(0, 10);
-  const dias = {}; prox.forEach(p => (dias[p.dia] ||= []).push(p));
-  return topo + `<div class="daybar"><p class="sub">${prox.length ? plural(prox.length, "publicação nas próximas 2 semanas", "publicações nas próximas 2 semanas") : "Nada marcado para as próximas 2 semanas"}</p><button class="addbtn" data-cpeca="novo">Nova</button></div>
-    ${grupo("Atrasadas", atras)}
-    ${Object.keys(dias).sort().map(k => grupo(cDia(k), dias[k])).join("")}
-    ${grupo("Mais adiante", depois)}
+  return `<div class="daybar"><p class="sub">${plural(base.filter(p => !["publicado","ideia"].includes(p.estado)).length, "publicação em andamento", "publicações em andamento")}</p><button class="addbtn" data-cpeca="novo">Nova</button></div>
+    ${grupo("Para você revisar", revisar)}
+    ${grupo("Para agendar", agendar, "Prontas. Falta agendar no Instagram ou no blog e, depois, conferir se saiu.")}
+    ${nPautas ? cPautas(base) : ""}
+    ${grupo("Com o Claude", claude, "O Claude escreve ou faz o design e te avisa quando estiver pronto para revisar.")}
     ${grupo("Ideias sem data", ideias)}
-    ${grupo("Publicadas", publicadas)}
-    ${!base.length ? `<p class="empty">Nenhuma publicação ainda. Toque em Nova para começar o calendário.</p>` : ""}`;
+    ${grupo("Publicadas recentemente", publicadas)}
+    ${!base.length ? `<p class="empty">Nenhuma publicação ainda. Toque em Nova para começar.</p>` : ""}`;
 }
 /* linha de agenda da publicação: cada etapa com o seu prazo */
 function cLinhaEtapas(p){
@@ -262,41 +309,52 @@ function cCalendario(base){
   const y = C.mesC.getFullYear(), m = C.mesC.getMonth(), off = (new Date(y, m, 1).getDay() + 6) % 7, dias = new Date(y, m + 1, 0).getDate(), h = cHoje();
   const doMes = base.filter(p => p.dia && p.dia.startsWith(`${y}-${pad(m + 1)}`)).sort((a, b) => a.dia.localeCompare(b.dia) || a.conta.localeCompare(b.conta));
   const porDia = {}; doMes.forEach(p => (porDia[p.dia] ||= []).push(p));
-  let cells = ""; for(let i = 0; i < off; i++) cells += "<div></div>";
+  let cells = ""; for(let i = 0; i < off; i++) cells += `<div class="c-cel c-vazio"></div>`;
   for(let d = 1; d <= dias; d++){
     const k = `${y}-${pad(m + 1)}-${pad(d)}`, l = porDia[k] || [];
-    cells += `<div class="c-cel${k === h ? " hoje" : ""}${k < h ? " past" : ""}"><span class="n tnum">${d}</span><span class="c-marcas">${l.map(p => `<span class="c-mk ${cFase(p)}" title="${esc(p.titulo)}">${C_LETRA[p.conta]}</span>`).join("")}</span></div>`;
+    cells += `<button class="c-cel${k === h ? " hoje" : ""}${k < h ? " past" : ""}" data-cdia="${k}" aria-label="${d} de ${MES[m]}${l.length ? `, ${plural(l.length, "publicação", "publicações")}` : ", nova publicação"}"><span class="n tnum">${d}</span><span class="c-marcas">${l.map(p => `<span class="c-mk ${cFase(p)}">${C_LETRA[p.conta]}</span>`).join("")}</span></button>`;
   }
   const semanas = {}; doMes.forEach(p => { const d = fromKey(p.dia), seg = dkey(addDays(d, -((d.getDay() + 6) % 7))); (semanas[seg] ||= []).push(p); });
   const nPautas = doMes.filter(p => p.estado === "pauta").length;
+  const vistos = {};
   const linhas = Object.keys(semanas).sort().map(s => `<p class="c-sem">Semana de ${dm(fromKey(s))}</p>${semanas[s].map(p => {
-    const d = fromKey(p.dia);
-    return `<button class="c-row" data-cpeca="${p.id}"><span class="c-row-d tnum">${cap1(WDS[d.getDay()])} ${pad(d.getDate())}</span><span class="c-mk ${cFase(p)}">${C_LETRA[p.conta]}</span><span class="c-row-t">${esc(p.titulo)}</span><span class="c-row-e">${esc(cEstadoCurto(p))}</span></button>`; }).join("")}`).join("");
+    const d = fromKey(p.dia), ancora = vistos[p.dia] ? "" : ` id="cdia-${p.dia}"`; vistos[p.dia] = 1;
+    return `<button class="c-row"${ancora} data-cpeca="${p.id}"><span class="c-row-d tnum">${cap1(WDS[d.getDay()])} ${pad(d.getDate())}</span><span class="c-mk ${cFase(p)}">${C_LETRA[p.conta]}</span><span class="c-row-t">${esc(p.titulo)}</span><span class="c-row-e">${esc(C_CURTO[p.estado] || p.estado)}</span></button>`; }).join("")}`).join("");
   return `<div class="monthbar"><button class="iconbtn" id="cMesAnt" aria-label="Mês anterior">${CHEV_L}</button><div class="title">${cap1(MES[m])} ${y}</div><button class="iconbtn" id="cMesProx" aria-label="Próximo mês">${CHEV_R}</button></div>
     <div class="wk"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
     <div class="grid c-grid">${cells}</div>
     <div class="c-leg"><span><span class="c-mk pauta">A</span>Atelier</span><span><span class="c-mk pauta">L</span>Loja</span><span><span class="c-mk pauta">B</span>Blog</span></div>
     <div class="c-leg"><span><span class="c-mk pauta"></span>pauta</span><span><span class="c-mk anda"></span>em produção</span><span><span class="c-mk pronto"></span>pronto</span><span><span class="c-mk pub"></span>publicado</span></div>
+    <p class="sub c-nota">Toque num dia para ver as publicações dele, ou num dia vazio para criar uma.</p>
     <div class="daybar"><p class="sub">${doMes.length ? plural(doMes.length, "publicação no mês", "publicações no mês") : "Nada neste mês"}</p>${nPautas ? `<button class="addbtn" id="cAprovarMes">Aprovar ${plural(nPautas, "pauta", "pautas")}</button>` : `<button class="addbtn" data-cpeca="novo">Nova</button>`}</div>
     <div class="c-lista">${linhas}</div>`;
 }
-const cEstadoCurto = p => ({ pauta: "pauta", texto: "escrevendo", revisao_texto: "revisar texto", design: "design", revisao_design: "revisar design", agendar: "agendar", agendado: "agendado", publicado: "publicado", ideia: "ideia" })[p.estado] || p.estado;
 
 /* ---------- Pautas para aprovar ---------- */
 function cPautas(base){
-  const pautas = base.filter(p => p.estado === "pauta").sort((a, b) => String(a.dia || "9").localeCompare(String(b.dia || "9")));
-  if(!pautas.length) return `<p class="empty">Nenhuma pauta esperando aprovação.</p>`;
+  const todas = base.filter(p => p.estado === "pauta").sort((a, b) => String(a.dia || "9").localeCompare(String(b.dia || "9")));
+  if(!todas.length) return "";
+  const LIM = 6, pautas = C.pautasTodas ? todas : todas.slice(0, LIM);
   const meses = {}; pautas.forEach(p => { const k = p.dia ? p.dia.slice(0, 7) : "sem"; (meses[k] ||= []).push(p); });
-  return `<div class="daybar"><p class="sub">${plural(pautas.length, "pauta para aprovar", "pautas para aprovar")}</p><button class="addbtn" id="cAprovarTodas">Aprovar todas</button></div>
-    ${Object.keys(meses).sort().map(k => `<p class="c-grupo">${k === "sem" ? "Sem data" : cap1(MES[+k.slice(5, 7) - 1]) + " de " + k.slice(0, 4)}<span class="tnum">${meses[k].length}</span></p>
+  return `<div class="c-grupo c-grupo-b"><span>Pautas para aprovar <span class="tnum">${todas.length}</span></span><button class="addbtn" id="cAprovarTodas">Aprovar ${todas.length > 1 ? `as ${todas.length}` : "a pauta"}</button></div>
+    <p class="sub c-nota">Ao aprovar, o Claude escreve o texto e te avisa para revisar.</p>
+    ${Object.keys(meses).sort().map(k => `<p class="c-sem">${k === "sem" ? "Sem data" : cap1(MES[+k.slice(5, 7) - 1]) + " de " + k.slice(0, 4)}</p>
       <div class="cards c-cards">${meses[k].map(p => `<div class="card c-card c-pauta">
         <div class="row"><span class="title">${esc(p.titulo)}</span></div>
         <p class="sub">${esc([p.dia ? cDia(p.dia) : "", C_CONTA_CURTA[p.conta], cFormato(p.formato)].filter(Boolean).join(", "))}</p>
         ${p.pauta ? `<p class="c-pauta-t">${esc(p.pauta)}</p>` : ""}
         <div class="c-pauta-b"><button class="btn pri" data-capr="${p.id}">Aprovar</button><button class="btn ghost" data-cdet="${p.id}">Ajustar</button><button class="btn ghost" data-ctira="${p.id}">Tirar</button></div>
-      </div>`).join("")}</div>`).join("")}`;
+      </div>`).join("")}</div>`).join("")}
+    ${todas.length > LIM ? `<button class="textbtn c-mais" id="cPautasMais">${C.pautasTodas ? "Mostrar menos" : `Ver as ${todas.length} pautas`}</button>` : ""}`;
 }
-async function cAprovar(ids, btn){
+async function cAprovar(ids, btn, confirmado){
+  if(ids.length > 3 && !confirmado){
+    sheet(`<p class="label">Aprovar pautas</p><h3 class="h5">Aprovar ${ids.length} pautas de uma vez?</h3>
+      <p class="sub">O Claude começa a escrever todos os textos e te avisa conforme ficarem prontos para revisar.</p>
+      <div class="btns"><button class="btn pri" id="cxApr">Aprovar ${ids.length}</button><button class="btn ghost" data-close>Voltar</button></div>`);
+    $("#cxApr").onclick = () => { closeSheet(); cAprovar(ids, btn, true); };
+    return;
+  }
   busy(btn, true);
   const { error } = await sb.from("cont_pecas").update({ estado: "texto" }).in("id", ids).eq("estado", "pauta");
   if(error){ busy(btn, false); return toast(errMsg(error)); }
@@ -353,7 +411,7 @@ function bindLeitura(){
   const on = (id, fn) => { const el = document.getElementById(id); if(el) el.onclick = () => fn(el); };
   const muda = async (row, el, msg) => { busy(el, true); const { error } = await sb.from("cont_pecas").update(row).eq("id", p.id);
     if(error){ busy(el, false); return toast(errMsg(error)); } toast(msg); loadCentral(); };
-  on("cLerVoltar", () => { C.ler = null; C.editar = false; render(); window.scrollTo(0, 0); });
+  on("cLerVoltar", () => { C.ler = null; C.editar = false; if(C.voltar) C.sec = C.voltar; C.voltar = null; render(); window.scrollTo(0, 0); });
   on("cAprTexto", el => muda({ estado: "design", ajuste: null }, el, "Texto aprovado. Segue para o design"));
   on("cAprDesign", el => muda({ estado: "agendar", ajuste: null }, el, "Design aprovado. Pronto para agendar"));
   on("cAjuste", () => sheetAjuste(p));
@@ -513,17 +571,13 @@ function cConfirmarApagar(tabela, id, oque, msg){
 /* resumo da Central no Hoje da equipe (só direção) */
 function blocoCentralHoje(){
   if(!S.direcao || !C.pronto || C.erro) return "";
-  const h = cHoje(), tres = dkey(addDays(new Date(), 3));
-  const abertas = C.contas.filter(c => c.tipo === "pagar" && !c.pago_em);
-  const atraso = abertas.filter(c => c.vencimento < h), logo = abertas.filter(c => c.vencimento >= h && c.vencimento <= tres);
-  const etHoje = C.pecas.filter(p => cPrazo(p) === h), etAtras = C.pecas.filter(p => { const z = cPrazo(p); return z && z < h; });
-  const emails = C.emails.filter(e => e.decisao === "pendente");
-  const l = [];
-  if(emails.length) l.push(["emails", emails.some(e => e.prioridade === "alta") ? "warn" : "", plural(emails.length, "e-mail para decidir", "e-mails para decidir"), ""]);
-  if(atraso.length) l.push(["financeiro", "warn", plural(atraso.length, "conta em atraso", "contas em atraso"), cBrl(cSoma(atraso))]);
-  if(logo.length) l.push(["financeiro", "", `A pagar até ${dm(fromKey(tres))}`, cBrl(cSoma(logo))]);
-  if(etAtras.length) l.push(["conteudo", "warn", plural(etAtras.length, "etapa de conteúdo atrasada", "etapas de conteúdo atrasadas"), ""]);
-  if(etHoje.length) l.push(["conteudo", "", plural(etHoje.length, "etapa de conteúdo para hoje", "etapas de conteúdo para hoje"), ""]);
+  const g = cParaVoce(), l = [], alerta = x => x.some(i => i.w) ? "warn" : "";
+  const pautas = C.pecas.filter(p => p.estado === "pauta").length;
+  if(g.emails.length) l.push(["emails", alerta(g.emails), plural(g.emails.length, "e-mail com você", "e-mails com você"), ""]);
+  if(g.conteudo.length) l.push(["conteudo", alerta(g.conteudo), plural(g.conteudo.length, "conteúdo para revisar", "conteúdos para revisar"), ""]);
+  if(pautas) l.push(["conteudo", alerta(g.pautas), plural(pautas, "pauta para aprovar", "pautas para aprovar"), ""]);
+  if(g.contas.length) l.push(["financeiro", alerta(g.contas), plural(g.contas.length, "conta a pagar em breve", "contas a pagar em breve"),
+    cBrl(cSoma(C.contas.filter(c => g.contas.some(i => i.a === `data-cconta="${c.id}"`))))]);
   if(!l.length) return "";
   return `<section class="alertas"><p class="label">Central</p><div class="list alertas-l">${l.map(([s, w, t, e]) =>
     `<button class="li" data-cir="${s}"><span class="ind ${w}"></span>${esc(t)}<span class="end tnum">${esc(e)}</span></button>`).join("")}</div></section>`;
@@ -532,10 +586,15 @@ function blocoCentralHoje(){
 function bindCentral(){
   const v = document.getElementById("view"); if(!v) return;
   v.querySelectorAll("[data-csec]").forEach(b => b.onclick = () => { C.sec = b.dataset.csec; C.ler = null; window.scrollTo(0, 0); render(); });
-  v.querySelectorAll("[data-cir]").forEach(b => b.onclick = () => { C.sec = b.dataset.cir; go("central"); });
+  v.querySelectorAll("[data-cir]").forEach(b => b.onclick = () => { C.sec = b.dataset.cir; C.ler = null; if(C.sec === "conteudo") C.cv = b.dataset.cirv || "producao";
+    if(S.tab !== "central") go("central"); else { render(); window.scrollTo(0, 0); } });
+  v.querySelectorAll("[data-cdia]").forEach(b => b.onclick = () => { const k = b.dataset.cdia, alvo = document.getElementById(`cdia-${k}`);
+    if(alvo){ alvo.scrollIntoView({ behavior: "smooth", block: "center" }); alvo.classList.add("c-row-luz"); setTimeout(() => alvo.classList.remove("c-row-luz"), 1400); }
+    else sheetPeca("novo", k); });
+  const pm = document.getElementById("cPautasMais"); if(pm) pm.onclick = () => { C.pautasTodas = !C.pautasTodas; render(); };
   v.querySelectorAll("[data-cconta-f]").forEach(b => b.onclick = () => { C.conta = b.dataset.ccontaF; render(); });
   v.querySelectorAll("[data-cfin]").forEach(b => b.onclick = () => { C.fin = b.dataset.cfin; render(); });
-  v.querySelectorAll("[data-cpeca]").forEach(b => b.onclick = () => { if(b.dataset.cpeca === "novo") return sheetPeca("novo"); C.ler = b.dataset.cpeca; C.editar = false; C.sec = "conteudo"; if(S.tab !== "central") go("central"); else render(); window.scrollTo(0, 0); });
+  v.querySelectorAll("[data-cpeca]").forEach(b => b.onclick = () => { if(b.dataset.cpeca === "novo") return sheetPeca("novo"); if(!C.ler) C.voltar = S.tab === "central" ? C.sec : null; C.ler = b.dataset.cpeca; C.editar = false; C.sec = "conteudo"; if(S.tab !== "central") go("central"); else render(); window.scrollTo(0, 0); });
   v.querySelectorAll("[data-capr]").forEach(b => b.onclick = () => cAprovar([b.dataset.capr], b));
   v.querySelectorAll("[data-cdet]").forEach(b => b.onclick = () => sheetPeca(b.dataset.cdet));
   v.querySelectorAll("[data-ctira]").forEach(b => b.onclick = () => cConfirmarApagar("cont_pecas", b.dataset.ctira, "esta pauta", "Pauta retirada"));
